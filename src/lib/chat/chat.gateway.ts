@@ -26,8 +26,8 @@ enum ChatEvents {
   CONVERSATION_LIST = 'private:conversation_list',
   LOAD_CONVERSATIONS = 'private:load_conversations',
   LOAD_SINGLE_CONVERSATION = 'private:load_single_conversation',
-  LOAD_MESSAGES = 'private:load_messages', 
-  MESSAGES = 'private:messages', 
+  LOAD_MESSAGES = 'private:load_messages',
+  MESSAGES = 'private:messages',
   MARK_READ = 'private:mark_read',
   MESSAGE_STATUS = 'private:message_status',
 }
@@ -326,9 +326,10 @@ export class ChatGateway
     }
 
     // Update status
-    const updateRes = await this.chatService.makePrivateMessageReadTrue(
+    const updateRes = await this.chatService.markConversationMessagesAsRead(
       messageId,
       userId,
+      new Date(),
     );
 
     // Fetch message to find conversation participants so we can broadcast status update

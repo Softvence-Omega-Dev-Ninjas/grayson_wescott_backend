@@ -470,21 +470,37 @@ export class ChatService {
   /**
    * Mark a message as read for a specific user (update PrivateMessageStatus)
    */
-  @HandleError('Failed to mark message as read', 'PRIVATE_CHAT')
-  async makePrivateMessageReadTrue(
-    messageId: string,
+  @HandleError('Failed to mark messages as read', 'PRIVATE_CHAT')
+  async markConversationMessagesAsRead(
+    conversationId: string,
     userId: string,
+    upToDate?: Date, // mark all messages created before this
   ): Promise<TResponse<any>> {
-    // Set status to READ for this user/message pair
+    const cutoffDate = upToDate ?? new Date();
+
+    // Find all messages in this conversation created before the cutoff
+    const messageIds = await this.prisma.privateMessage.findMany({
+      where: {
+        conversationId,
+        createdAt: { lte: cutoffDate },
+      },
+      select: { id: true },
+    });
+
+    if (!messageIds.length) {
+      return successResponse({ count: 0 }, 'No messages to mark as read');
+    }
+
+    // Update statuses for this user across all those messages
     const updated = await this.prisma.privateMessageStatus.updateMany({
-      where: { messageId, userId },
+      where: {
+        messageId: { in: messageIds.map((m) => m.id) },
+        userId,
+      },
       data: { status: 'READ', updatedAt: new Date() },
     });
 
-    // Mark multiple messages as read in a conversation for that user, when
-    // you can expand this logic to update many based on conversationId and createdAt <= some date.
-
-    return successResponse(updated, 'Message status marked as READ');
+    return successResponse(updated, `Marked ${updated.count} messages as READ`);
   }
 
   /**
