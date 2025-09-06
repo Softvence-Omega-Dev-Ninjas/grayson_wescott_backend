@@ -15,7 +15,7 @@ import { PrismaService } from '@project/lib/prisma/prisma.service';
 import * as jwt from 'jsonwebtoken';
 import { Server, Socket } from 'socket.io';
 import { SendPrivateMessageDto } from './dto/chat-gateway.dto';
-import { ChatService } from './chat.service';
+import { ChatService } from './services/chat.service';
 
 enum ChatEvents {
   ERROR = 'private:error',
@@ -30,7 +30,7 @@ enum ChatEvents {
 
 @WebSocketGateway({
   cors: { origin: '*' },
-  namespace: '/api/private',
+  namespace: '/api/chat',
 })
 export class ChatGateway
   implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect

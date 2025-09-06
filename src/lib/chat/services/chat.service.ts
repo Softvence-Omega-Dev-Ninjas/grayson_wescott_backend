@@ -8,7 +8,7 @@ import {
 import { PrismaService } from '@project/lib/prisma/prisma.service';
 
 import { FileService } from '@project/lib/file/file.service';
-import { SendPrivateMessageDto } from './dto/chat-gateway.dto';
+import { SendPrivateMessageDto } from '../dto/chat-gateway.dto';
 
 @Injectable()
 export class ChatService {

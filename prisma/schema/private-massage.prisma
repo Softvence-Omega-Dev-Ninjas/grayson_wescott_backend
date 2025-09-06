@@ -12,6 +12,8 @@ model PrivateConversation {
 
   messages PrivateMessage[]
 
+  status ConversationStatus @default(ACTIVE)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now()) @updatedAt
 
@@ -21,9 +23,10 @@ model PrivateConversation {
 
 model PrivateMessage {
   id      String @id @default(uuid())
-  content String
+  
+  content String?
 
-  isRead Boolean @default(false)
+  type MessageType @default(TEXT)
 
   fileId String?
   file   FileInstance? @relation(fields: [fileId], references: [id], onDelete: SetNull)
@@ -40,6 +43,7 @@ model PrivateMessage {
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now()) @updatedAt
 
+  @@index([conversationId, createdAt])
   @@map("private_messages")
 }
 
@@ -65,4 +69,18 @@ enum MessageDeliveryStatus {
   SENT
   DELIVERED
   READ
+}
+
+enum MessageType {
+  TEXT
+  IMAGE
+  VIDEO
+  AUDIO
+  FILE
+}
+
+enum ConversationStatus {
+  ACTIVE
+  ARCHIVED
+  BLOCKED
 }
