@@ -14,7 +14,7 @@
     "lint:fix": "eslint . --ext .ts --fix",
     "format": "prettier --ignore-path .gitignore --check \"**/*.+(js|ts|json)\"",
     "format:fix": "prettier --ignore-path .gitignore --write \"**/*.+(js|ts|json)\"",
-    "ci:check": "pnpm format && pnpm lint && pnpm db:validate && pnpm build && pnpm start:prod",
+    "ci:check": "pnpm format && pnpm lint && pnpm db:validate && pnpm build && pnpm start",
     "ci:fix": "pnpm format:fix && pnpm lint:fix",
     "prisma": "npx prisma",
     "db:push": "npx prisma db push",

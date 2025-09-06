@@ -201,7 +201,7 @@ export class ChatGateway
 
     // Send message
     const message = await this.ChatService.sendPrivateMessage(
-      conversation.id,
+      conversation.data.id,
       userId,
       dto,
       file,

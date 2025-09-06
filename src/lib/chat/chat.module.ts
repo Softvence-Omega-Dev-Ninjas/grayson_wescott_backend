@@ -1,11 +1,8 @@
 import { Module } from '@nestjs/common';
-import { FileService } from '@project/lib/file/file.service';
-import { ChatController } from './chat.controller';
-import { ChatService } from './chat.service';
 import { ChatGateway } from './chat.gateway';
+import { ChatService } from './chat.service';
 
 @Module({
-  controllers: [ChatController],
-  providers: [ChatService, FileService, ChatGateway],
+  providers: [ChatService, ChatGateway],
 })
-export class PrivateChatModule {}
+export class ChatModule {}

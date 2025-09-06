@@ -8,12 +8,10 @@ import { PassportModule } from '@nestjs/passport';
 import { ScheduleModule } from '@nestjs/schedule';
 import { ServeStaticModule } from '@nestjs/serve-static';
 import { join } from 'path';
-import { AppController } from './app.controller';
 import { ENVEnum } from './common/enum/env.enum';
 import { JwtStrategy } from './common/jwt/jwt.strategy';
 import { LoggerMiddleware } from './common/middleware/logger.middleware';
 import { LibModule } from './lib/lib.module';
-import { NotificationModule } from './lib/notification/notification.module';
 import { MainModule } from './main/main.module';
 
 @Module({
@@ -51,8 +49,6 @@ import { MainModule } from './main/main.module';
       },
     }),
 
-    NotificationModule,
-
     PassportModule,
 
     JwtModule.registerAsync({
@@ -70,7 +66,6 @@ import { MainModule } from './main/main.module';
 
     LibModule,
   ],
-  controllers: [AppController],
   providers: [JwtStrategy, JwtService],
 })
 export class AppModule implements NestModule {

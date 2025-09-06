@@ -1,30 +1,25 @@
-# Use Node.js 22-slim image
-FROM node:22-slim
+# Use Node.js 24-slim image
+FROM node:24-slim
+
+# Enable corepack and activate pnpm
+RUN corepack enable && corepack prepare pnpm@latest --activate
 
 # Set working directory
 WORKDIR /app
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y openssl
+# Copy package, lock file & prisma folder
+COPY package.json pnpm-lock.yaml prisma ./ 
 
-# Copy package files AND prisma schema folder
-COPY package*.json ./
-COPY prisma ./prisma
+# Install dependencies
+RUN pnpm install
 
-# Install Node.js dependencies
-RUN npm install --ignore-scripts
-
-# Generate Prisma client
-RUN npx prisma generate
-
-# Copy the rest of the source code
-COPY . ./
+# Copy rest of the project files
+COPY . .
 
 # Build the app (NestJS -> dist/)
-RUN npm run build
+RUN pnpm build
 
-# Expose the port that the application listens on.
-EXPOSE 5005
+# Expose the port
+EXPOSE 5010
 
-# Run the application.
-CMD ["npm", "run", "start:dev"]
+CMD ["pnpm", "run", "start"]

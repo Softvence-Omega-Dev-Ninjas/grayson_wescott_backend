@@ -52,7 +52,7 @@ model PrivateMessageStatus {
   userId String
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  status MessageDeliveryStatus @default(sent)
+  status MessageDeliveryStatus @default(SENT)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now()) @updatedAt
@@ -62,7 +62,7 @@ model PrivateMessageStatus {
 }
 
 enum MessageDeliveryStatus {
-  sent
-  delivered
-  read
+  SENT
+  DELIVERED
+  READ
 }

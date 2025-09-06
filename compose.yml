@@ -6,14 +6,15 @@ services:
       context: .
       dockerfile: Dockerfile
     environment:
+      BASE_URL: https://lgcglobalcontractingltd.com/js
+      
+      PORT: 5010
       NODE_ENV: production
+      
       DATABASE_URL: postgresql://postgres:postgres@db:5432/grayson_db
 
       JWT_SECRET: asdfkamskfmasklfmaksmfaskfmaksfaopsfmpaomsfpaf
       JWT_EXPIRES_IN: 90d
-
-      BASE_URL: https://lgcglobalcontractingltd.com/js
-      PORT: 5010
 
       MAIL_USER: arafatmannan2019@gmail.com
       MAIL_PASS: eurp zvyi gnoy enag
@@ -47,14 +48,14 @@ services:
     volumes:
       - db-data:/var/lib/postgresql/data
     ports:
-      - '5400:5432'
+      - '5404:5432'
 
   redis:
     image: redis
     container_name: grayson_redis
     restart: always
     ports:
-      - '6382:6379'
+      - '6384:6379'
 
 volumes:
   db-data:

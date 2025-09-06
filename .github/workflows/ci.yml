@@ -1,15 +1,15 @@
-name: CI Pipeline
+name: CI Check Pipeline
 
 on:
   push:
     branches: [main]
   pull_request:
     branches:
-      - 'main'
+      - '**'
 
 jobs:
-  ci:
-    name: CI - Lint, Build, Format, Prisma
+  ci-check:
+    name: CI - Lint, Format, Build
     runs-on: ubuntu-latest
 
     steps:
@@ -21,17 +21,17 @@ jobs:
         with:
           node-version: 24
 
+      - name: Enable pnpm
+        run: corepack enable && corepack prepare pnpm@latest --activate
+
       - name: Install dependencies
-        run: npm install
+        run: pnpm install --no-frozen-lockfile
 
       - name: Run Lint
-        run: npm run lint
+        run: pnpm lint
 
       - name: Format Check
-        run: npm run format
+        run: pnpm format
 
       - name: Build Project
-        run: npm run build
-
-      - name: Generate Prisma Client
-        run: npm run prisma:generate
+        run: pnpm build
