@@ -33,7 +33,7 @@ services:
     command: >
       sh -c "
         npx prisma migrate deploy &&
-        npm run start:prod
+        npm run start
       "
 
   db:
@@ -46,7 +46,7 @@ services:
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: grayson_db
     volumes:
-      - db-data:/var/lib/postgresql/data
+      - grayson_db:/var/lib/postgresql/data
     ports:
       - '5404:5432'
 
@@ -58,4 +58,4 @@ services:
       - '6384:6379'
 
 volumes:
-  db-data:
+  grayson_db:

@@ -30,7 +30,7 @@ enum ChatEvents {
 
 @WebSocketGateway({
   cors: { origin: '*' },
-  namespace: '/js/private',
+  namespace: '/api/private',
 })
 export class ChatGateway
   implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect
