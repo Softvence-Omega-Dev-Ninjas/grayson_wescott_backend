@@ -12,6 +12,7 @@ RUN apt-get update && apt-get install -y openssl
 
 # Copy package, lock file & prisma folder
 COPY package.json pnpm-lock.yaml ./
+COPY prisma.config.ts .
 COPY prisma ./prisma
 
 # Install dependencies
