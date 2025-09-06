@@ -1,0 +1,68 @@
+model PrivateConversation {
+  id String @id @default(uuid())
+
+  user1Id String
+  user1   User   @relation("User1Conversations", fields: [user1Id], references: [id], onDelete: Cascade)
+
+  user2Id String
+  user2   User   @relation("User2Conversations", fields: [user2Id], references: [id], onDelete: Cascade)
+
+  lastMessageId String?
+  lastMessage   PrivateMessage? @relation("PrivateLastMessage", fields: [lastMessageId], references: [id])
+
+  messages PrivateMessage[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  @@unique([user1Id, user2Id])
+  @@map("private_conversations")
+}
+
+model PrivateMessage {
+  id      String @id @default(uuid())
+  content String
+
+  isRead Boolean @default(false)
+
+  fileId String?
+  file   FileInstance? @relation(fields: [fileId], references: [id])
+
+  conversationId String
+  conversation   PrivateConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  senderId String
+  sender   User   @relation(fields: [senderId], references: [id], onDelete: Cascade)
+
+  privateLastMessage PrivateConversation[]  @relation("PrivateLastMessage")
+  statuses           PrivateMessageStatus[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  @@map("private_messages")
+}
+
+model PrivateMessageStatus {
+  id String @id @default(uuid())
+
+  messageId String
+  message   PrivateMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  status MessageDeliveryStatus @default(sent)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  @@unique([messageId, userId])
+  @@map("private_message_statuses")
+}
+
+enum MessageDeliveryStatus {
+  sent
+  delivered
+  read
+}

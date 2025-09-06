@@ -1,0 +1,28 @@
+model FileInstance {
+  id String @id @default(uuid())
+
+  filename         String
+  originalFilename String
+  path             String
+  url              String
+  fileType         FileType @default(ANY)
+  mimeType         String
+  size             Int
+
+  privateMessage PrivateMessage[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  @@map("file_instances")
+}
+
+enum FileType {
+  IMAGE
+  DOCS
+  LINK
+  DOCUMENT
+  ANY
+  VIDEO
+  AUDIO
+}

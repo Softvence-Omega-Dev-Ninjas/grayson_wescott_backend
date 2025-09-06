@@ -1,0 +1,16 @@
+node_modules
+dist
+data
+logs
+.git
+.vscode
+.vercel
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.pnpm-store
+Dockerfile
+docker-compose.yml
+generated

@@ -1,0 +1,37 @@
+model User {
+  id String @id @default(uuid())
+
+  email      String  @unique
+  password   String
+  name       String?
+  profileUrl String?
+
+  role UserRoles @default(USER)
+
+  isLogin     Boolean   @default(false)
+  lastLoginAt DateTime?
+
+  otp          String? // * real otp hashed and encrypted
+  otpExpiresAt DateTime?
+
+  isVerified     Boolean @default(false)
+  isTwoFAEnabled Boolean @default(false)
+  twoFASecret    String? // * real secret hashed and encrypted
+
+  privateMessage       PrivateMessage[]
+  privateMessageStatus PrivateMessageStatus[]
+  privateConversation1 PrivateConversation[]  @relation("User1Conversations")
+  privateConversation2 PrivateConversation[]  @relation("User2Conversations")
+  notifications        UserNotification[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  @@map("users")
+}
+
+enum UserRoles {
+  SUPER_ADMIN
+  ADMIN
+  USER
+}

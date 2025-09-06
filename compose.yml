@@ -1,0 +1,60 @@
+services:
+  server:
+    container_name: grayson-server-api
+    restart: always
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/grayson_db
+
+      JWT_SECRET: asdfkamskfmasklfmaksmfaskfmaksfaopsfmpaomsfpaf
+      JWT_EXPIRES_IN: 90d
+
+      BASE_URL: https://lgcglobalcontractingltd.com/js
+      PORT: 5010
+
+      MAIL_USER: arafatmannan2019@gmail.com
+      MAIL_PASS: eurp zvyi gnoy enag
+
+      SUPER_ADMIN_EMAIL: 'grayson@gmail.com'
+      SUPER_ADMIN_PASS: 'superadmin'
+
+      REDIS_URL: redis://redis:6379
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    ports:
+      - 5010:5010
+    depends_on:
+      - db
+      - redis
+    command: >
+      sh -c "
+        npx prisma migrate deploy &&
+        npm run start:prod
+      "
+
+  db:
+    image: postgres
+    container_name: grayson_db
+    restart: always
+    # user: postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: grayson_db
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    ports:
+      - '5400:5432'
+
+  redis:
+    image: redis
+    container_name: grayson_redis
+    restart: always
+    ports:
+      - '6382:6379'
+
+volumes:
+  db-data:
