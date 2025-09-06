@@ -36,7 +36,3 @@ export function ValidateSuperAdmin() {
 export function ValidateAdmin() {
   return ValidateAuth(UserEnum.ADMIN, UserEnum.SUPER_ADMIN);
 }
-
-export function ValidateEmployee() {
-  return ValidateAuth(UserEnum.EMPLOYEE, UserEnum.SUPER_ADMIN);
-}

@@ -24,12 +24,6 @@ export class SuperAdminService implements OnModuleInit {
     const superAdminPass = this.configService.getOrThrow<string>(
       ENVEnum.SUPER_ADMIN_PASS,
     );
-    const superAdminPhone = this.configService.getOrThrow<string>(
-      ENVEnum.SUPER_ADMIN_PHONE,
-    );
-    const superAdminEmployeeID = this.configService.getOrThrow<string>(
-      ENVEnum.SUPER_ADMIN_EMPLOYEE_ID,
-    );
 
     const superAdminExists = await this.prisma.user.findFirst({
       where: {
@@ -42,8 +36,6 @@ export class SuperAdminService implements OnModuleInit {
       await this.prisma.user.create({
         data: {
           email: superAdminEmail,
-          employeeID: Number(superAdminEmployeeID),
-          phone: superAdminPhone,
           password: await this.utils.hash(superAdminPass),
           isLogin: true,
           isVerified: true,
@@ -53,7 +45,7 @@ export class SuperAdminService implements OnModuleInit {
       });
       console.info(
         chalk.bgGreen.white.bold(
-          `🚀 Super Admin user created with email: ${superAdminEmail}`,
+          `🚀 Super Admin user seeded with email: ${superAdminEmail}`,
         ),
       );
       return;

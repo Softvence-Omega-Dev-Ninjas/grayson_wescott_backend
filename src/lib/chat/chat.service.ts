@@ -4,11 +4,11 @@ import { HandleError } from '@project/common/error/handle-error.decorator';
 import { successResponse } from '@project/common/utils/response.util';
 import { PrismaService } from '@project/lib/prisma/prisma.service';
 
-import { SendPrivateMessageDto } from './dto/privateChatGateway.dto';
 import { FileService } from '@project/lib/file/file.service';
+import { SendPrivateMessageDto } from './dto/chat-gateway.dto';
 
 @Injectable()
-export class PrivateChatService {
+export class ChatService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly fileService: FileService,
@@ -27,18 +27,7 @@ export class PrivateChatService {
       include: {
         lastMessage: {
           include: {
-            sender: {
-              select: {
-                id: true,
-                profile: {
-                  select: {
-                    profileUrl: true,
-                    firstName: true,
-                    lastName: true,
-                  },
-                },
-              },
-            },
+            sender: true,
             file: true,
           },
         },

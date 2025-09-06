@@ -8,7 +8,7 @@ model PrivateConversation {
   user2   User   @relation("User2Conversations", fields: [user2Id], references: [id], onDelete: Cascade)
 
   lastMessageId String?
-  lastMessage   PrivateMessage? @relation("PrivateLastMessage", fields: [lastMessageId], references: [id])
+  lastMessage   PrivateMessage? @relation("PrivateLastMessage", fields: [lastMessageId], references: [id], onDelete: SetNull)
 
   messages PrivateMessage[]
 
@@ -26,7 +26,7 @@ model PrivateMessage {
   isRead Boolean @default(false)
 
   fileId String?
-  file   FileInstance? @relation(fields: [fileId], references: [id])
+  file   FileInstance? @relation(fields: [fileId], references: [id], onDelete: SetNull)
 
   conversationId String
   conversation   PrivateConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)

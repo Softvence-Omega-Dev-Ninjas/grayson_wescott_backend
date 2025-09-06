@@ -121,20 +121,19 @@ export class FileService {
 
     switch (top) {
       case 'image':
-        return FileType.image;
+        return FileType.IMAGE;
       case 'video':
-        return FileType.video;
+        return FileType.VIDEO;
       case 'audio':
-        return FileType.audio;
+        return FileType.AUDIO;
       case 'text':
-        return FileType.document;
+        return FileType.DOCS;
       case 'application':
-        // Most "application/*" files are documents (pdf/doc/xls/json/etc.)
-        // If you have a special enum value for other application types, handle here.
-        return FileType.docs;
+        // Most "application/*" files are documents (pdf/doc/xls/json/etc.).
+        return FileType.DOCUMENT;
       default:
         // Fallback — change to FileType.ANY if your schema supports it and you prefer that.
-        return FileType.any;
+        return FileType.ANY;
     }
   }
 }

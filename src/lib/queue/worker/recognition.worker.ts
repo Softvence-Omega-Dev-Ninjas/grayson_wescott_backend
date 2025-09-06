@@ -27,11 +27,6 @@ export class RecognitionWorker implements OnModuleInit {
           meta: { createdAt, performedBy, recognitionId },
         } = job.data;
 
-        const performer = await this.prisma.user.findUnique({
-          where: { id: performedBy },
-          include: { profile: true },
-        });
-
         try {
           // * Send Socket Notification
           this.gateway.notifyMultipleUsers(
@@ -41,7 +36,7 @@ export class RecognitionWorker implements OnModuleInit {
               type: action,
               title,
               createdAt,
-              message: `Recognition ${action} by ${performer?.profile?.firstName} ${performer?.profile?.lastName}`,
+              message: 'Test Message',
               meta: { recognitionId },
             },
           );
@@ -51,7 +46,7 @@ export class RecognitionWorker implements OnModuleInit {
             data: {
               type: 'Recognition',
               title,
-              message: `Recognition ${action} by ${performer?.profile?.firstName} ${performer?.profile?.lastName}`,
+              message: 'Test Message',
               meta: {
                 recognitionId,
                 performedBy,

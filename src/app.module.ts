@@ -3,7 +3,7 @@ import { CacheModule } from '@nestjs/cache-manager';
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { EventEmitterModule } from '@nestjs/event-emitter';
-import { JwtModule } from '@nestjs/jwt';
+import { JwtModule, JwtService } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { ScheduleModule } from '@nestjs/schedule';
 import { ServeStaticModule } from '@nestjs/serve-static';
@@ -61,7 +61,7 @@ import { MainModule } from './main/main.module';
       useFactory: async (config: ConfigService) => ({
         secret: await config.getOrThrow(ENVEnum.JWT_SECRET),
         signOptions: {
-          expiresIn: '90d',
+          expiresIn: await config.getOrThrow(ENVEnum.JWT_EXPIRES_IN),
         },
       }),
     }),
@@ -71,7 +71,7 @@ import { MainModule } from './main/main.module';
     LibModule,
   ],
   controllers: [AppController],
-  providers: [JwtStrategy],
+  providers: [JwtStrategy, JwtService],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {

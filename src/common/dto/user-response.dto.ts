@@ -1,4 +1,4 @@
-import { UserEnum } from '@prisma/client';
+import { UserRoles } from '@prisma/client';
 import { Exclude, Expose } from 'class-transformer';
 
 @Exclude()
@@ -10,22 +10,25 @@ export class UserResponseDto {
   email: string;
 
   @Expose()
-  phone: string;
+  name: string;
 
   @Expose()
-  employeeID: number;
+  profileUrl?: string;
 
   @Expose()
-  role: UserEnum;
+  role: UserRoles;
 
   @Expose()
   isLogin: boolean;
 
   @Expose()
+  lastLoginAt?: Date;
+
+  @Expose()
   isVerified: boolean;
 
   @Expose()
-  lastLoginAt?: Date;
+  isTwoFAEnabled?: boolean;
 
   @Expose()
   createdAt: Date;

@@ -14,10 +14,10 @@ import { ENVEnum } from '@project/common/enum/env.enum';
 import { PrismaService } from '@project/lib/prisma/prisma.service';
 import * as jwt from 'jsonwebtoken';
 import { Server, Socket } from 'socket.io';
-import { SendPrivateMessageDto } from '../dto/privateChatGateway.dto';
-import { PrivateChatService } from '../private-chat.service';
+import { SendPrivateMessageDto } from './dto/chat-gateway.dto';
+import { ChatService } from './chat.service';
 
-enum PrivateChatEvents {
+enum ChatEvents {
   ERROR = 'private:error',
   SUCCESS = 'private:success',
   NEW_MESSAGE = 'private:new_message',
@@ -32,13 +32,13 @@ enum PrivateChatEvents {
   cors: { origin: '*' },
   namespace: '/js/private',
 })
-export class PrivateChatGateway
+export class ChatGateway
   implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect
 {
-  private readonly logger = new Logger(PrivateChatGateway.name);
+  private readonly logger = new Logger(ChatGateway.name);
 
   constructor(
-    private readonly privateChatService: PrivateChatService,
+    private readonly ChatService: ChatService,
     private readonly configService: ConfigService,
     private readonly prisma: PrismaService,
   ) {}
@@ -58,7 +58,7 @@ export class PrivateChatGateway
     const authHeader =
       client.handshake.headers.authorization || client.handshake.auth?.token;
     if (!authHeader) {
-      client.emit(PrivateChatEvents.ERROR, {
+      client.emit(ChatEvents.ERROR, {
         message: 'Missing authorization header',
       });
       client.disconnect(true);
@@ -68,7 +68,7 @@ export class PrivateChatGateway
 
     const token = authHeader.split(' ')[1];
     if (!token) {
-      client.emit(PrivateChatEvents.ERROR, { message: 'Missing token' });
+      client.emit(ChatEvents.ERROR, { message: 'Missing token' });
       client.disconnect(true);
       this.logger.warn('Missing token');
       return;
@@ -84,7 +84,7 @@ export class PrivateChatGateway
         select: { id: true, email: true },
       });
       if (!user) {
-        client.emit(PrivateChatEvents.ERROR, {
+        client.emit(ChatEvents.ERROR, {
           message: 'User not found in database',
         });
         client.disconnect(true);
@@ -94,12 +94,12 @@ export class PrivateChatGateway
 
       client.data.userId = userId;
       client.join(userId);
-      client.emit(PrivateChatEvents.SUCCESS, userId);
+      client.emit(ChatEvents.SUCCESS, userId);
       this.logger.log(
         `Private chat: User ${userId} connected, socket ${client.id}`,
       );
     } catch (err) {
-      client.emit(PrivateChatEvents.ERROR, { message: err.message });
+      client.emit(ChatEvents.ERROR, { message: err.message });
       client.disconnect(true);
       this.logger.warn(`Authentication failed: ${err.message}`);
     }
@@ -107,16 +107,16 @@ export class PrivateChatGateway
 
   handleDisconnect(client: Socket) {
     client.leave(client.data.userId);
-    client.emit(PrivateChatEvents.ERROR, { message: 'Disconnected' });
+    client.emit(ChatEvents.ERROR, { message: 'Disconnected' });
     this.logger.log(`Private chat disconnected: ${client.id}`);
   }
 
   /** Load all conversations for the connected user */
-  @SubscribeMessage(PrivateChatEvents.LOAD_CONVERSATIONS)
+  @SubscribeMessage(ChatEvents.LOAD_CONVERSATIONS)
   async handleLoadConversations(@ConnectedSocket() client: Socket) {
     const userId = client.data.userId;
     if (!userId) {
-      client.emit(PrivateChatEvents.ERROR, {
+      client.emit(ChatEvents.ERROR, {
         message: 'User not authenticated',
       });
       client.disconnect(true);
@@ -124,20 +124,19 @@ export class PrivateChatGateway
       return;
     }
 
-    const conversations =
-      await this.privateChatService.getUserConversations(userId);
-    client.emit(PrivateChatEvents.CONVERSATION_LIST, conversations);
+    const conversations = await this.ChatService.getUserConversations(userId);
+    client.emit(ChatEvents.CONVERSATION_LIST, conversations);
   }
 
   /** Load a single conversation */
-  @SubscribeMessage(PrivateChatEvents.LOAD_SINGLE_CONVERSATION)
+  @SubscribeMessage(ChatEvents.LOAD_SINGLE_CONVERSATION)
   async handleLoadSingleConversation(
     @MessageBody() conversationId: string,
     @ConnectedSocket() client: Socket,
   ) {
     const userId = client.data.userId;
     if (!userId) {
-      client.emit(PrivateChatEvents.ERROR, {
+      client.emit(ChatEvents.ERROR, {
         message: 'User not authenticated',
       });
       client.disconnect(true);
@@ -146,15 +145,15 @@ export class PrivateChatGateway
     }
 
     const conversation =
-      await this.privateChatService.getPrivateConversationWithMessages(
+      await this.ChatService.getPrivateConversationWithMessages(
         conversationId,
         userId,
       );
-    client.emit(PrivateChatEvents.NEW_CONVERSATION, conversation);
+    client.emit(ChatEvents.NEW_CONVERSATION, conversation);
   }
 
   /** Send a message (create conversation if new) */
-  @SubscribeMessage(PrivateChatEvents.SEND_MESSAGE)
+  @SubscribeMessage(ChatEvents.SEND_MESSAGE)
   async handleMessage(
     @MessageBody()
     payload: {
@@ -169,7 +168,7 @@ export class PrivateChatGateway
 
     // Validate sender matches token
     if (client.data.userId !== userId) {
-      client.emit(PrivateChatEvents.ERROR, { message: 'User ID mismatch' });
+      client.emit(ChatEvents.ERROR, { message: 'User ID mismatch' });
       this.logger.warn(
         `User ID mismatch: client ${client.data.userId} vs payload ${userId}`,
       );
@@ -178,7 +177,7 @@ export class PrivateChatGateway
 
     // Prevent sending to self
     if (userId === recipientId) {
-      client.emit(PrivateChatEvents.ERROR, {
+      client.emit(ChatEvents.ERROR, {
         message: 'Cannot send message to yourself',
       });
       this.logger.log(`User ${userId} cannot send message to themselves`);
@@ -186,14 +185,14 @@ export class PrivateChatGateway
     }
 
     // Find existing conversation
-    let conversation = await this.privateChatService.findConversation(
+    let conversation = await this.ChatService.findConversation(
       userId,
       recipientId,
     );
 
     let isNewConversation = false;
     if (!conversation) {
-      conversation = await this.privateChatService.createConversation(
+      conversation = await this.ChatService.createConversation(
         userId,
         recipientId,
       );
@@ -201,7 +200,7 @@ export class PrivateChatGateway
     }
 
     // Send message
-    const message = await this.privateChatService.sendPrivateMessage(
+    const message = await this.ChatService.sendPrivateMessage(
       conversation.id,
       userId,
       dto,
@@ -209,27 +208,27 @@ export class PrivateChatGateway
     );
 
     // Emit new message to both users
-    this.server.to(userId).emit(PrivateChatEvents.NEW_MESSAGE, message);
-    this.server.to(recipientId).emit(PrivateChatEvents.NEW_MESSAGE, message);
+    this.server.to(userId).emit(ChatEvents.NEW_MESSAGE, message);
+    this.server.to(recipientId).emit(ChatEvents.NEW_MESSAGE, message);
 
     // If this was a new conversation, refresh both users' chat lists
     if (isNewConversation) {
       const senderConversations =
-        await this.privateChatService.getUserConversations(userId);
+        await this.ChatService.getUserConversations(userId);
       const recipientConversations =
-        await this.privateChatService.getUserConversations(recipientId);
+        await this.ChatService.getUserConversations(recipientId);
 
       this.server
         .to(userId)
-        .emit(PrivateChatEvents.NEW_CONVERSATION, senderConversations);
+        .emit(ChatEvents.NEW_CONVERSATION, senderConversations);
       this.server
         .to(recipientId)
-        .emit(PrivateChatEvents.NEW_CONVERSATION, recipientConversations);
+        .emit(ChatEvents.NEW_CONVERSATION, recipientConversations);
     }
   }
 
   /** Helper for external services to emit new messages */
   emitNewMessage(userId: string, message: any) {
-    this.server.to(userId).emit(PrivateChatEvents.NEW_MESSAGE, message);
+    this.server.to(userId).emit(ChatEvents.NEW_MESSAGE, message);
   }
 }

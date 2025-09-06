@@ -20,22 +20,22 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { GetUser, ValidateAuth } from '@project/common/jwt/jwt.decorator';
-import { SendPrivateMessageDto } from './dto/privateChatGateway.dto';
-import { sendPrivateMessageSwaggerSchema } from './dto/privateChatGateway.swagger';
-import { PrivateChatService } from './private-chat.service';
-import { PrivateChatGateway } from './privateChatGateway/privateChatGateway';
+import { ChatGateway } from './chat.gateway';
+import { ChatService } from './chat.service';
+import { SendPrivateMessageDto } from './dto/chat-gateway.dto';
+import { sendPrivateMessageSwaggerSchema } from './dto/chat-gateway.swagger';
 
 @ApiTags('Private Chat --> One to One Chat')
 @Controller('private-chat')
 @ValidateAuth()
 @ApiBearerAuth()
-export class PrivateChatController implements OnModuleInit {
-  private gateway: PrivateChatGateway;
+export class ChatController implements OnModuleInit {
+  private gateway: ChatGateway;
 
   constructor(
-    private readonly privateService: PrivateChatService,
-    @Inject(forwardRef(() => PrivateChatGateway))
-    private readonly injectedGateway: PrivateChatGateway,
+    private readonly privateService: ChatService,
+    @Inject(forwardRef(() => ChatGateway))
+    private readonly injectedGateway: ChatGateway,
   ) {}
 
   onModuleInit() {

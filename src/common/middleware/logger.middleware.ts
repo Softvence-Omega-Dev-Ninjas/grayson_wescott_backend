@@ -16,46 +16,9 @@ export class LoggerMiddleware implements NestMiddleware {
     const startTime = Date.now();
 
     const { method, originalUrl } = req;
-    // const body = req.body as unknown;
-    // const cookies = req.cookies as unknown;
-    // const ip = req.ip || req.socket?.remoteAddress || 'unknown';
-
-    // const contentType = headers['content-type'] || '';
-
     console.group(chalk.bgGreen.black.bold('📥 Incoming Request'));
     console.info(`${chalk.cyan('🔗 URL:')} ${chalk.white(originalUrl)}`);
     console.info(`${chalk.yellow('📬 Method:')} ${chalk.white(method)}`);
-    // console.info(`${chalk.magenta('🌐 IP:')} ${chalk.white(ip)}`);
-    // console.info(
-    //   `${chalk.green('🎯 Headers:')} ${chalk.gray(safeStringify(headers))}`,
-    // );
-
-    // 💡 Handle multipart/form-data differently
-    // if (contentType.includes('multipart/form-data')) {
-    //   console.info(
-    //     `${chalk.blue('📦 Body (form-data):')} ${chalk.gray(safeStringify(body))}`,
-    //   );
-
-    //   if (req.file) {
-    //     console.info(
-    //       `${chalk.red('📁 Uploaded File:')} ${chalk.gray(safeStringify(req.file))}`,
-    //     );
-    //   }
-
-    //   if (req.files) {
-    //     console.info(
-    //       `${chalk.red('📁 Uploaded Files:')} ${chalk.gray(safeStringify(req.files))}`,
-    //     );
-    //   }
-    // } else {
-    //   console.info(
-    //     `${chalk.blue('📦 Body:')} ${chalk.gray(safeStringify(body))}`,
-    //   );
-    // }
-
-    // console.info(
-    //   `${chalk.red('🍪 Cookies:')} ${chalk.gray(safeStringify(cookies))}`,
-    // );
     console.groupEnd();
 
     // * Capture response
