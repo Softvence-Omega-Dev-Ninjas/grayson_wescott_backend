@@ -1,15 +1,18 @@
 import { Body, Controller, Post } from '@nestjs/common';
-import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { GetUser, ValidateAuth } from '@project/common/jwt/jwt.decorator';
 import { FacebookLoginDto } from '../dto/facebook-login.dto';
 import { GoogleLoginDto } from '../dto/google-login.dto';
 import { LoginDto } from '../dto/login.dto';
+import { ResendOtpDto } from '../dto/otp.dto';
+import { ChangePasswordDto } from '../dto/password.dto';
 import { RegisterDto, VerifyEmailDto } from '../dto/register.dto';
 import { AuthFacebookService } from '../services/auth-facebook.service';
 import { AuthGoogleService } from '../services/auth-google.service';
 import { AuthLoginService } from '../services/auth-login.service';
-import { AuthRegisterService } from '../services/auth-register.service';
 import { AuthOtpService } from '../services/auth-otp.service';
-import { ResendOtpDto } from '../dto/otp.dto';
+import { AuthPasswordService } from '../services/auth-password.service';
+import { AuthRegisterService } from '../services/auth-register.service';
 
 @ApiTags('Auth')
 @Controller('auth')
@@ -20,6 +23,7 @@ export class AuthController {
     private readonly authFacebookService: AuthFacebookService,
     private readonly authLoginService: AuthLoginService,
     private readonly authOtpService: AuthOtpService,
+    private readonly authPasswordService: AuthPasswordService,
   ) {}
 
   @ApiOperation({ summary: 'User Registration with Email' })
@@ -44,6 +48,17 @@ export class AuthController {
   @Post('resend-otp')
   async resendOtp(@Body() body: ResendOtpDto) {
     return this.authOtpService.resendOtp(body.email);
+  }
+
+  @ApiOperation({ summary: 'Change Password' })
+  @ApiBearerAuth()
+  @Post('change-password')
+  @ValidateAuth()
+  async changePassword(
+    @GetUser('userId') userId: string,
+    @Body() body: ChangePasswordDto,
+  ) {
+    return this.authPasswordService.changePassword(userId, body);
   }
 
   @ApiOperation({ summary: 'Google Login or Sign Up' })

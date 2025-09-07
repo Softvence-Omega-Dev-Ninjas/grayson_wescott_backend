@@ -61,6 +61,34 @@ export class MailService {
     return this.transporter.sendMail(mailOptions);
   }
 
+  async sendPasswordResetConfirmationEmail(
+    to: string,
+    { subject, message }: { subject?: string; message?: string },
+  ): Promise<nodemailer.SentMessageInfo> {
+    // Escape dynamic values to prevent injection
+    const safeMessage = he.encode(
+      message || 'Your password has been successfully reset.',
+    );
+
+    const mailOptions = {
+      from: `"No Reply" <${this.configService.get<string>(ENVEnum.MAIL_USER)}>`,
+      to,
+      subject: subject || 'Password Reset Confirmation',
+      text: `${safeMessage}\n\nIf you did not initiate this change, please reset your password immediately.`,
+      html: `
+  <div style="font-family: Arial, sans-serif; background-color: #f9f9f9; padding: 20px;">
+    <div style="max-width: 500px; margin: auto; background-color: #ffffff; padding: 30px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+      <h3 style="color: #333; margin-bottom: 15px;">Password Reset Successful</h3>
+      <p style="font-size: 16px; color: #555; margin-bottom: 20px;">${safeMessage}</p>
+      <p style="font-size: 14px; color: #888; margin-top: 20px;">If you did not initiate this change, please reset your password immediately.</p>
+    </div>
+  </div>
+    `,
+    };
+
+    return this.transporter.sendMail(mailOptions);
+  }
+
   async sendEmail(
     email: string,
     subject: string,

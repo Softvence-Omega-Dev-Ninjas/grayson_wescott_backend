@@ -5,6 +5,7 @@ import { AuthGoogleService } from './services/auth-google.service';
 import { AuthRegisterService } from './services/auth-register.service';
 import { AuthLoginService } from './services/auth-login.service';
 import { AuthOtpService } from './services/auth-otp.service';
+import { AuthPasswordService } from './services/auth-password.service';
 
 @Module({
   controllers: [AuthController],
@@ -14,6 +15,7 @@ import { AuthOtpService } from './services/auth-otp.service';
     AuthFacebookService,
     AuthLoginService,
     AuthOtpService,
+    AuthPasswordService,
   ],
 })
 export class AuthModule {}
