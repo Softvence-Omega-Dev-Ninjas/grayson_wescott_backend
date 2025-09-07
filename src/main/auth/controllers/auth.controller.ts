@@ -8,6 +8,8 @@ import { AuthFacebookService } from '../services/auth-facebook.service';
 import { AuthGoogleService } from '../services/auth-google.service';
 import { AuthLoginService } from '../services/auth-login.service';
 import { AuthRegisterService } from '../services/auth-register.service';
+import { AuthOtpService } from '../services/auth-otp.service';
+import { ResendOtpDto } from '../dto/otp.dto';
 
 @ApiTags('Auth')
 @Controller('auth')
@@ -17,6 +19,7 @@ export class AuthController {
     private readonly authGoogleService: AuthGoogleService,
     private readonly authFacebookService: AuthFacebookService,
     private readonly authLoginService: AuthLoginService,
+    private readonly authOtpService: AuthOtpService,
   ) {}
 
   @ApiOperation({ summary: 'User Registration with Email' })
@@ -35,6 +38,12 @@ export class AuthController {
   @Post('login')
   async login(@Body() body: LoginDto) {
     return this.authLoginService.login(body);
+  }
+
+  @ApiOperation({ summary: 'Resend OTP to Email' })
+  @Post('resend-otp')
+  async resendOtp(@Body() body: ResendOtpDto) {
+    return this.authOtpService.resendOtp(body.email);
   }
 
   @ApiOperation({ summary: 'Google Login or Sign Up' })

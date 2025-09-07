@@ -42,6 +42,9 @@ export class AuthRegisterService {
     }
 
     const codeWithExpiry = this.utils.generateOtpAndExpiry();
+    const { otp, expiryTime } = codeWithExpiry;
+
+    const hashedOtp = await this.utils.hash(otp.toString());
 
     // * create new user
     const newUser = await this.prisma.user.create({
@@ -50,8 +53,8 @@ export class AuthRegisterService {
         username,
         password: await this.utils.hash(password),
         signUpMethod: 'EMAIL',
-        otp: codeWithExpiry.otp.toString(),
-        otpExpiresAt: codeWithExpiry.expiryTime,
+        otp: hashedOtp,
+        otpExpiresAt: expiryTime,
       },
     });
 
@@ -71,6 +74,7 @@ export class AuthRegisterService {
     );
   }
 
+  @HandleError('Email verification failed', 'User')
   async verifyEmail(dto: VerifyEmailDto): Promise<TResponse<any>> {
     const { email, otp } = dto;
 
@@ -90,7 +94,8 @@ export class AuthRegisterService {
       throw new AppError(400, 'OTP is not set. Please request a new one.');
     }
 
-    if (user.otp !== otp) {
+    const isCorrectOtp = await this.utils.compare(otp, user.otp);
+    if (!isCorrectOtp) {
       throw new AppError(400, 'Invalid OTP');
     }
 

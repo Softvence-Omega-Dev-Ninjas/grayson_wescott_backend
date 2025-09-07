@@ -9,6 +9,7 @@ import { MailService } from '@project/lib/mail/mail.service';
 import { PrismaService } from '@project/lib/prisma/prisma.service';
 import { UtilsService } from '@project/lib/utils/utils.service';
 import { LoginDto } from '../dto/login.dto';
+import { HandleError } from '@project/common/error/handle-error.decorator';
 
 @Injectable()
 export class AuthLoginService {
@@ -18,6 +19,7 @@ export class AuthLoginService {
     private readonly utils: UtilsService,
   ) {}
 
+  @HandleError('Login failed', 'User')
   async login(dto: LoginDto): Promise<TResponse<any>> {
     const { email, password } = dto;
 
@@ -44,18 +46,21 @@ export class AuthLoginService {
     // * if user is not verified
     if (!user.isVerified) {
       const codeWithExpiry = this.utils.generateOtpAndExpiry();
+      const { otp, expiryTime } = codeWithExpiry;
+
+      const hashedOtp = await this.utils.hash(otp.toString());
 
       await this.prisma.user.update({
         where: { email },
         data: {
-          otp: codeWithExpiry.otp.toString(),
-          otpExpiresAt: codeWithExpiry.expiryTime,
+          otp: hashedOtp,
+          otpExpiresAt: expiryTime,
         },
       });
 
       await this.mailService.sendVerificationCodeEmail(
         user.email,
-        codeWithExpiry.otp.toString(),
+        otp.toString(),
         {
           message: 'Please verify your email to complete the login process.',
           subject: 'Verify your email to login',
