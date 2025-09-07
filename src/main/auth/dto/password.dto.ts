@@ -11,3 +11,9 @@ export class ChangePasswordDto {
   @IsString()
   newPassword: string;
 }
+
+export class ForgotPasswordDto {
+  @ApiProperty({ example: 'user@example' })
+  @IsString()
+  email: string;
+}

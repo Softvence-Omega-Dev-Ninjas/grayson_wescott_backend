@@ -30,6 +30,7 @@ services:
       OAUTH_CLIENT_SECRET: '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'
 
       FRONTEND_VERIFICATION_URL: 'https://grayson-wescott-frontend.vercel.app/twostepverification'
+      FRONTEND_RESET_PASSWORD_URL: 'https://grayson-wescott-frontend.vercel.app/resetpassword'
     ports:
       - 5010:5010
     depends_on:

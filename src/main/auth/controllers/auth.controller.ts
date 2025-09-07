@@ -5,7 +5,7 @@ import { FacebookLoginDto } from '../dto/facebook-login.dto';
 import { GoogleLoginDto } from '../dto/google-login.dto';
 import { LoginDto } from '../dto/login.dto';
 import { ResendOtpDto } from '../dto/otp.dto';
-import { ChangePasswordDto } from '../dto/password.dto';
+import { ChangePasswordDto, ForgotPasswordDto } from '../dto/password.dto';
 import { RegisterDto, VerifyEmailDto } from '../dto/register.dto';
 import { AuthFacebookService } from '../services/auth-facebook.service';
 import { AuthGoogleService } from '../services/auth-google.service';
@@ -59,6 +59,12 @@ export class AuthController {
     @Body() body: ChangePasswordDto,
   ) {
     return this.authPasswordService.changePassword(userId, body);
+  }
+
+  @ApiOperation({ summary: 'Forgot Password - Send Reset Email' })
+  @Post('forgot-password')
+  async forgotPassword(@Body() body: ForgotPasswordDto) {
+    return this.authPasswordService.forgotPassword(body.email);
   }
 
   @ApiOperation({ summary: 'Google Login or Sign Up' })

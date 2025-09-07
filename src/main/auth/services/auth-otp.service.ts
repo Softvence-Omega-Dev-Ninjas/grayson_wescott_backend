@@ -57,7 +57,6 @@ export class AuthOtpService {
         message: `Here is your OTP code. It will expire in 5 minutes.`,
       },
     );
-    console.log('Email sent:', emailSent);
     if (!emailSent) {
       // Make otp and expiry null if email fails
       await this.prisma.user.update({

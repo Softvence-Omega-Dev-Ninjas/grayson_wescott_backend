@@ -37,8 +37,8 @@ export class UtilsService {
 
   generateToken(payload: JWTPayload): string {
     const token = this.jwtService.sign(payload, {
-      secret: this.configService.get<string>(ENVEnum.JWT_SECRET),
-      expiresIn: this.configService.get<string>(ENVEnum.JWT_EXPIRES_IN),
+      secret: this.configService.getOrThrow<string>(ENVEnum.JWT_SECRET),
+      expiresIn: this.configService.getOrThrow<string>(ENVEnum.JWT_EXPIRES_IN),
     });
 
     return token;
@@ -49,6 +49,16 @@ export class UtilsService {
     const expiryTime = new Date();
     expiryTime.setMinutes(expiryTime.getMinutes() + 10);
     return { otp, expiryTime };
+  }
+
+  generateResetTokenWithExpiry(payload: JWTPayload): {
+    token: string;
+    expiryTime: Date;
+  } {
+    const token = this.generateToken(payload);
+    const expiryTime = new Date();
+    expiryTime.setMinutes(expiryTime.getMinutes() + 15);
+    return { token, expiryTime };
   }
 
   async getEmailById(id: string): Promise<string> {
