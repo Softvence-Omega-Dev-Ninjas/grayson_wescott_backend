@@ -7,10 +7,10 @@ services:
       dockerfile: Dockerfile
     environment:
       BASE_URL: https://lgcglobalcontractingltd.com/js
-      
+
       PORT: 5010
       NODE_ENV: production
-      
+
       DATABASE_URL: postgresql://postgres:postgres@db:5432/grayson_db
 
       JWT_SECRET: asdfkamskfmasklfmaksmfaskfmaksfaopsfmpaomsfpaf
@@ -25,6 +25,9 @@ services:
       REDIS_URL: redis://redis:6379
       REDIS_HOST: redis
       REDIS_PORT: 6379
+
+      OAUTH_CLIENT_ID: '1074646902032-5ab3gkkggb7mrejjfnvr7ra65qos4o8s.apps.googleusercontent.com'
+      OAUTH_CLIENT_SECRET: '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'
     ports:
       - 5010:5010
     depends_on:
