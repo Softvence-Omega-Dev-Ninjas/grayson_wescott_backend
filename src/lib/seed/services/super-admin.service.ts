@@ -36,10 +36,10 @@ export class SuperAdminService implements OnModuleInit {
       await this.prisma.user.create({
         data: {
           email: superAdminEmail,
+          signUpMethod: 'MANUAL',
+          name: 'Super Admin',
           password: await this.utils.hash(superAdminPass),
-          isLogin: true,
           isVerified: true,
-          lastLoginAt: new Date(),
           role: 'SUPER_ADMIN',
         },
       });
@@ -57,8 +57,6 @@ export class SuperAdminService implements OnModuleInit {
         email: superAdminEmail,
       },
       data: {
-        isLogin: true,
-        lastLoginAt: new Date(),
         otpExpiresAt: this.utils.generateOtpAndExpiry().expiryTime,
       },
     });

@@ -1,28 +1,39 @@
 model User {
   id String @id @default(uuid())
 
-  email      String  @unique
-  password   String
-  name       String?
-  profileUrl String?
+  email    String @unique
+  
+  phone    String? @unique
+  username String? @unique
+  password String? // hashed password (nullable for social accounts)
 
-  role UserRoles @default(USER)
+  name      String? @default("Unnamed User")
+  avatarUrl String? @default("https://www.gravatar.com/avatar/000000000000000000000000000000?d=mp&f=y")
 
-  isLogin     Boolean   @default(false)
-  lastLoginAt DateTime?
+  role         UserRole     @default(USER)
+  signUpMethod SignUpMethod @default(EMAIL)
 
-  otp          String? // * real otp hashed and encrypted
+  // OTP / Verification
+  otp          String? // hashed OTP
   otpExpiresAt DateTime?
+  isVerified   Boolean   @default(false)
 
-  isVerified     Boolean @default(false)
-  isTwoFAEnabled Boolean @default(false)
-  twoFASecret    String? // * real secret hashed and encrypted
+  // 2FA
+  isTwoFAEnabled Boolean      @default(false)
+  twoFAMethod    TwoFAMethod? // EMAIL, PHONE, AUTH_APP
+  twoFASecret    String? // For authenticator apps (TOTP secret)
 
+  // Social auth linked accounts
+  authProviders UserAuthProvider[]
+
+  // Chats
   privateMessage       PrivateMessage[]
   privateMessageStatus PrivateMessageStatus[]
   privateConversation1 PrivateConversation[]  @relation("User1Conversations")
   privateConversation2 PrivateConversation[]  @relation("User2Conversations")
-  notifications        UserNotification[]
+
+  // Notifications
+  notifications UserNotification[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now()) @updatedAt
@@ -30,8 +41,44 @@ model User {
   @@map("users")
 }
 
-enum UserRoles {
+model UserAuthProvider {
+  id String @id @default(uuid())
+
+  provider   AuthProvider
+  providerId String
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  @@unique([provider, providerId])
+  @@map("user_auth_providers")
+}
+
+enum UserRole {
   SUPER_ADMIN
   ADMIN
   USER
+}
+
+enum AuthProvider {
+  GOOGLE
+  FACEBOOK
+  TWITTER
+}
+
+enum SignUpMethod {
+  EMAIL
+  MANUAL
+  GOOGLE
+  FACEBOOK
+  TWITTER
+}
+
+enum TwoFAMethod {
+  EMAIL
+  PHONE
+  AUTH_APP
 }

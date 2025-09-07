@@ -38,7 +38,7 @@ export class ChatService {
         user1: {
           select: {
             id: true,
-            profileUrl: true,
+            avatarUrl: true,
             name: true,
             email: true,
           },
@@ -46,7 +46,7 @@ export class ChatService {
         user2: {
           select: {
             id: true,
-            profileUrl: true,
+            avatarUrl: true,
             name: true,
             email: true,
           },
@@ -182,7 +182,7 @@ export class ChatService {
         sender: {
           select: {
             id: true,
-            profileUrl: true,
+            avatarUrl: true,
             name: true,
             email: true,
           },
@@ -239,7 +239,7 @@ export class ChatService {
       where: { id: message.id },
       include: {
         sender: {
-          select: { id: true, profileUrl: true, name: true, email: true },
+          select: { id: true, avatarUrl: true, name: true, email: true },
         },
         file: true,
         statuses: true,
@@ -264,7 +264,7 @@ export class ChatService {
             sender: {
               select: {
                 id: true,
-                profileUrl: true,
+                avatarUrl: true,
                 name: true,
                 email: true,
               },
@@ -276,7 +276,7 @@ export class ChatService {
         user1: {
           select: {
             id: true,
-            profileUrl: true,
+            avatarUrl: true,
             name: true,
             email: true,
           },
@@ -284,7 +284,7 @@ export class ChatService {
         user2: {
           select: {
             id: true,
-            profileUrl: true,
+            avatarUrl: true,
             name: true,
             email: true,
           },
@@ -355,7 +355,7 @@ export class ChatService {
         take: limit,
         include: {
           sender: {
-            select: { id: true, profileUrl: true, name: true, email: true },
+            select: { id: true, avatarUrl: true, name: true, email: true },
           },
           file: true,
           statuses: true,
@@ -385,7 +385,7 @@ export class ChatService {
       take: limit,
       include: {
         sender: {
-          select: { id: true, profileUrl: true, name: true, email: true },
+          select: { id: true, avatarUrl: true, name: true, email: true },
         },
         file: true,
         statuses: true,
@@ -417,7 +417,7 @@ export class ChatService {
         user1: {
           select: {
             id: true,
-            profileUrl: true,
+            avatarUrl: true,
             name: true,
             email: true,
           },
@@ -425,7 +425,7 @@ export class ChatService {
         user2: {
           select: {
             id: true,
-            profileUrl: true,
+            avatarUrl: true,
             name: true,
             email: true,
           },
@@ -446,7 +446,7 @@ export class ChatService {
         sender: {
           select: {
             id: true,
-            profileUrl: true,
+            avatarUrl: true,
             name: true,
             email: true,
           },

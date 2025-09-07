@@ -8,7 +8,22 @@ CREATE TYPE "public"."NotificationType" AS ENUM ('Shift', 'TimeOff', 'Announceme
 CREATE TYPE "public"."MessageDeliveryStatus" AS ENUM ('SENT', 'DELIVERED', 'READ');
 
 -- CreateEnum
-CREATE TYPE "public"."UserRoles" AS ENUM ('SUPER_ADMIN', 'ADMIN', 'USER');
+CREATE TYPE "public"."MessageType" AS ENUM ('TEXT', 'IMAGE', 'VIDEO', 'AUDIO', 'FILE');
+
+-- CreateEnum
+CREATE TYPE "public"."ConversationStatus" AS ENUM ('ACTIVE', 'ARCHIVED', 'BLOCKED');
+
+-- CreateEnum
+CREATE TYPE "public"."UserRole" AS ENUM ('SUPER_ADMIN', 'ADMIN', 'USER');
+
+-- CreateEnum
+CREATE TYPE "public"."AuthProvider" AS ENUM ('GOOGLE', 'FACEBOOK', 'TWITTER');
+
+-- CreateEnum
+CREATE TYPE "public"."SignUpMethod" AS ENUM ('EMAIL', 'MANUAL', 'GOOGLE', 'FACEBOOK', 'TWITTER');
+
+-- CreateEnum
+CREATE TYPE "public"."TwoFAMethod" AS ENUM ('EMAIL', 'PHONE', 'AUTH_APP');
 
 -- CreateTable
 CREATE TABLE "public"."file_instances" (
@@ -57,6 +72,7 @@ CREATE TABLE "public"."private_conversations" (
     "user1Id" TEXT NOT NULL,
     "user2Id" TEXT NOT NULL,
     "lastMessageId" TEXT,
+    "status" "public"."ConversationStatus" NOT NULL DEFAULT 'ACTIVE',
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
@@ -66,8 +82,8 @@ CREATE TABLE "public"."private_conversations" (
 -- CreateTable
 CREATE TABLE "public"."private_messages" (
     "id" TEXT NOT NULL,
-    "content" TEXT NOT NULL,
-    "isRead" BOOLEAN NOT NULL DEFAULT false,
+    "content" TEXT,
+    "type" "public"."MessageType" NOT NULL DEFAULT 'TEXT',
     "fileId" TEXT,
     "conversationId" TEXT NOT NULL,
     "senderId" TEXT NOT NULL,
@@ -93,21 +109,35 @@ CREATE TABLE "public"."private_message_statuses" (
 CREATE TABLE "public"."users" (
     "id" TEXT NOT NULL,
     "email" TEXT NOT NULL,
-    "password" TEXT NOT NULL,
-    "name" TEXT,
-    "profileUrl" TEXT,
-    "role" "public"."UserRoles" NOT NULL DEFAULT 'USER',
-    "isLogin" BOOLEAN NOT NULL DEFAULT false,
-    "lastLoginAt" TIMESTAMP(3),
+    "phone" TEXT,
+    "username" TEXT,
+    "password" TEXT,
+    "name" TEXT DEFAULT 'Unnamed User',
+    "avatarUrl" TEXT DEFAULT 'https://www.gravatar.com/avatar/000000000000000000000000000000?d=mp&f=y',
+    "role" "public"."UserRole" NOT NULL DEFAULT 'USER',
+    "signUpMethod" "public"."SignUpMethod" NOT NULL DEFAULT 'EMAIL',
     "otp" TEXT,
     "otpExpiresAt" TIMESTAMP(3),
     "isVerified" BOOLEAN NOT NULL DEFAULT false,
     "isTwoFAEnabled" BOOLEAN NOT NULL DEFAULT false,
+    "twoFAMethod" "public"."TwoFAMethod",
     "twoFASecret" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "users_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "public"."user_auth_providers" (
+    "id" TEXT NOT NULL,
+    "provider" "public"."AuthProvider" NOT NULL,
+    "providerId" TEXT NOT NULL,
+    "userId" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "user_auth_providers_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateIndex
@@ -117,10 +147,22 @@ CREATE UNIQUE INDEX "user_notifications_userId_notificationId_key" ON "public"."
 CREATE UNIQUE INDEX "private_conversations_user1Id_user2Id_key" ON "public"."private_conversations"("user1Id", "user2Id");
 
 -- CreateIndex
+CREATE INDEX "private_messages_conversationId_createdAt_idx" ON "public"."private_messages"("conversationId", "createdAt");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "private_message_statuses_messageId_userId_key" ON "public"."private_message_statuses"("messageId", "userId");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "users_email_key" ON "public"."users"("email");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "users_phone_key" ON "public"."users"("phone");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "users_username_key" ON "public"."users"("username");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "user_auth_providers_provider_providerId_key" ON "public"."user_auth_providers"("provider", "providerId");
 
 -- AddForeignKey
 ALTER TABLE "public"."user_notifications" ADD CONSTRAINT "user_notifications_userId_fkey" FOREIGN KEY ("userId") REFERENCES "public"."users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -151,3 +193,6 @@ ALTER TABLE "public"."private_message_statuses" ADD CONSTRAINT "private_message_
 
 -- AddForeignKey
 ALTER TABLE "public"."private_message_statuses" ADD CONSTRAINT "private_message_statuses_userId_fkey" FOREIGN KEY ("userId") REFERENCES "public"."users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "public"."user_auth_providers" ADD CONSTRAINT "user_auth_providers_userId_fkey" FOREIGN KEY ("userId") REFERENCES "public"."users"("id") ON DELETE CASCADE ON UPDATE CASCADE;

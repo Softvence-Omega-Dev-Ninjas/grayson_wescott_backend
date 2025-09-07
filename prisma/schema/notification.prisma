@@ -16,15 +16,6 @@ model Notification {
   @@map("notifications")
 }
 
-enum NotificationType {
-  Shift
-  TimeOff
-  Announcement
-  Task
-  Recognition
-  UrgentShiftChanged
-}
-
 model UserNotification {
   id String @id @default(uuid())
 
@@ -41,4 +32,13 @@ model UserNotification {
 
   @@unique([userId, notificationId])
   @@map("user_notifications")
+}
+
+enum NotificationType {
+  Shift
+  TimeOff
+  Announcement
+  Task
+  Recognition
+  UrgentShiftChanged
 }
