@@ -17,3 +17,17 @@ export class ForgotPasswordDto {
   @IsString()
   email: string;
 }
+
+export class ResetPasswordDto {
+  @ApiProperty({ example: 'resetToken123' })
+  @IsString()
+  token: string;
+
+  @ApiProperty({ example: 'user@example' })
+  @IsString()
+  email: string;
+
+  @ApiProperty({ example: 'newStrongPassword123' })
+  @IsString()
+  newPassword: string;
+}

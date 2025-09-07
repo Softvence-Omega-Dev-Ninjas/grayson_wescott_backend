@@ -99,7 +99,7 @@ export class MailService {
 
   async sendPasswordResetConfirmationEmail(
     to: string,
-    { subject, message }: { subject?: string; message?: string },
+    { subject, message }: { subject?: string; message?: string } = {},
   ): Promise<nodemailer.SentMessageInfo> {
     // Escape dynamic values to prevent injection
     const safeMessage = he.encode(

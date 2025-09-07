@@ -10,7 +10,7 @@ import {
 import { MailService } from '@project/lib/mail/mail.service';
 import { PrismaService } from '@project/lib/prisma/prisma.service';
 import { UtilsService } from '@project/lib/utils/utils.service';
-import { ChangePasswordDto } from '../dto/password.dto';
+import { ChangePasswordDto, ResetPasswordDto } from '../dto/password.dto';
 
 @Injectable()
 export class AuthPasswordService {
@@ -113,5 +113,55 @@ export class AuthPasswordService {
     await this.mailService.sendResetPasswordLinkEmail(email, resetLink);
 
     return successResponse(null, 'Password reset email sent');
+  }
+
+  @HandleError('Failed to reset password')
+  async resetPassword(dto: ResetPasswordDto): Promise<TResponse<any>> {
+    const { token, email, newPassword } = dto;
+
+    const user = await this.prisma.user.findUnique({ where: { email } });
+    if (!user) {
+      throw new AppError(404, 'User not found');
+    }
+
+    // * Check if reset token exists
+    if (!user.resetToken || !user.resetTokenExpiresAt) {
+      throw new AppError(
+        404,
+        'No reset token found. Please request a new one.',
+      );
+    }
+
+    // check expiry
+    if (user.resetTokenExpiresAt < new Date()) {
+      throw new AppError(
+        401,
+        'Reset token has expired. Please request a new one.',
+      );
+    }
+
+    // verify token
+    const isMatch = this.utils.compare(token, user.resetToken);
+    if (!isMatch) {
+      throw new AppError(403, 'Invalid reset token');
+    }
+
+    // hash new password
+    const hashedPassword = await this.utils.hash(newPassword);
+
+    // update password and invalidate reset token
+    await this.prisma.user.update({
+      where: { email },
+      data: {
+        password: hashedPassword,
+        resetToken: null,
+        resetTokenExpiresAt: null,
+      },
+    });
+
+    // send email
+    await this.mailService.sendPasswordResetConfirmationEmail(email);
+
+    return successResponse(null, 'Password reset successfully');
   }
 }
