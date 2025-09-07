@@ -9,7 +9,7 @@ import {
 import { MailService } from '@project/lib/mail/mail.service';
 import { PrismaService } from '@project/lib/prisma/prisma.service';
 import { UtilsService } from '@project/lib/utils/utils.service';
-import { RegisterDto } from '../dto/register.dto';
+import { RegisterDto, VerifyEmailDto } from '../dto/register.dto';
 
 @Injectable()
 export class AuthRegisterService {
@@ -71,7 +71,9 @@ export class AuthRegisterService {
     );
   }
 
-  async verifyEmail(email: string, otp: string): Promise<TResponse<any>> {
+  async verifyEmail(dto: VerifyEmailDto): Promise<TResponse<any>> {
+    const { email, otp } = dto;
+
     const user = await this.prisma.user.findUnique({
       where: { email },
     });

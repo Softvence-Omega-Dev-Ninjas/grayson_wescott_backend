@@ -28,6 +28,8 @@ services:
 
       OAUTH_CLIENT_ID: '1074646902032-5ab3gkkggb7mrejjfnvr7ra65qos4o8s.apps.googleusercontent.com'
       OAUTH_CLIENT_SECRET: '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'
+
+      FRONTEND_VERIFICATION_URL: 'https://grayson-wescott-frontend.vercel.app/twostepverification'
     ports:
       - 5010:5010
     depends_on:
