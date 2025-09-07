@@ -56,4 +56,10 @@ export class UtilsService {
     if (!user) throw new AppError(404, 'User not found');
     return user.email;
   }
+
+  async getUserByEmail(email: string) {
+    const user = await this.prisma.user.findUnique({ where: { email } });
+    if (!user) throw new AppError(404, 'User not found');
+    return user;
+  }
 }

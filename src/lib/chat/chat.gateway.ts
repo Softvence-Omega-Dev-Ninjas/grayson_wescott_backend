@@ -1,5 +1,6 @@
 import { Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { JwtService } from '@nestjs/jwt';
 import {
   ConnectedSocket,
   MessageBody,
@@ -11,8 +12,8 @@ import {
   WebSocketServer,
 } from '@nestjs/websockets';
 import { ENVEnum } from '@project/common/enum/env.enum';
+import { JWTPayload } from '@project/common/jwt/jwt.interface';
 import { PrismaService } from '@project/lib/prisma/prisma.service';
-import * as jwt from 'jsonwebtoken';
 import { Server, Socket } from 'socket.io';
 import { SendPrivateMessageDto } from './dto/chat-gateway.dto';
 import { ChatService } from './services/chat.service';
@@ -45,6 +46,7 @@ export class ChatGateway
     private readonly chatService: ChatService,
     private readonly configService: ConfigService,
     private readonly prisma: PrismaService,
+    private readonly jwtService: JwtService,
   ) {}
 
   @WebSocketServer()
@@ -83,8 +85,9 @@ export class ChatGateway
     }
 
     try {
-      const jwtSecret = this.configService.get<string>(ENVEnum.JWT_SECRET);
-      const payload: any = jwt.verify(token, jwtSecret as string);
+      const payload = this.jwtService.verify<JWTPayload>(token, {
+        secret: this.configService.getOrThrow(ENVEnum.JWT_SECRET),
+      });
       const userId = payload.sub;
 
       const user = await this.prisma.user.findUnique({

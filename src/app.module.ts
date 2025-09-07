@@ -52,6 +52,7 @@ import { MainModule } from './main/main.module';
     PassportModule,
 
     JwtModule.registerAsync({
+      global: true,
       imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: async (config: ConfigService) => ({
@@ -67,6 +68,7 @@ import { MainModule } from './main/main.module';
     LibModule,
   ],
   providers: [JwtStrategy, JwtService],
+  exports: [JwtStrategy, JwtService],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
