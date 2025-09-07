@@ -11,7 +11,7 @@ model User {
   avatarUrl String? @default("https://www.gravatar.com/avatar/000000000000000000000000000000?d=mp&f=y")
 
   role         UserRole     @default(USER)
-  signUpMethod SignUpMethod @default(EMAIL)
+  signUpMethod SignUpMethod @default(EMAIL) // * First sign-up method
 
   // OTP / Verification
   otp          String? // hashed OTP

@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { AuthProvider, SignUpMethod, User } from '@prisma/client';
 import { UserResponseDto } from '@project/common/dto/user-response.dto';
 import { ENVEnum } from '@project/common/enum/env.enum';
 import { AppError } from '@project/common/error/handle-error.app';
@@ -29,60 +30,21 @@ export class AuthGoogleService {
 
   @HandleError('Google login failed', 'User')
   async googleLogin(dto: GoogleLoginDto): Promise<TResponse<any>> {
-    const { idToken } = dto;
-
-    if (!idToken) {
+    if (!dto.idToken) {
       throw new AppError(400, 'Google ID token is required');
     }
 
-    const payload = await this.verifyGoogleIdToken(idToken);
+    const payload = await this.verifyGoogleIdToken(dto.idToken);
 
-    // * Check if user already exists
-    let user = await this.prisma.user.findUnique({
-      where: { email: payload.email },
-      include: { authProviders: true },
-    });
-
-    if (!user) {
-      // * Create new user
-      user = await this.prisma.user.create({
-        data: {
-          email: payload.email as string,
-          isVerified: true,
-          name: payload.name || '',
-          avatarUrl: payload.picture || '',
-          authProviders: {
-            create: { provider: 'GOOGLE', providerId: payload.sub },
-          },
-        },
-        include: { authProviders: true },
-      });
-    } else {
-      // * Link Google auth provider if not linked
-      const hasGoogleProvider = user.authProviders.some(
-        (ap) => ap.provider === 'GOOGLE' && ap.providerId === payload.sub,
-      );
-
-      if (!hasGoogleProvider) {
-        await this.prisma.userAuthProvider.create({
-          data: {
-            userId: user.id,
-            provider: 'GOOGLE',
-            providerId: payload.sub,
-          },
-        });
-      } else {
-        // * Update user info
-        user = await this.prisma.user.update({
-          where: { id: user.id },
-          data: {
-            name: payload.name || user.name,
-            avatarUrl: payload.picture || user.avatarUrl,
-          },
-          include: { authProviders: true },
-        });
-      }
+    // Ensure email is verified
+    if (!payload.email_verified) {
+      throw new AppError(400, 'Google email is not verified');
     }
+
+    // Normalize email
+    const email = (payload.email || '').toLowerCase();
+
+    const user = await this.findOrCreateGoogleUser(payload, email);
 
     const token = this.utils.generateToken({
       sub: user.id,
@@ -107,19 +69,80 @@ export class AuthGoogleService {
 
     const payload = ticket.getPayload();
 
-    if (!payload) {
-      throw new AppError(400, 'Invalid Google token');
-    }
-
-    const { sub, email } = payload;
-
-    if (!email || !sub) {
-      throw new AppError(
-        400,
-        'Google token does not contain required user information',
-      );
+    if (!payload || !payload.sub || !payload.email) {
+      throw new AppError(400, 'Invalid Google token: missing user information');
     }
 
     return payload;
+  }
+
+  private async findOrCreateGoogleUser(
+    payload: TokenPayload,
+    email: string,
+  ): Promise<User> {
+    let user = await this.prisma.user.findUnique({
+      where: { email },
+      include: { authProviders: true },
+    });
+
+    if (!user) {
+      // New user with Google signup
+      return await this.prisma.$transaction(async (tx) => {
+        const newUser = await tx.user.create({
+          data: {
+            email,
+            isVerified: true,
+            name: payload.name || 'Unnamed User',
+            avatarUrl:
+              payload.picture ||
+              'https://www.gravatar.com/avatar/000000000000000000000000000000?d=mp&f=y',
+            signUpMethod: SignUpMethod.GOOGLE,
+            authProviders: {
+              create: {
+                provider: AuthProvider.GOOGLE,
+                providerId: payload.sub,
+              },
+            },
+          },
+          include: { authProviders: true },
+        });
+        return newUser;
+      });
+    }
+
+    // If user exists but no Google provider linked → link it
+    const hasGoogleProvider = user.authProviders.some(
+      (ap) =>
+        ap.provider === AuthProvider.GOOGLE && ap.providerId === payload.sub,
+    );
+
+    if (!hasGoogleProvider) {
+      await this.prisma.userAuthProvider.create({
+        data: {
+          userId: user.id,
+          provider: AuthProvider.GOOGLE,
+          providerId: payload.sub,
+        },
+      });
+      // Ensure verified
+      user = await this.prisma.user.update({
+        where: { id: user.id },
+        data: { isVerified: true },
+        include: { authProviders: true },
+      });
+    } else {
+      // Update profile info (non-breaking fields only)
+      user = await this.prisma.user.update({
+        where: { id: user.id },
+        data: {
+          name: payload.name || user.name,
+          avatarUrl: payload.picture || user.avatarUrl,
+          isVerified: true,
+        },
+        include: { authProviders: true },
+      });
+    }
+
+    return user;
   }
 }
