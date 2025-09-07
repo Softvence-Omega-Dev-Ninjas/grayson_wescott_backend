@@ -6,15 +6,16 @@ import {
   successResponse,
   TResponse,
 } from '@project/common/utils/response.util';
+import { MailService } from '@project/lib/mail/mail.service';
 import { PrismaService } from '@project/lib/prisma/prisma.service';
 import { UtilsService } from '@project/lib/utils/utils.service';
-import { LoginDto } from '../dto/login.dto';
 import { RegisterDto } from '../dto/register.dto';
 
 @Injectable()
-export class AuthService {
+export class AuthRegisterService {
   constructor(
     private readonly prisma: PrismaService,
+    private readonly mailService: MailService,
     private readonly utils: UtilsService,
   ) {}
 
@@ -40,26 +41,37 @@ export class AuthService {
       throw new AppError(400, 'Username already taken');
     }
 
+    const codeWithExpiry = this.utils.generateOtpAndExpiry();
+
     // * create new user
     const newUser = await this.prisma.user.create({
       data: {
         email,
         username,
         password: await this.utils.hash(password),
+        signUpMethod: 'EMAIL',
+        otp: codeWithExpiry.otp.toString(),
+        otpExpiresAt: codeWithExpiry.expiryTime,
       },
     });
 
+    await this.mailService.sendVerificationCodeEmail(
+      email,
+      codeWithExpiry.otp.toString(),
+      {
+        subject: 'Verify your email',
+        message:
+          'Welcome to our platform! Your account has been successfully created.',
+      },
+    );
+
     return successResponse(
       this.utils.sanitizedResponse(UserResponseDto, newUser),
-      'User registered successfully',
+      'Registration successful. Please verify your email.',
     );
   }
 
-  @HandleError('Login failed', 'User')
-  async login(dto: LoginDto): Promise<TResponse<any>> {
-    const { email, password } = dto;
-
-    // * find user by email
+  async verifyEmail(email: string, otp: string): Promise<TResponse<any>> {
     const user = await this.prisma.user.findUnique({
       where: { email },
     });
@@ -68,19 +80,30 @@ export class AuthService {
       throw new AppError(400, 'User not found');
     }
 
-    if (!user.password) {
-      throw new AppError(
-        400,
-        'User password not set. Try Google or Facebook login.',
-      );
+    if (user.isVerified) {
+      throw new AppError(400, 'User already verified');
     }
 
-    // * check password
-    const isPasswordValid = await this.utils.compare(password, user.password);
-
-    if (!isPasswordValid) {
-      throw new AppError(400, 'Invalid credentials');
+    if (!user.otp || !user.otpExpiresAt) {
+      throw new AppError(400, 'OTP is not set. Please request a new one.');
     }
+
+    if (user.otp !== otp) {
+      throw new AppError(400, 'Invalid OTP');
+    }
+
+    if (user.otpExpiresAt < new Date()) {
+      throw new AppError(400, 'OTP has expired. Please request a new one.');
+    }
+
+    await this.prisma.user.update({
+      where: { email },
+      data: {
+        isVerified: true,
+        otp: null,
+        otpExpiresAt: null,
+      },
+    });
 
     const token = this.utils.generateToken({
       sub: user.id,
@@ -93,7 +116,7 @@ export class AuthService {
         user: this.utils.sanitizedResponse(UserResponseDto, user),
         token,
       },
-      'User logged in successfully',
+      'Email verified successfully',
     );
   }
 }

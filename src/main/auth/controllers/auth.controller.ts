@@ -1,18 +1,17 @@
 import { Body, Controller, Post } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { FacebookLoginDto } from '../dto/facebook-login.dto';
 import { GoogleLoginDto } from '../dto/google-login.dto';
-import { LoginDto } from '../dto/login.dto';
-import { RegisterDto } from '../dto/register.dto';
+import { RegisterDto, VerifyEmailDto } from '../dto/register.dto';
 import { AuthFacebookService } from '../services/auth-facebook.service';
 import { AuthGoogleService } from '../services/auth-google.service';
-import { AuthService } from '../services/auth.service';
-import { FacebookLoginDto } from '../dto/facebook-login.dto';
+import { AuthRegisterService } from '../services/auth-register.service';
 
 @ApiTags('Auth')
 @Controller('auth')
 export class AuthController {
   constructor(
-    private readonly authService: AuthService,
+    private readonly authRegisterService: AuthRegisterService,
     private readonly authGoogleService: AuthGoogleService,
     private readonly authFacebookService: AuthFacebookService,
   ) {}
@@ -20,13 +19,13 @@ export class AuthController {
   @ApiOperation({ summary: 'User Registration with Email' })
   @Post('register')
   async register(@Body() body: RegisterDto) {
-    return this.authService.register(body);
+    return this.authRegisterService.register(body);
   }
 
-  @ApiOperation({ summary: 'User Login with Email' })
-  @Post('login')
-  async login(@Body() body: LoginDto) {
-    return this.authService.login(body);
+  @ApiOperation({ summary: 'Verify User Email after Email Registration' })
+  @Post('verify-email')
+  async verifyEmail(@Body() body: VerifyEmailDto) {
+    return this.authRegisterService.verifyEmail(body.email, body.otp);
   }
 
   @ApiOperation({ summary: 'Google Login or Sign Up' })
