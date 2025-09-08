@@ -8,6 +8,7 @@ import {
 } from '@project/common/utils/response.util';
 import { MailService } from '@project/lib/mail/mail.service';
 import { PrismaService } from '@project/lib/prisma/prisma.service';
+import { TwilioService } from '@project/lib/twilio/twilio.service';
 import { UtilsService } from '@project/lib/utils/utils.service';
 import { LoginDto } from '../dto/login.dto';
 
@@ -16,6 +17,7 @@ export class AuthLoginService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly mailService: MailService,
+    private readonly twilio: TwilioService,
     private readonly utils: UtilsService,
   ) {}
 
@@ -23,68 +25,48 @@ export class AuthLoginService {
   async login(dto: LoginDto): Promise<TResponse<any>> {
     const { email, password } = dto;
 
-    // * check if user exists
-    const user = await this.prisma.user.findUnique({
-      where: { email },
-    });
+    const user = await this.prisma.user.findUnique({ where: { email } });
 
-    if (!user) {
-      throw new AppError(400, 'User not found');
-    }
+    if (!user) throw new AppError(400, 'User not found');
 
-    if (!user.password) {
+    if (!user.password)
       throw new AppError(400, 'Please login using your social account');
-    }
 
-    // * check if password is correct
     const isPasswordCorrect = await this.utils.compare(password, user.password);
+    if (!isPasswordCorrect) throw new AppError(400, 'Invalid password');
 
-    if (!isPasswordCorrect) {
-      throw new AppError(400, 'Invalid password');
-    }
-
-    // * if user is not verified
+    // 1. If user is not verified
     if (!user.isVerified) {
-      const codeWithExpiry = this.utils.generateOtpAndExpiry();
-      const { otp, expiryTime } = codeWithExpiry;
-
-      const hashedOtp = await this.utils.hash(otp.toString());
-
-      await this.prisma.user.update({
-        where: { email },
-        data: {
-          otp: hashedOtp,
-          otpExpiresAt: expiryTime,
-          isLoggedIn: true,
-          lastLoginAt: new Date(),
-        },
-      });
-
-      await this.mailService.sendVerificationCodeEmail(
-        user.email,
-        otp.toString(),
-        {
-          message: 'Please verify your email to complete the login process.',
-          subject: 'Verify your email to login',
-        },
-      );
-
+      await this.generateAndSendOtp(email, 'EMAIL');
       return successResponse(
         { email: user.email },
         'Your email is not verified. A new OTP has been sent to your email.',
       );
     }
 
-    // * if user is verified
+    // 2. Handle 2FA
+    if (user.isTwoFAEnabled) {
+      if (user.twoFAMethod === 'EMAIL' || user.twoFAMethod === 'PHONE') {
+        await this.generateAndSendOtp(email, user.twoFAMethod);
+        return successResponse(
+          user.twoFAMethod === 'EMAIL'
+            ? { email: user.email }
+            : { phone: user.phone },
+          `Two-factor authentication is enabled. A new OTP has been sent to your ${user.twoFAMethod.toLowerCase()}.`,
+        );
+      }
+      // Authenticator app (TOTP) handled on frontend prompt
+      return successResponse(
+        { user: user.email },
+        'Two-factor authentication enabled. Enter code from your authenticator app.',
+      );
+    }
+
+    // 3. Regular login (no verification / 2FA)
     const updatedUser = await this.prisma.user.update({
       where: { email },
-      data: {
-        isLoggedIn: true,
-        lastLoginAt: new Date(),
-      },
+      data: { isLoggedIn: true, lastLoginAt: new Date() },
     });
-
-    // * TODO: Handle TFA
 
     const token = this.utils.generateToken({
       sub: user.id,
@@ -99,5 +81,28 @@ export class AuthLoginService {
       },
       'Logged in successfully',
     );
+  }
+
+  // Helper to generate and send OTP
+  private async generateAndSendOtp(email: string, method: 'EMAIL' | 'PHONE') {
+    const { otp, expiryTime } = this.utils.generateOtpAndExpiry();
+    const hashedOtp = await this.utils.hash(otp.toString());
+
+    const user = await this.prisma.user.update({
+      where: { email },
+      data: { otp: hashedOtp, otpExpiresAt: expiryTime },
+    });
+
+    if (method === 'EMAIL') {
+      console.log('sending email');
+      await this.mailService.sendVerificationCodeEmail(email, otp.toString(), {
+        subject: 'Verify your login',
+        message: 'Please verify your email to complete the login process.',
+      });
+    } else if (method === 'PHONE') {
+      await this.twilio.sendTFACode(user.phone || '', otp.toString());
+    }
+
+    return otp;
   }
 }
