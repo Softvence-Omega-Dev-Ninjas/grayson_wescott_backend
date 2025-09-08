@@ -17,6 +17,7 @@ import { AuthLoginService } from '../services/auth-login.service';
 import { AuthOtpService } from '../services/auth-otp.service';
 import { AuthPasswordService } from '../services/auth-password.service';
 import { AuthRegisterService } from '../services/auth-register.service';
+import { AuthLogoutService } from './../services/auth-logout.service';
 
 @ApiTags('Auth')
 @Controller('auth')
@@ -26,6 +27,7 @@ export class AuthController {
     private readonly authGoogleService: AuthGoogleService,
     private readonly authFacebookService: AuthFacebookService,
     private readonly authLoginService: AuthLoginService,
+    private readonly authLogoutService: AuthLogoutService,
     private readonly authOtpService: AuthOtpService,
     private readonly authPasswordService: AuthPasswordService,
   ) {}
@@ -46,6 +48,14 @@ export class AuthController {
   @Post('login')
   async login(@Body() body: LoginDto) {
     return this.authLoginService.login(body);
+  }
+
+  @ApiOperation({ summary: 'User Logout' })
+  @ApiBearerAuth()
+  @Post('logout')
+  @ValidateAuth()
+  async logOut(@GetUser('userId') userId: string) {
+    return this.authLogoutService.logout(userId);
   }
 
   @ApiOperation({ summary: 'Resend OTP to Email' })

@@ -31,6 +31,9 @@ export class UserResponseDto {
   isVerified: boolean;
 
   @Expose()
+  isLoggedIn: boolean;
+
+  @Expose()
   isTwoFAEnabled: boolean;
 
   @Expose()

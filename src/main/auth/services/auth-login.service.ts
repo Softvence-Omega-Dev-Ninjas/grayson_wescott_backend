@@ -75,6 +75,15 @@ export class AuthLoginService {
       );
     }
 
+    // * if user is verified
+    const updatedUser = await this.prisma.user.update({
+      where: { email },
+      data: {
+        isLoggedIn: true,
+        lastLoginAt: new Date(),
+      },
+    });
+
     // * TODO: Handle TFA
 
     const token = this.utils.generateToken({
@@ -85,7 +94,7 @@ export class AuthLoginService {
 
     return successResponse(
       {
-        user: this.utils.sanitizedResponse(UserResponseDto, user),
+        user: this.utils.sanitizedResponse(UserResponseDto, updatedUser),
         token,
       },
       'Logged in successfully',
