@@ -13,6 +13,11 @@ model User {
   role         UserRole     @default(USER)
   signUpMethod SignUpMethod @default(EMAIL) // * First sign-up method
 
+  // Logout tracking
+  isLoggedIn   Boolean   @default(false)
+  lastLoginAt  DateTime?
+  lastLogoutAt DateTime?
+
   // OTP / Verification
   otp          String? // hashed OTP
   otpExpiresAt DateTime?

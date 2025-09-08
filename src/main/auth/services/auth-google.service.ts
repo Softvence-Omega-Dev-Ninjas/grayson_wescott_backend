@@ -93,6 +93,8 @@ export class AuthGoogleService {
             email,
             isVerified: true,
             name: payload.name || 'Unnamed User',
+            isLoggedIn: true,
+            lastLoginAt: new Date(),
             avatarUrl:
               payload.picture ||
               'https://www.gravatar.com/avatar/000000000000000000000000000000?d=mp&f=y',
@@ -127,7 +129,11 @@ export class AuthGoogleService {
       // Ensure verified
       user = await this.prisma.user.update({
         where: { id: user.id },
-        data: { isVerified: true },
+        data: {
+          isVerified: true,
+          isLoggedIn: true,
+          lastLoginAt: new Date(),
+        },
         include: { authProviders: true },
       });
     } else {
@@ -138,6 +144,8 @@ export class AuthGoogleService {
           name: payload.name || user.name,
           avatarUrl: payload.picture || user.avatarUrl,
           isVerified: true,
+          isLoggedIn: true,
+          lastLoginAt: new Date(),
         },
         include: { authProviders: true },
       });

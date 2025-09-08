@@ -109,6 +109,8 @@ export class AuthRegisterService {
         isVerified: true,
         otp: null,
         otpExpiresAt: null,
+        isLoggedIn: true,
+        lastLoginAt: new Date(),
       },
     });
 

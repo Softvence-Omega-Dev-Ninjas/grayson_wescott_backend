@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { UserResponseDto } from '@project/common/dto/user-response.dto';
 import { AppError } from '@project/common/error/handle-error.app';
+import { HandleError } from '@project/common/error/handle-error.decorator';
 import {
   successResponse,
   TResponse,
@@ -9,7 +10,6 @@ import { MailService } from '@project/lib/mail/mail.service';
 import { PrismaService } from '@project/lib/prisma/prisma.service';
 import { UtilsService } from '@project/lib/utils/utils.service';
 import { LoginDto } from '../dto/login.dto';
-import { HandleError } from '@project/common/error/handle-error.decorator';
 
 @Injectable()
 export class AuthLoginService {
@@ -55,6 +55,8 @@ export class AuthLoginService {
         data: {
           otp: hashedOtp,
           otpExpiresAt: expiryTime,
+          isLoggedIn: true,
+          lastLoginAt: new Date(),
         },
       });
 

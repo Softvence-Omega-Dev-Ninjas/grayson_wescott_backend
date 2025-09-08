@@ -48,6 +48,8 @@ export class AuthFacebookService {
           email,
           isVerified: true,
           name: name || '',
+          isLoggedIn: true,
+          lastLoginAt: new Date(),
           avatarUrl: picture?.data?.url || '',
           authProviders: {
             create: { provider: AuthProvider.FACEBOOK, providerId: id },
@@ -68,12 +70,25 @@ export class AuthFacebookService {
             providerId: id,
           },
         });
+        // Ensure that the user's name and avatarUrl are updated
+        user = await this.prisma.user.update({
+          where: { id: user.id },
+          data: {
+            name: name || user.name,
+            avatarUrl: picture?.data?.url || user.avatarUrl,
+            lastLoginAt: new Date(),
+            isLoggedIn: true,
+          },
+          include: { authProviders: true },
+        });
       } else {
         user = await this.prisma.user.update({
           where: { id: user.id },
           data: {
             name: name || user.name,
             avatarUrl: picture?.data?.url || user.avatarUrl,
+            lastLoginAt: new Date(),
+            isLoggedIn: true,
           },
           include: { authProviders: true },
         });
