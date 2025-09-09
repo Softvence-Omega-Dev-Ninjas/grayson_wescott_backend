@@ -26,16 +26,14 @@ export class AuthLoginService {
     const { email, password } = dto;
 
     const user = await this.prisma.user.findUnique({ where: { email } });
-
     if (!user) throw new AppError(400, 'User not found');
-
     if (!user.password)
       throw new AppError(400, 'Please login using your social account');
 
     const isPasswordCorrect = await this.utils.compare(password, user.password);
     if (!isPasswordCorrect) throw new AppError(400, 'Invalid password');
 
-    // 1. If user is not verified
+    // 1. Email verification
     if (!user.isVerified) {
       await this.generateAndSendOtp(email, 'EMAIL', 'VERIFICATION');
       return successResponse(
@@ -44,7 +42,7 @@ export class AuthLoginService {
       );
     }
 
-    // 2. Handle 2FA
+    // 2. Two-factor authentication
     if (user.isTwoFAEnabled) {
       if (user.twoFAMethod === 'EMAIL' || user.twoFAMethod === 'PHONE') {
         await this.generateAndSendOtp(email, user.twoFAMethod, 'TFA');
@@ -55,14 +53,15 @@ export class AuthLoginService {
           `Two-factor authentication is enabled. A new OTP has been sent to your ${user.twoFAMethod.toLowerCase()}.`,
         );
       }
-      // Authenticator app (TOTP) handled on frontend prompt
+
+      // Authenticator app (TOTP) handled on frontend
       return successResponse(
         { user: user.email },
         'Two-factor authentication enabled. Enter code from your authenticator app.',
       );
     }
 
-    // 3. Regular login (no verification / 2FA)
+    // 3. Regular login
     const updatedUser = await this.prisma.user.update({
       where: { email },
       data: { isLoggedIn: true, lastLoginAt: new Date() },
@@ -83,7 +82,7 @@ export class AuthLoginService {
     );
   }
 
-  // Helper to generate and send OTP
+  // Helper: generate and send OTP
   private async generateAndSendOtp(
     email: string,
     method: 'EMAIL' | 'PHONE',
@@ -98,7 +97,6 @@ export class AuthLoginService {
     });
 
     if (method === 'EMAIL') {
-      console.log('sending email');
       await this.mailService.sendVerificationCodeEmail(email, otp.toString(), {
         subject: 'Verify your login',
         message: 'Please verify your email to complete the login process.',

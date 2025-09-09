@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsEmail, IsNotEmpty } from 'class-validator';
+import { IsEmail, IsNotEmpty, IsOptional } from 'class-validator';
 
 export class ResendOtpDto {
   @ApiProperty({
@@ -23,14 +23,14 @@ export class VerifyOTPDto {
     example: 'user@example.com',
     description: 'Email address',
   })
+  @IsOptional()
   @IsEmail()
-  @IsNotEmpty()
   email?: string;
 
   @ApiPropertyOptional({
     example: '123456',
     description: 'Phone number',
   })
-  @IsNotEmpty()
+  @IsOptional()
   phone?: string;
 }

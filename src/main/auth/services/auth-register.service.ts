@@ -23,30 +23,27 @@ export class AuthRegisterService {
   async register(dto: RegisterDto): Promise<TResponse<any>> {
     const { email, password, username } = dto;
 
-    // * check if user already exists
+    // Check if user email already exists
     const existingUser = await this.prisma.user.findUnique({
       where: { email },
     });
-
     if (existingUser) {
       throw new AppError(400, 'User already exists with this email');
     }
 
-    // * check if username already exists
+    // Check if username already exists
     const existingUsernameUser = await this.prisma.user.findUnique({
       where: { username },
     });
-
     if (existingUsernameUser) {
       throw new AppError(400, 'Username already taken');
     }
 
-    const codeWithExpiry = this.utils.generateOtpAndExpiry();
-    const { otp, expiryTime } = codeWithExpiry;
-
+    // Generate OTP and expiry
+    const { otp, expiryTime } = this.utils.generateOtpAndExpiry();
     const hashedOtp = await this.utils.hash(otp.toString());
 
-    // * create new user
+    // Create new user
     const newUser = await this.prisma.user.create({
       data: {
         email,
@@ -59,16 +56,14 @@ export class AuthRegisterService {
       },
     });
 
-    await this.mailService.sendVerificationCodeEmail(
-      email,
-      codeWithExpiry.otp.toString(),
-      {
-        subject: 'Verify your email',
-        message:
-          'Welcome to our platform! Your account has been successfully created.',
-      },
-    );
+    // Send verification email
+    await this.mailService.sendVerificationCodeEmail(email, otp.toString(), {
+      subject: 'Verify your email',
+      message:
+        'Welcome to our platform! Your account has been successfully created.',
+    });
 
+    // Return sanitized response
     return successResponse(
       this.utils.sanitizedResponse(UserResponseDto, newUser),
       'Registration successful. Please verify your email.',
