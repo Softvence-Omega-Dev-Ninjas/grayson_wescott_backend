@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { UserResponseDto } from '@project/common/dto/user-response.dto';
 import { AppError } from '@project/common/error/handle-error.app';
 import { HandleError } from '@project/common/error/handle-error.decorator';
 import {
@@ -8,6 +9,7 @@ import {
 import { MailService } from '@project/lib/mail/mail.service';
 import { PrismaService } from '@project/lib/prisma/prisma.service';
 import { UtilsService } from '@project/lib/utils/utils.service';
+import { VerifyOTPDto } from '../dto/otp.dto';
 
 @Injectable()
 export class AuthOtpService {
@@ -64,6 +66,7 @@ export class AuthOtpService {
         data: {
           otp: null,
           otpExpiresAt: null,
+          otpType: null,
         },
       });
 
@@ -74,5 +77,61 @@ export class AuthOtpService {
     }
 
     return successResponse(null, 'OTP resent successfully');
+  }
+
+  @HandleError('Email verification failed', 'User')
+  async verifyOTP(dto: VerifyOTPDto): Promise<TResponse<any>> {
+    const { email, otp } = dto;
+
+    const user = await this.prisma.user.findUnique({
+      where: { email },
+    });
+
+    if (!user) {
+      throw new AppError(400, 'User not found');
+    }
+
+    if (user.isVerified) {
+      throw new AppError(400, 'User already verified');
+    }
+
+    if (!user.otp || !user.otpExpiresAt) {
+      throw new AppError(400, 'OTP is not set. Please request a new one.');
+    }
+
+    const isCorrectOtp = await this.utils.compare(otp, user.otp);
+    if (!isCorrectOtp) {
+      throw new AppError(400, 'Invalid OTP');
+    }
+
+    if (user.otpExpiresAt < new Date()) {
+      throw new AppError(400, 'OTP has expired. Please request a new one.');
+    }
+
+    await this.prisma.user.update({
+      where: { email },
+      data: {
+        isVerified: true,
+        otp: null,
+        otpExpiresAt: null,
+        otpType: null,
+        isLoggedIn: true,
+        lastLoginAt: new Date(),
+      },
+    });
+
+    const token = this.utils.generateToken({
+      sub: user.id,
+      email: user.email,
+      roles: user.role,
+    });
+
+    return successResponse(
+      {
+        user: this.utils.sanitizedResponse(UserResponseDto, user),
+        token,
+      },
+      'Email verified successfully',
+    );
   }
 }

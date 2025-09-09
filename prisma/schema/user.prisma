@@ -18,8 +18,9 @@ model User {
   lastLoginAt  DateTime?
   lastLogoutAt DateTime?
 
-  // OTP / Verification
+  // OTP / Verification OR TFA
   otp          String? // hashed OTP
+  otpType      OtpType? 
   otpExpiresAt DateTime?
   isVerified   Boolean   @default(false)
 
@@ -90,4 +91,9 @@ enum TwoFAMethod {
   EMAIL
   PHONE
   AUTH_APP
+}
+
+enum OtpType {
+  VERIFICATION
+  TFA
 }

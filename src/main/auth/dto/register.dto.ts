@@ -25,19 +25,3 @@ export class RegisterDto {
   @MinLength(6)
   password: string;
 }
-
-export class VerifyEmailDto {
-  @ApiProperty({
-    example: '123456',
-    description: 'OTP code',
-  })
-  @IsNotEmpty()
-  otp: string;
-
-  @ApiProperty({
-    example: 'user@example',
-    description: 'Email address',
-  })
-  @IsNotEmpty()
-  email: string;
-}

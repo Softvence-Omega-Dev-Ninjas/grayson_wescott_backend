@@ -4,13 +4,13 @@ import { GetUser, ValidateAuth } from '@project/common/jwt/jwt.decorator';
 import { FacebookLoginDto } from '../dto/facebook-login.dto';
 import { GoogleLoginDto } from '../dto/google-login.dto';
 import { LoginDto } from '../dto/login.dto';
-import { ResendOtpDto } from '../dto/otp.dto';
+import { ResendOtpDto, VerifyOTPDto } from '../dto/otp.dto';
 import {
   ChangePasswordDto,
   ForgotPasswordDto,
   ResetPasswordDto,
 } from '../dto/password.dto';
-import { RegisterDto, VerifyEmailDto } from '../dto/register.dto';
+import { RegisterDto } from '../dto/register.dto';
 import { AuthFacebookService } from '../services/auth-facebook.service';
 import { AuthGoogleService } from '../services/auth-google.service';
 import { AuthLoginService } from '../services/auth-login.service';
@@ -38,12 +38,6 @@ export class AuthController {
     return this.authRegisterService.register(body);
   }
 
-  @ApiOperation({ summary: 'Verify User Email after Email Registration' })
-  @Post('verify-email')
-  async verifyEmail(@Body() body: VerifyEmailDto) {
-    return this.authRegisterService.verifyEmail(body);
-  }
-
   @ApiOperation({ summary: 'User Login' })
   @Post('login')
   async login(@Body() body: LoginDto) {
@@ -62,6 +56,12 @@ export class AuthController {
   @Post('resend-otp')
   async resendOtp(@Body() body: ResendOtpDto) {
     return this.authOtpService.resendOtp(body.email);
+  }
+
+  @ApiOperation({ summary: 'Verify OTP after Registration or Login or TFA' })
+  @Post('verify-otp')
+  async verifyEmail(@Body() body: VerifyOTPDto) {
+    return this.authOtpService.verifyOTP(body);
   }
 
   @ApiOperation({ summary: 'Change Password' })

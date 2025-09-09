@@ -37,7 +37,7 @@ export class AuthLoginService {
 
     // 1. If user is not verified
     if (!user.isVerified) {
-      await this.generateAndSendOtp(email, 'EMAIL');
+      await this.generateAndSendOtp(email, 'EMAIL', 'VERIFICATION');
       return successResponse(
         { email: user.email },
         'Your email is not verified. A new OTP has been sent to your email.',
@@ -47,7 +47,7 @@ export class AuthLoginService {
     // 2. Handle 2FA
     if (user.isTwoFAEnabled) {
       if (user.twoFAMethod === 'EMAIL' || user.twoFAMethod === 'PHONE') {
-        await this.generateAndSendOtp(email, user.twoFAMethod);
+        await this.generateAndSendOtp(email, user.twoFAMethod, 'TFA');
         return successResponse(
           user.twoFAMethod === 'EMAIL'
             ? { email: user.email }
@@ -84,13 +84,17 @@ export class AuthLoginService {
   }
 
   // Helper to generate and send OTP
-  private async generateAndSendOtp(email: string, method: 'EMAIL' | 'PHONE') {
+  private async generateAndSendOtp(
+    email: string,
+    method: 'EMAIL' | 'PHONE',
+    type: 'VERIFICATION' | 'TFA',
+  ): Promise<number> {
     const { otp, expiryTime } = this.utils.generateOtpAndExpiry();
     const hashedOtp = await this.utils.hash(otp.toString());
 
     const user = await this.prisma.user.update({
       where: { email },
-      data: { otp: hashedOtp, otpExpiresAt: expiryTime },
+      data: { otp: hashedOtp, otpExpiresAt: expiryTime, otpType: type },
     });
 
     if (method === 'EMAIL') {
