@@ -1,5 +1,7 @@
 services:
   server:
+    image: sajibsv/grayson-server:latest
+    platform: linux/amd64
     container_name: grayson-server-api
     restart: always
     build:

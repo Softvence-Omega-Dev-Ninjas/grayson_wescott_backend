@@ -25,7 +25,8 @@
     "db:studio": "npx prisma studio",
     "db:validate": "npx prisma validate",
     "db:format": "npx prisma format",
-    "postinstall": "npx prisma generate"
+    "postinstall": "npx prisma generate",
+    "prepare": "husky"
   },
   "dependencies": {
     "@nestjs/bullmq": "^11.0.3",
