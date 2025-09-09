@@ -7,6 +7,7 @@ import { AuthLogoutService } from './services/auth-logout.service';
 import { AuthOtpService } from './services/auth-otp.service';
 import { AuthPasswordService } from './services/auth-password.service';
 import { AuthRegisterService } from './services/auth-register.service';
+import { AuthTfaService } from './services/auth-tfa.service';
 
 @Module({
   controllers: [AuthController],
@@ -18,6 +19,7 @@ import { AuthRegisterService } from './services/auth-register.service';
     AuthOtpService,
     AuthPasswordService,
     AuthLogoutService,
+    AuthTfaService,
   ],
 })
 export class AuthModule {}

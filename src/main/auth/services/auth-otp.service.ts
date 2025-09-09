@@ -120,6 +120,7 @@ export class AuthOtpService {
         otpType: null,
         isLoggedIn: true,
         lastLoginAt: new Date(),
+        isTwoFAEnabled: user.otpType === 'TFA' ? true : user.isTwoFAEnabled, // * Only enable TFA if OTP is for TFA, otherwise keep the existing value
       },
     });
 

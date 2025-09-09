@@ -24,7 +24,6 @@ export class MailService {
     code: string,
     { subject, message }: { subject?: string; message?: string } = {},
   ): Promise<nodemailer.SentMessageInfo> {
-    console.log('to', to);
     // Escape dynamic values to prevent injection
     const safeCode = he.encode(code);
     const safeMessage = he.encode(message || 'Verify your account');

@@ -1,4 +1,4 @@
-import { Body, Controller, Post } from '@nestjs/common';
+import { Body, Controller, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { GetUser, ValidateAuth } from '@project/common/jwt/jwt.decorator';
 import { FacebookLoginDto } from '../dto/facebook-login.dto';
@@ -11,12 +11,14 @@ import {
   ResetPasswordDto,
 } from '../dto/password.dto';
 import { RegisterDto } from '../dto/register.dto';
+import { RequestTFA } from '../dto/tfa.dto';
 import { AuthFacebookService } from '../services/auth-facebook.service';
 import { AuthGoogleService } from '../services/auth-google.service';
 import { AuthLoginService } from '../services/auth-login.service';
 import { AuthOtpService } from '../services/auth-otp.service';
 import { AuthPasswordService } from '../services/auth-password.service';
 import { AuthRegisterService } from '../services/auth-register.service';
+import { AuthTfaService } from '../services/auth-tfa.service';
 import { AuthLogoutService } from './../services/auth-logout.service';
 
 @ApiTags('Auth')
@@ -30,6 +32,7 @@ export class AuthController {
     private readonly authLogoutService: AuthLogoutService,
     private readonly authOtpService: AuthOtpService,
     private readonly authPasswordService: AuthPasswordService,
+    private readonly authTfaService: AuthTfaService,
   ) {}
 
   @ApiOperation({ summary: 'User Registration with Email' })
@@ -62,6 +65,17 @@ export class AuthController {
   @Post('verify-otp')
   async verifyEmail(@Body() body: VerifyOTPDto) {
     return this.authOtpService.verifyOTP(body);
+  }
+
+  @ApiOperation({ summary: 'Request TFA' })
+  @ApiBearerAuth()
+  @Post('request-tfa')
+  @ValidateAuth()
+  async requestTFA(
+    @GetUser('userId') userId: string,
+    @Query() query: RequestTFA,
+  ) {
+    return this.authTfaService.requestToEnableTfa(userId, query.method);
   }
 
   @ApiOperation({ summary: 'Change Password' })
