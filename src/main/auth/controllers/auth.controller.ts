@@ -1,4 +1,4 @@
-import { Body, Controller, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { GetUser, ValidateAuth } from '@project/common/jwt/jwt.decorator';
 import { FacebookLoginDto } from '../dto/facebook-login.dto';
@@ -20,6 +20,7 @@ import { AuthPasswordService } from '../services/auth-password.service';
 import { AuthRegisterService } from '../services/auth-register.service';
 import { AuthTfaService } from '../services/auth-tfa.service';
 import { AuthLogoutService } from './../services/auth-logout.service';
+import { AuthGetProfileService } from '../services/auth-get-profile.service';
 
 @ApiTags('Auth')
 @Controller('auth')
@@ -33,6 +34,7 @@ export class AuthController {
     private readonly authOtpService: AuthOtpService,
     private readonly authPasswordService: AuthPasswordService,
     private readonly authTfaService: AuthTfaService,
+    private readonly authGetProfileService: AuthGetProfileService,
   ) {}
 
   @ApiOperation({ summary: 'User Registration with Email' })
@@ -78,6 +80,14 @@ export class AuthController {
     return this.authTfaService.requestToEnableTfa(userId, query.method);
   }
 
+  @ApiOperation({ summary: 'Disable TFA' })
+  @ApiBearerAuth()
+  @Post('disable-tfa')
+  @ValidateAuth()
+  async disableTfa(@GetUser('userId') userId: string) {
+    return this.authTfaService.disableTfa(userId);
+  }
+
   @ApiOperation({ summary: 'Change Password' })
   @ApiBearerAuth()
   @Post('change-password')
@@ -111,5 +121,13 @@ export class AuthController {
   @Post('facebook-login')
   async facebookLogin(@Body() body: FacebookLoginDto) {
     return this.authFacebookService.facebookLogin(body);
+  }
+
+  @ApiOperation({ summary: 'Get User Profile' })
+  @ApiBearerAuth()
+  @Get('profile')
+  @ValidateAuth()
+  async getProfile(@GetUser('userId') userId: string) {
+    return this.authGetProfileService.getProfile(userId);
   }
 }

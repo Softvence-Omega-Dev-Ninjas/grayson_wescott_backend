@@ -103,4 +103,18 @@ export class AuthTfaService {
       `Two-factor authentication setup initiated via ${method}. Please verify the OTP.`,
     );
   }
+
+  @HandleError('Failed to disable 2FA')
+  async disableTfa(userId: string): Promise<TResponse<any>> {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+
+    if (!user) throw new AppError(404, 'User not found');
+
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { twoFAMethod: null, twoFASecret: null, isTwoFAEnabled: false },
+    });
+
+    return successResponse(null, '2FA disabled successfully');
+  }
 }
