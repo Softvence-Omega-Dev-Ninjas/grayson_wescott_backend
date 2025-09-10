@@ -1,7 +1,10 @@
 import { Body, Controller, Get, Post } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { GetUser, ValidateAuth } from '@project/common/jwt/jwt.decorator';
-import { FacebookLoginDto } from '../dto/facebook-login.dto';
+import {
+  FacebookLoginCompleteDto,
+  FacebookLoginDto,
+} from '../dto/facebook-login.dto';
 import { GoogleLoginDto } from '../dto/google-login.dto';
 import { LoginDto } from '../dto/login.dto';
 import { ResendOtpDto, VerifyOTPDto } from '../dto/otp.dto';
@@ -34,7 +37,6 @@ export class AuthController {
     private readonly authLogoutService: AuthLogoutService,
     private readonly authOtpService: AuthOtpService,
     private readonly authPasswordService: AuthPasswordService,
-
     private readonly authTfaService: AuthTfaService,
     private readonly authGetProfileService: AuthGetProfileService,
   ) {}
@@ -134,6 +136,12 @@ export class AuthController {
   @Post('facebook-login')
   async facebookLogin(@Body() body: FacebookLoginDto) {
     return this.authFacebookService.facebookLogin(body);
+  }
+
+  @ApiOperation({ summary: 'Facebook Login Complete' })
+  @Post('facebook-login-complete')
+  async facebookLoginComplete(@Body() body: FacebookLoginCompleteDto) {
+    return this.authFacebookService.facebookLoginComplete(body);
   }
 
   @ApiOperation({ summary: 'Get User Profile' })

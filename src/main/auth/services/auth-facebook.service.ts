@@ -10,7 +10,10 @@ import {
 import { PrismaService } from '@project/lib/prisma/prisma.service';
 import { UtilsService } from '@project/lib/utils/utils.service';
 import axios from 'axios';
-import { FacebookLoginDto } from '../dto/facebook-login.dto';
+import {
+  FacebookLoginCompleteDto,
+  FacebookLoginDto,
+} from '../dto/facebook-login.dto';
 
 @Injectable()
 export class AuthFacebookService {
@@ -22,90 +25,191 @@ export class AuthFacebookService {
   @HandleError('Facebook login failed', 'User')
   async facebookLogin(dto: FacebookLoginDto): Promise<TResponse<any>> {
     const { accessToken } = dto;
-
-    if (!accessToken) {
+    if (!accessToken)
       throw new AppError(400, 'Facebook access token is required');
+
+    const fbProfile = await this.getFacebookProfile(accessToken, [
+      'id',
+      'name',
+      'email',
+      'picture',
+    ]);
+    const { id: providerId, email, name, picture } = fbProfile;
+
+    // Try to find user by providerId first
+    let user = await this.findUserByProviderId(providerId);
+    if (!user) {
+      // FB did not provide email → ask frontend
+      if (!email) {
+        return successResponse(
+          {
+            needsEmail: true,
+            provider: AuthProvider.FACEBOOK,
+            providerId,
+            accessToken,
+            name: name || '',
+            avatarUrl: picture?.data?.url || '',
+          },
+          'Facebook did not return an email. Please provide one to continue.',
+        );
+      }
+
+      // Try to find by email or create new user
+      user = await this.findOrCreateUserByEmail(email, {
+        provider: AuthProvider.FACEBOOK,
+        providerId,
+        name,
+        avatarUrl: picture?.data?.url || '',
+      });
+    } else {
+      // Existing user → update profile
+      user = await this.updateUserProfile(user, name, picture?.data?.url || '');
     }
 
-    const fbRes = await axios.get(
-      `https://graph.facebook.com/me?fields=id,name,email,picture&access_token=${accessToken}`,
+    const token = this.generateUserToken(user);
+    return this.buildSuccessResponse(user, token);
+  }
+
+  @HandleError('Facebook login completion failed', 'User')
+  async facebookLoginComplete(
+    data: FacebookLoginCompleteDto,
+  ): Promise<TResponse<any>> {
+    const { accessToken, email } = data;
+    if (!accessToken || !email) {
+      throw new AppError(
+        400,
+        'ProviderId, accessToken, and email are required',
+      );
+    }
+
+    // Get FB profile
+    const fbProfile = await this.getFacebookProfile(accessToken, [
+      'id',
+      'name',
+      'picture',
+      'email',
+    ]);
+
+    // Find or create user with email and link provider
+    let user = await this.findOrCreateUserByEmail(email, {
+      provider: AuthProvider.FACEBOOK,
+      providerId: fbProfile.id,
+      name: fbProfile.name || '',
+      avatarUrl: fbProfile.picture?.data?.url || '',
+    });
+
+    const token = this.generateUserToken(user);
+    return this.buildSuccessResponse(user, token);
+  }
+
+  // ================= Helper Methods =================
+  private async getFacebookProfile(accessToken: string, fields: string[]) {
+    const res = await axios.get(
+      `https://graph.facebook.com/me?fields=${fields.join(',')}&access_token=${accessToken}`,
     );
+    return res.data;
+  }
 
-    const { id, email, name, picture } = fbRes.data;
+  private async findUserByProviderId(providerId: string) {
+    return this.prisma.user.findFirst({
+      where: {
+        authProviders: {
+          some: { provider: AuthProvider.FACEBOOK, providerId },
+        },
+      },
+      include: { authProviders: true },
+    });
+  }
 
-    if (!email) {
-      throw new AppError(400, 'Facebook did not return an email address');
-    }
-
+  private async findOrCreateUserByEmail(
+    email: string,
+    options: {
+      provider: AuthProvider;
+      providerId: string;
+      name?: string;
+      avatarUrl?: string;
+    },
+  ) {
     let user = await this.prisma.user.findUnique({
       where: { email },
       include: { authProviders: true },
     });
 
     if (!user) {
+      // Create new user
       user = await this.prisma.user.create({
         data: {
           email,
           isVerified: true,
-          name: name || '',
+          name: options.name || '',
           isLoggedIn: true,
           lastLoginAt: new Date(),
-          avatarUrl: picture?.data?.url || '',
+          avatarUrl: options.avatarUrl || '',
           authProviders: {
-            create: { provider: AuthProvider.FACEBOOK, providerId: id },
+            create: {
+              provider: options.provider,
+              providerId: options.providerId,
+            },
           },
         },
         include: { authProviders: true },
       });
     } else {
-      const hasFacebookProvider = user.authProviders.some(
-        (ap) => ap.provider === AuthProvider.FACEBOOK && ap.providerId === id,
+      // Ensure FB provider is linked
+      const hasProvider = user.authProviders.some(
+        (ap) =>
+          ap.provider === options.provider &&
+          ap.providerId === options.providerId,
       );
-
-      if (!hasFacebookProvider) {
+      if (!hasProvider) {
         await this.prisma.userAuthProvider.create({
           data: {
             userId: user.id,
-            provider: AuthProvider.FACEBOOK,
-            providerId: id,
+            provider: options.provider,
+            providerId: options.providerId,
           },
-        });
-        // Ensure that the user's name and avatarUrl are updated
-        user = await this.prisma.user.update({
-          where: { id: user.id },
-          data: {
-            name: name || user.name,
-            avatarUrl: picture?.data?.url || user.avatarUrl,
-            lastLoginAt: new Date(),
-            isLoggedIn: true,
-          },
-          include: { authProviders: true },
-        });
-      } else {
-        user = await this.prisma.user.update({
-          where: { id: user.id },
-          data: {
-            name: name || user.name,
-            avatarUrl: picture?.data?.url || user.avatarUrl,
-            lastLoginAt: new Date(),
-            isLoggedIn: true,
-          },
-          include: { authProviders: true },
         });
       }
+
+      // Update profile
+      user = await this.updateUserProfile(
+        user,
+        options.name,
+        options.avatarUrl,
+      );
     }
 
-    const token = this.utils.generateToken({
+    return user;
+  }
+
+  private async updateUserProfile(
+    user: any,
+    name?: string,
+    avatarUrl?: string,
+  ) {
+    return this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        name: name || user.name,
+        avatarUrl: avatarUrl || user.avatarUrl,
+        lastLoginAt: new Date(),
+        isLoggedIn: true,
+      },
+      include: { authProviders: true },
+    });
+  }
+
+  private generateUserToken(user: any) {
+    return this.utils.generateToken({
       sub: user.id,
       email: user.email,
       roles: user.role,
     });
+  }
 
+  private buildSuccessResponse(user: any, token: string) {
     return successResponse(
-      {
-        user: this.utils.sanitizedResponse(UserResponseDto, user),
-        token,
-      },
+      { user: this.utils.sanitizedResponse(UserResponseDto, user), token },
       'User logged in successfully',
     );
   }
