@@ -25,6 +25,7 @@ import { AuthPasswordService } from '../services/auth-password.service';
 import { AuthRegisterService } from '../services/auth-register.service';
 import { AuthTfaService } from '../services/auth-tfa.service';
 import { AuthLogoutService } from './../services/auth-logout.service';
+import { VerifySocialProviderOtpDto } from '../dto/provider.dto';
 
 @ApiTags('Auth')
 @Controller('auth')
@@ -142,6 +143,12 @@ export class AuthController {
   @Post('facebook-login-complete')
   async facebookLoginComplete(@Body() body: FacebookLoginCompleteDto) {
     return this.authFacebookService.facebookLoginComplete(body);
+  }
+
+  @ApiOperation({ summary: 'Verify Social Provider OTP' })
+  @Post('verify-social-provider-otp')
+  async verifySocialProviderOtp(@Body() body: VerifySocialProviderOtpDto) {
+    return this.authFacebookService.verifySocialProviderOtp(body);
   }
 
   @ApiOperation({ summary: 'Get User Profile' })

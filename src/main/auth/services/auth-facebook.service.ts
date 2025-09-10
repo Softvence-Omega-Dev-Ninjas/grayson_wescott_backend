@@ -1,12 +1,15 @@
 import { Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { AuthProvider } from '@prisma/client';
 import { UserResponseDto } from '@project/common/dto/user-response.dto';
+import { ENVEnum } from '@project/common/enum/env.enum';
 import { AppError } from '@project/common/error/handle-error.app';
 import { HandleError } from '@project/common/error/handle-error.decorator';
 import {
   successResponse,
   TResponse,
 } from '@project/common/utils/response.util';
+import { MailService } from '@project/lib/mail/mail.service';
 import { PrismaService } from '@project/lib/prisma/prisma.service';
 import { UtilsService } from '@project/lib/utils/utils.service';
 import axios from 'axios';
@@ -14,12 +17,15 @@ import {
   FacebookLoginCompleteDto,
   FacebookLoginDto,
 } from '../dto/facebook-login.dto';
+import { VerifySocialProviderOtpDto } from '../dto/provider.dto';
 
 @Injectable()
 export class AuthFacebookService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly utils: UtilsService,
+    private readonly mailService: MailService,
+    private readonly configService: ConfigService,
   ) {}
 
   @HandleError('Facebook login failed', 'User')
@@ -55,7 +61,7 @@ export class AuthFacebookService {
       }
 
       // Try to find by email or create new user
-      user = await this.findOrCreateUserByEmail(email, {
+      user = await this.sendLinkOrCreateUserByEmail(email, {
         provider: AuthProvider.FACEBOOK,
         providerId,
         name,
@@ -91,13 +97,57 @@ export class AuthFacebookService {
     ]);
 
     // Find or create user with email and link provider
-    let user = await this.findOrCreateUserByEmail(email, {
+    let user = await this.sendLinkOrCreateUserByEmail(email, {
       provider: AuthProvider.FACEBOOK,
       providerId: fbProfile.id,
       name: fbProfile.name || '',
       avatarUrl: fbProfile.picture?.data?.url || '',
     });
 
+    const token = this.generateUserToken(user);
+    return this.buildSuccessResponse(user, token);
+  }
+
+  @HandleError('Facebook OTP verification failed', 'User')
+  async verifySocialProviderOtp(
+    data: VerifySocialProviderOtpDto,
+  ): Promise<TResponse<any>> {
+    const { email, otp, provider, providerId } = data;
+
+    // Find user by email
+    const user = await this.prisma.user.findUnique({
+      where: { email },
+      include: { authProviders: true },
+    });
+    if (!user) throw new AppError(404, 'User not found');
+
+    // Validate OTP
+    if (
+      !user.otp ||
+      !user.otpExpiresAt ||
+      user.otpExpiresAt < new Date() ||
+      user.otp !== otp
+    ) {
+      throw new AppError(400, 'Invalid or expired OTP');
+    }
+
+    // Link provider if not already linked
+    const hasProvider = user.authProviders.some(
+      (ap) => ap.provider === provider && ap.providerId === providerId,
+    );
+    if (!hasProvider) {
+      await this.prisma.userAuthProvider.create({
+        data: { userId: user.id, provider, providerId },
+      });
+    }
+
+    // Clear OTP after successful verification
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: { otp: null, otpExpiresAt: null },
+    });
+
+    // Generate token & return response
     const token = this.generateUserToken(user);
     return this.buildSuccessResponse(user, token);
   }
@@ -121,7 +171,7 @@ export class AuthFacebookService {
     });
   }
 
-  private async findOrCreateUserByEmail(
+  private async sendLinkOrCreateUserByEmail(
     email: string,
     options: {
       provider: AuthProvider;
@@ -162,12 +212,19 @@ export class AuthFacebookService {
           ap.providerId === options.providerId,
       );
       if (!hasProvider) {
-        await this.prisma.userAuthProvider.create({
-          data: {
-            userId: user.id,
-            provider: options.provider,
-            providerId: options.providerId,
-          },
+        // * send Magic Link
+        const otpWithExpiry = this.utils.generateOtpAndExpiry();
+        const { otp, expiryTime } = otpWithExpiry;
+
+        const link = `${this.configService.getOrThrow<string>(
+          ENVEnum.FRONTEND_SOCIAL_EMAIL_URL,
+        )}?email=${email}&otp=$otp}&provider=${options.provider}&providerId=${options.providerId}`;
+
+        await this.mailService.sendSocialProviderLinkEmail(email, link);
+
+        await this.prisma.user.update({
+          where: { id: user.id },
+          data: { otp: otp.toString(), otpExpiresAt: expiryTime },
         });
       }
 
