@@ -42,10 +42,8 @@ export class AuthFacebookService {
     ]);
     const { id: providerId, email, name, picture } = fbProfile;
 
-    // Try to find user by providerId first
     let user = await this.findUserByProviderId(providerId);
     if (!user) {
-      // FB did not provide email → ask frontend
       if (!email) {
         return successResponse(
           {
@@ -60,15 +58,22 @@ export class AuthFacebookService {
         );
       }
 
-      // Try to find by email or create new user
-      user = await this.sendLinkOrCreateUserByEmail(email, {
+      user = await this.createOrLinkUserByEmail(email, {
         provider: AuthProvider.FACEBOOK,
         providerId,
         name,
         avatarUrl: picture?.data?.url || '',
+        isVerified: false, // New accounts are unverified by default
       });
+
+      if (!user.isVerified) {
+        return this.handleUnverifiedUser(
+          user,
+          AuthProvider.FACEBOOK,
+          providerId,
+        );
+      }
     } else {
-      // Existing user → update profile
       user = await this.updateUserProfile(user, name, picture?.data?.url || '');
     }
 
@@ -88,7 +93,6 @@ export class AuthFacebookService {
       );
     }
 
-    // Get FB profile
     const fbProfile = await this.getFacebookProfile(accessToken, [
       'id',
       'name',
@@ -96,13 +100,21 @@ export class AuthFacebookService {
       'email',
     ]);
 
-    // Find or create user with email and link provider
-    const user = await this.sendLinkOrCreateUserByEmail(email, {
+    const user = await this.createOrLinkUserByEmail(email, {
       provider: AuthProvider.FACEBOOK,
       providerId: fbProfile.id,
       name: fbProfile.name || '',
       avatarUrl: fbProfile.picture?.data?.url || '',
+      isVerified: false,
     });
+
+    if (!user.isVerified) {
+      return this.handleUnverifiedUser(
+        user,
+        AuthProvider.FACEBOOK,
+        fbProfile.id,
+      );
+    }
 
     const token = this.generateUserToken(user);
     return this.buildSuccessResponse(user, token);
@@ -114,14 +126,12 @@ export class AuthFacebookService {
   ): Promise<TResponse<any>> {
     const { email, otp, provider, providerId } = data;
 
-    // Find user by email
     const user = await this.prisma.user.findUnique({
       where: { email },
       include: { authProviders: true },
     });
     if (!user) throw new AppError(404, 'User not found');
 
-    // Validate OTP
     if (
       !user.otp ||
       !user.otpExpiresAt ||
@@ -131,7 +141,6 @@ export class AuthFacebookService {
       throw new AppError(400, 'Invalid or expired OTP');
     }
 
-    // Link provider if not already linked
     const hasProvider = user.authProviders.some(
       (ap) => ap.provider === provider && ap.providerId === providerId,
     );
@@ -141,18 +150,25 @@ export class AuthFacebookService {
       });
     }
 
-    // Clear OTP after successful verification
-    await this.prisma.user.update({
+    // Update verification status
+    const updatedUser = await this.prisma.user.update({
       where: { id: user.id },
-      data: { otp: null, otpExpiresAt: null },
+      data: {
+        otp: null,
+        otpExpiresAt: null,
+        isVerified: true,
+      },
+      include: { authProviders: true },
     });
 
-    // Generate token & return response
-    const token = this.generateUserToken(user);
-    return this.buildSuccessResponse(user, token);
+    const token = this.generateUserToken(updatedUser);
+    return this.buildSuccessResponse(
+      updatedUser,
+      token,
+      'Account verified successfully',
+    );
   }
 
-  // ================= Helper Methods =================
   private async getFacebookProfile(accessToken: string, fields: string[]) {
     const res = await axios.get(
       `https://graph.facebook.com/me?fields=${fields.join(',')}&access_token=${accessToken}`,
@@ -171,13 +187,14 @@ export class AuthFacebookService {
     });
   }
 
-  private async sendLinkOrCreateUserByEmail(
+  private async createOrLinkUserByEmail(
     email: string,
     options: {
       provider: AuthProvider;
       providerId: string;
       name?: string;
       avatarUrl?: string;
+      isVerified: boolean;
     },
   ) {
     let user = await this.prisma.user.findUnique({
@@ -186,11 +203,10 @@ export class AuthFacebookService {
     });
 
     if (!user) {
-      // Create new user
       user = await this.prisma.user.create({
         data: {
           email,
-          isVerified: true,
+          isVerified: options.isVerified,
           name: options.name || '',
           isLoggedIn: true,
           lastLoginAt: new Date(),
@@ -205,20 +221,18 @@ export class AuthFacebookService {
         include: { authProviders: true },
       });
     } else {
-      // Ensure FB provider is linked
       const hasProvider = user.authProviders.some(
         (ap) =>
           ap.provider === options.provider &&
           ap.providerId === options.providerId,
       );
       if (!hasProvider) {
-        // * send Magic Link
         const otpWithExpiry = this.utils.generateOtpAndExpiry();
         const { otp, expiryTime } = otpWithExpiry;
 
         const link = `${this.configService.getOrThrow<string>(
           ENVEnum.FRONTEND_SOCIAL_EMAIL_URL,
-        )}?email=${email}&otp=$otp}&provider=${options.provider}&providerId=${options.providerId}`;
+        )}?email=${email}&otp=${otp}&provider=${options.provider}&providerId=${options.providerId}`;
 
         await this.mailService.sendSocialProviderLinkEmail(email, link);
 
@@ -228,7 +242,6 @@ export class AuthFacebookService {
         });
       }
 
-      // Update profile
       user = await this.updateUserProfile(
         user,
         options.name,
@@ -237,6 +250,34 @@ export class AuthFacebookService {
     }
 
     return user;
+  }
+
+  private async handleUnverifiedUser(
+    user: any,
+    provider: AuthProvider,
+    providerId: string,
+  ) {
+    const otpWithExpiry = this.utils.generateOtpAndExpiry();
+    const { otp, expiryTime } = otpWithExpiry;
+
+    const link = `${this.configService.getOrThrow<string>(
+      ENVEnum.FRONTEND_SOCIAL_EMAIL_URL,
+    )}?email=${user.email}&otp=${otp}&provider=${provider}&providerId=${providerId}`;
+
+    await this.mailService.sendSocialProviderLinkEmail(user.email, link);
+
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: { otp: otp.toString(), otpExpiresAt: expiryTime },
+    });
+
+    return successResponse(
+      {
+        needsVerification: true,
+        email: user.email,
+      },
+      'Verification email sent. Please verify your email to continue.',
+    );
   }
 
   private async updateUserProfile(
@@ -264,10 +305,14 @@ export class AuthFacebookService {
     });
   }
 
-  private buildSuccessResponse(user: any, token: string) {
+  private buildSuccessResponse(user: any, token: string, message?: string) {
     return successResponse(
-      { user: this.utils.sanitizedResponse(UserResponseDto, user), token },
-      'User logged in successfully',
+      {
+        user: this.utils.sanitizedResponse(UserResponseDto, user),
+        token,
+        isVerified: user.isVerified,
+      },
+      message || 'User logged in successfully',
     );
   }
 }
