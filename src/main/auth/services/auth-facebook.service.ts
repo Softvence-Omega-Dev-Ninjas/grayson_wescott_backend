@@ -97,7 +97,7 @@ export class AuthFacebookService {
     ]);
 
     // Find or create user with email and link provider
-    let user = await this.sendLinkOrCreateUserByEmail(email, {
+    const user = await this.sendLinkOrCreateUserByEmail(email, {
       provider: AuthProvider.FACEBOOK,
       providerId: fbProfile.id,
       name: fbProfile.name || '',
