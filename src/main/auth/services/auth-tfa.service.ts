@@ -9,7 +9,9 @@ import { MailService } from '@project/lib/mail/mail.service';
 import { PrismaService } from '@project/lib/prisma/prisma.service';
 import { TwilioService } from '@project/lib/twilio/twilio.service';
 import { UtilsService } from '@project/lib/utils/utils.service';
-// import qrcode from 'qrcode';
+import * as OTPAuth from 'otpauth';
+import qrcode from 'qrcode';
+import { VerifyTfaDto } from '../dto/verify-tfa.dto';
 
 @Injectable()
 export class AuthTfaService {
@@ -20,6 +22,7 @@ export class AuthTfaService {
     private readonly twilio: TwilioService,
   ) {}
 
+  /** Request to enable 2FA */
   @HandleError('Failed to enable 2FA')
   async requestToEnableTfa(
     userId: string,
@@ -31,20 +34,18 @@ export class AuthTfaService {
     if (!user.isVerified)
       throw new AppError(400, 'User must be verified to enable 2FA');
 
-    // Generate OTP for verification
-    const { otp, expiryTime } = this.utils.generateOtpAndExpiry();
-    const hashedOtp = await this.utils.hash(otp.toString());
-
     switch (method) {
       case 'EMAIL':
-      case 'PHONE':
-        // * If method is phone and user has no phone number, throw error
+      case 'PHONE': {
         if (method === 'PHONE' && !user.phone) {
           throw new AppError(
             400,
             'User must have a phone number to enable 2FA',
           );
         }
+
+        const { otp, expiryTime } = this.utils.generateOtpAndExpiry();
+        const hashedOtp = await this.utils.hash(otp.toString());
 
         await this.prisma.user.update({
           where: { id: userId },
@@ -65,45 +66,104 @@ export class AuthTfaService {
               message: 'Use this OTP to enable Two-Factor Authentication.',
             },
           );
-        } else if (method === 'PHONE' && user.phone) {
-          await this.twilio.sendTFACode(user.phone, otp.toString());
+        } else {
+          await this.twilio.sendTFACode(user.phone!, otp.toString());
         }
 
-        break;
+        return successResponse(
+          null,
+          `2FA setup initiated via ${method}. Please verify the OTP.`,
+        );
+      }
 
-      // case 'AUTH_APP':
-      // // Generate TOTP secret
-      // const twoFASecret = authenticator.generateSecret();
-      // const otpauthUrl = authenticator.keyuri(
-      //   user.email,
-      //   'CARBON ENGINES',
-      //   twoFASecret,
-      // );
+      case 'AUTH_APP': {
+        const secret = new OTPAuth.Secret(); // Generates a random secret
+        const secretBase32 = secret.base32; // Store this in DB and show to user
 
-      // // Generate QR code for frontend
-      // const qrCode = await qrcode.toDataURL(otpauthUrl);
+        // Generate TOTP secret
+        const totp = this.generateTotp(secretBase32);
 
-      // // Save secret in user record
-      // await this.prisma.user.update({
-      //   where: { id: userId },
-      //   data: { twoFASecret, twoFAMethod: 'AUTH_APP' },
-      // });
+        const otpAuthUrl = totp.toString();
+        const qrCode = await qrcode.toDataURL(otpAuthUrl);
 
-      // return successResponse(
-      //   { qrCode, secret: twoFASecret },
-      //   'Scan QR code with your authenticator app to enable 2FA',
-      // );
+        // Save secret
+        await this.prisma.user.update({
+          where: { id: userId },
+          data: {
+            twoFASecret: secretBase32,
+            twoFAMethod: 'AUTH_APP',
+            otpType: 'TFA', // * IMPORTANT for verification
+          },
+        });
+
+        return successResponse(
+          { qrCode, secret: secretBase32 },
+          'Scan this QR code with your Authenticator App to enable 2FA',
+        );
+      }
 
       default:
         throw new AppError(400, 'Invalid 2FA method');
     }
-
-    return successResponse(
-      null,
-      `Two-factor authentication setup initiated via ${method}. Please verify the OTP.`,
-    );
   }
 
+  /** Verify 2FA setup request */
+  @HandleError('Failed to verify 2FA setup')
+  async verifyTfaSetup(
+    userId: string,
+    dto: VerifyTfaDto,
+  ): Promise<TResponse<any>> {
+    const { otp: code, method } = dto;
+
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new AppError(404, 'User not found');
+
+    switch (method) {
+      case 'EMAIL':
+      case 'PHONE': {
+        if (!user.otp || !user.otpExpiresAt || user.otpExpiresAt < new Date()) {
+          throw new AppError(400, 'OTP expired or not found');
+        }
+
+        const isValid = await this.utils.compare(code, user.otp);
+        if (!isValid) throw new AppError(400, 'Invalid OTP');
+
+        await this.prisma.user.update({
+          where: { id: userId },
+          data: {
+            isTwoFAEnabled: true,
+            otp: null,
+            otpExpiresAt: null,
+            otpType: null,
+          },
+        });
+
+        return successResponse(null, '2FA enabled successfully');
+      }
+
+      case 'AUTH_APP': {
+        if (!user.twoFASecret) throw new AppError(400, '2FA secret not found');
+
+        const totp = this.generateTotp(user.twoFASecret);
+
+        if (!totp.validate({ token: code })) {
+          throw new AppError(400, 'Invalid 2FA code');
+        }
+
+        await this.prisma.user.update({
+          where: { id: userId },
+          data: { isTwoFAEnabled: true, otpType: null },
+        });
+
+        return successResponse(null, '2FA enabled successfully');
+      }
+
+      default:
+        throw new AppError(400, 'Invalid 2FA method');
+    }
+  }
+
+  /** Disable 2FA */
   @HandleError('Failed to disable 2FA')
   async disableTfa(userId: string): Promise<TResponse<any>> {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
@@ -116,5 +176,14 @@ export class AuthTfaService {
     });
 
     return successResponse(null, '2FA disabled successfully');
+  }
+
+  public generateTotp(secret: string): OTPAuth.TOTP {
+    return new OTPAuth.TOTP({
+      secret: OTPAuth.Secret.fromBase32(secret),
+      digits: 6,
+      period: 30,
+      algorithm: 'SHA1',
+    });
   }
 }

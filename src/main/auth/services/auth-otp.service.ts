@@ -11,6 +11,7 @@ import { PrismaService } from '@project/lib/prisma/prisma.service';
 import { TwilioService } from '@project/lib/twilio/twilio.service';
 import { UtilsService } from '@project/lib/utils/utils.service';
 import { VerifyOTPDto } from '../dto/otp.dto';
+import { AuthTfaService } from './auth-tfa.service';
 
 @Injectable()
 export class AuthOtpService {
@@ -19,6 +20,7 @@ export class AuthOtpService {
     private readonly utils: UtilsService,
     private readonly mailService: MailService,
     private readonly twilio: TwilioService,
+    private readonly authTfaService: AuthTfaService,
   ) {}
 
   @HandleError('Failed to resend OTP')
@@ -97,20 +99,29 @@ export class AuthOtpService {
 
     if (!user) throw new AppError(400, 'User not found');
 
-    if (!user.otp || !user.otpExpiresAt) {
-      throw new AppError(400, 'OTP is not set. Please request a new one.');
+    // 2. Check which 2FA method we are verifying
+    if (user.twoFAMethod === 'AUTH_APP') {
+      if (!user.twoFASecret) throw new AppError(400, '2FA secret not found');
+
+      const totp = this.authTfaService.generateTotp(user.twoFASecret);
+
+      const isValid = totp.validate({ token: otp });
+      if (!isValid) throw new AppError(400, 'Invalid 2FA code');
+    } else {
+      // Email / Phone verification
+      if (!user.otp || !user.otpExpiresAt) {
+        throw new AppError(400, 'OTP is not set. Please request a new one.');
+      }
+
+      if (user.otpExpiresAt < new Date()) {
+        throw new AppError(400, 'OTP has expired. Please request a new one.');
+      }
+
+      const isCorrectOtp = await this.utils.compare(otp, user.otp);
+      if (!isCorrectOtp) throw new AppError(400, 'Invalid OTP');
     }
 
-    if (user.otpExpiresAt < new Date()) {
-      throw new AppError(400, 'OTP has expired. Please request a new one.');
-    }
-
-    const isCorrectOtp = await this.utils.compare(otp, user.otp);
-    if (!isCorrectOtp) {
-      throw new AppError(400, 'Invalid OTP');
-    }
-
-    // 2. Mark user verified (if not already)
+    // 3. Mark user verified (if not already)
     const updatedUser = await this.prisma.user.update({
       where: { id: user.id },
       data: {
@@ -120,7 +131,8 @@ export class AuthOtpService {
         otpType: null,
         isLoggedIn: true,
         lastLoginAt: new Date(),
-        isTwoFAEnabled: user.otpType === 'TFA' ? true : user.isTwoFAEnabled, // * Only enable TFA if OTP is for TFA, otherwise keep the existing value
+        // Enable 2FA only if otp type is TFA
+        isTwoFAEnabled: user.otpType === 'TFA' ? true : user.isTwoFAEnabled,
       },
     });
 
@@ -135,7 +147,7 @@ export class AuthOtpService {
         user: this.utils.sanitizedResponse(UserResponseDto, updatedUser),
         token,
       },
-      'OTP verified successfully',
+      'OTP code verified successfully',
     );
   }
 }

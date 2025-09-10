@@ -52,13 +52,12 @@ export class AuthLoginService {
             : { phone: user.phone },
           `Two-factor authentication is enabled. A new OTP has been sent to your ${user.twoFAMethod.toLowerCase()}.`,
         );
+      } else if (user.twoFAMethod === 'AUTH_APP') {
+        return successResponse(
+          { method: 'AUTH_APP' },
+          'Two-factor authentication via Authenticator App is enabled. Please submit your TOTP code.',
+        );
       }
-
-      // Authenticator app (TOTP) handled on frontend
-      return successResponse(
-        { user: user.email },
-        'Two-factor authentication enabled. Enter code from your authenticator app.',
-      );
     }
 
     // 3. Regular login

@@ -28,5 +28,6 @@
 
   // 🔧 Prettier Config Sync
   "prettier.useEditorConfig": true,
-  "prettier.resolveGlobalModules": false
+  "prettier.resolveGlobalModules": false,
+  "cSpell.words": ["qrcode", "TOTP"]
 }
