@@ -11,9 +11,6 @@ import {
   ResetPasswordDto,
 } from '../dto/password.dto';
 import { RegisterDto } from '../dto/register.dto';
-
-
-
 import { RequestTFA } from '../dto/tfa.dto';
 import { VerifyTfaDto } from '../dto/verify-tfa.dto';
 import { AuthFacebookService } from '../services/auth-facebook.service';
@@ -38,7 +35,6 @@ export class AuthController {
     private readonly authOtpService: AuthOtpService,
     private readonly authPasswordService: AuthPasswordService,
 
-    
     private readonly authTfaService: AuthTfaService,
     private readonly authGetProfileService: AuthGetProfileService,
   ) {}
