@@ -1,0 +1,45 @@
+model PrivateConversation {
+  id String @id @default(uuid())
+
+  participants PrivateConversationParticipant[]
+  messages     PrivateMessage[]
+  calls        PrivateCall[]
+
+  lastMessageId String?
+  lastMessage   PrivateMessage? @relation("PrivateLastMessage", fields: [lastMessageId], references: [id], onDelete: SetNull)
+
+  status ConversationStatus @default(ACTIVE)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  @@map("private_conversations")
+}
+
+model PrivateConversationParticipant {
+  id String @id @default(uuid())
+
+  conversationId String
+  conversation   PrivateConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  type ConversationParticipantType
+
+  createdAt DateTime @default(now())
+
+  @@unique([conversationId, userId, type])
+  @@map("private_conversation_participants")
+}
+
+enum ConversationParticipantType {
+  ADMIN_GROUP
+  USER
+}
+
+enum ConversationStatus {
+  ACTIVE
+  ARCHIVED
+  BLOCKED
+}

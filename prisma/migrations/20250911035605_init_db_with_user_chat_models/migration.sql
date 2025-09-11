@@ -5,13 +5,25 @@ CREATE TYPE "public"."FileType" AS ENUM ('IMAGE', 'DOCS', 'LINK', 'DOCUMENT', 'A
 CREATE TYPE "public"."NotificationType" AS ENUM ('Shift', 'TimeOff', 'Announcement', 'Task', 'Recognition', 'UrgentShiftChanged');
 
 -- CreateEnum
-CREATE TYPE "public"."MessageDeliveryStatus" AS ENUM ('SENT', 'DELIVERED', 'READ');
+CREATE TYPE "public"."CallType" AS ENUM ('AUDIO', 'VIDEO');
 
 -- CreateEnum
-CREATE TYPE "public"."MessageType" AS ENUM ('TEXT', 'IMAGE', 'VIDEO', 'AUDIO', 'FILE');
+CREATE TYPE "public"."CallStatus" AS ENUM ('INITIATED', 'ONGOING', 'ENDED', 'MISSED');
+
+-- CreateEnum
+CREATE TYPE "public"."CallParticipantStatus" AS ENUM ('JOINED', 'LEFT', 'MISSED');
+
+-- CreateEnum
+CREATE TYPE "public"."ConversationParticipantType" AS ENUM ('ADMIN_GROUP', 'USER');
 
 -- CreateEnum
 CREATE TYPE "public"."ConversationStatus" AS ENUM ('ACTIVE', 'ARCHIVED', 'BLOCKED');
+
+-- CreateEnum
+CREATE TYPE "public"."MessageDeliveryStatus" AS ENUM ('SENT', 'DELIVERED', 'READ');
+
+-- CreateEnum
+CREATE TYPE "public"."MessageType" AS ENUM ('TEXT', 'IMAGE', 'VIDEO', 'AUDIO', 'FILE', 'CALL_EVENT');
 
 -- CreateEnum
 CREATE TYPE "public"."UserRole" AS ENUM ('SUPER_ADMIN', 'ADMIN', 'USER');
@@ -24,6 +36,9 @@ CREATE TYPE "public"."SignUpMethod" AS ENUM ('EMAIL', 'MANUAL', 'GOOGLE', 'FACEB
 
 -- CreateEnum
 CREATE TYPE "public"."TwoFAMethod" AS ENUM ('EMAIL', 'PHONE', 'AUTH_APP');
+
+-- CreateEnum
+CREATE TYPE "public"."OtpType" AS ENUM ('VERIFICATION', 'TFA');
 
 -- CreateTable
 CREATE TABLE "public"."file_instances" (
@@ -67,16 +82,51 @@ CREATE TABLE "public"."user_notifications" (
 );
 
 -- CreateTable
+CREATE TABLE "public"."PrivateCall" (
+    "id" TEXT NOT NULL,
+    "conversationId" TEXT NOT NULL,
+    "initiatorId" TEXT NOT NULL,
+    "type" "public"."CallType" NOT NULL,
+    "status" "public"."CallStatus" NOT NULL DEFAULT 'INITIATED',
+    "startedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "endedAt" TIMESTAMP(3),
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "PrivateCall_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "public"."PrivateCallParticipant" (
+    "id" TEXT NOT NULL,
+    "callId" TEXT NOT NULL,
+    "userId" TEXT NOT NULL,
+    "status" "public"."CallParticipantStatus" NOT NULL DEFAULT 'JOINED',
+    "joinedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "leftAt" TIMESTAMP(3),
+
+    CONSTRAINT "PrivateCallParticipant_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "public"."private_conversations" (
     "id" TEXT NOT NULL,
-    "user1Id" TEXT NOT NULL,
-    "user2Id" TEXT NOT NULL,
     "lastMessageId" TEXT,
     "status" "public"."ConversationStatus" NOT NULL DEFAULT 'ACTIVE',
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "private_conversations_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "public"."private_conversation_participants" (
+    "id" TEXT NOT NULL,
+    "conversationId" TEXT NOT NULL,
+    "userId" TEXT,
+    "type" "public"."ConversationParticipantType" NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "private_conversation_participants_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -116,9 +166,15 @@ CREATE TABLE "public"."users" (
     "avatarUrl" TEXT DEFAULT 'https://www.gravatar.com/avatar/000000000000000000000000000000?d=mp&f=y',
     "role" "public"."UserRole" NOT NULL DEFAULT 'USER',
     "signUpMethod" "public"."SignUpMethod" NOT NULL DEFAULT 'EMAIL',
+    "isLoggedIn" BOOLEAN NOT NULL DEFAULT false,
+    "lastLoginAt" TIMESTAMP(3),
+    "lastLogoutAt" TIMESTAMP(3),
     "otp" TEXT,
+    "otpType" "public"."OtpType",
     "otpExpiresAt" TIMESTAMP(3),
     "isVerified" BOOLEAN NOT NULL DEFAULT false,
+    "resetToken" TEXT,
+    "resetTokenExpiresAt" TIMESTAMP(3),
     "isTwoFAEnabled" BOOLEAN NOT NULL DEFAULT false,
     "twoFAMethod" "public"."TwoFAMethod",
     "twoFASecret" TEXT,
@@ -144,7 +200,7 @@ CREATE TABLE "public"."user_auth_providers" (
 CREATE UNIQUE INDEX "user_notifications_userId_notificationId_key" ON "public"."user_notifications"("userId", "notificationId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "private_conversations_user1Id_user2Id_key" ON "public"."private_conversations"("user1Id", "user2Id");
+CREATE UNIQUE INDEX "private_conversation_participants_conversationId_userId_typ_key" ON "public"."private_conversation_participants"("conversationId", "userId", "type");
 
 -- CreateIndex
 CREATE INDEX "private_messages_conversationId_createdAt_idx" ON "public"."private_messages"("conversationId", "createdAt");
@@ -171,13 +227,25 @@ ALTER TABLE "public"."user_notifications" ADD CONSTRAINT "user_notifications_use
 ALTER TABLE "public"."user_notifications" ADD CONSTRAINT "user_notifications_notificationId_fkey" FOREIGN KEY ("notificationId") REFERENCES "public"."notifications"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "public"."private_conversations" ADD CONSTRAINT "private_conversations_user1Id_fkey" FOREIGN KEY ("user1Id") REFERENCES "public"."users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "public"."PrivateCall" ADD CONSTRAINT "PrivateCall_conversationId_fkey" FOREIGN KEY ("conversationId") REFERENCES "public"."private_conversations"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "public"."private_conversations" ADD CONSTRAINT "private_conversations_user2Id_fkey" FOREIGN KEY ("user2Id") REFERENCES "public"."users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "public"."PrivateCall" ADD CONSTRAINT "PrivateCall_initiatorId_fkey" FOREIGN KEY ("initiatorId") REFERENCES "public"."users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "public"."PrivateCallParticipant" ADD CONSTRAINT "PrivateCallParticipant_callId_fkey" FOREIGN KEY ("callId") REFERENCES "public"."PrivateCall"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "public"."PrivateCallParticipant" ADD CONSTRAINT "PrivateCallParticipant_userId_fkey" FOREIGN KEY ("userId") REFERENCES "public"."users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "public"."private_conversations" ADD CONSTRAINT "private_conversations_lastMessageId_fkey" FOREIGN KEY ("lastMessageId") REFERENCES "public"."private_messages"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "public"."private_conversation_participants" ADD CONSTRAINT "private_conversation_participants_conversationId_fkey" FOREIGN KEY ("conversationId") REFERENCES "public"."private_conversations"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "public"."private_conversation_participants" ADD CONSTRAINT "private_conversation_participants_userId_fkey" FOREIGN KEY ("userId") REFERENCES "public"."users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "public"."private_messages" ADD CONSTRAINT "private_messages_fileId_fkey" FOREIGN KEY ("fileId") REFERENCES "public"."file_instances"("id") ON DELETE SET NULL ON UPDATE CASCADE;

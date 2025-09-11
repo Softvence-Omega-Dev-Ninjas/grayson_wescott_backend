@@ -20,7 +20,7 @@ model User {
 
   // OTP / Verification OR TFA
   otp          String? // hashed OTP
-  otpType      OtpType? 
+  otpType      OtpType?
   otpExpiresAt DateTime?
   isVerified   Boolean   @default(false)
 
@@ -37,10 +37,11 @@ model User {
   authProviders UserAuthProvider[]
 
   // Chats
-  privateMessage       PrivateMessage[]
-  privateMessageStatus PrivateMessageStatus[]
-  privateConversation1 PrivateConversation[]  @relation("User1Conversations")
-  privateConversation2 PrivateConversation[]  @relation("User2Conversations")
+  privateMessage                 PrivateMessage[]
+  privateMessageStatus           PrivateMessageStatus[]
+  privateCallInitiator           PrivateCall[]
+  privateConversationParticipant PrivateConversationParticipant[]
+  privateCallParticipant         PrivateCallParticipant[]
 
   // Notifications
   notifications UserNotification[]

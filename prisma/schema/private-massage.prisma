@@ -1,26 +1,3 @@
-model PrivateConversation {
-  id String @id @default(uuid())
-
-  user1Id String
-  user1   User   @relation("User1Conversations", fields: [user1Id], references: [id], onDelete: Cascade)
-
-  user2Id String
-  user2   User   @relation("User2Conversations", fields: [user2Id], references: [id], onDelete: Cascade)
-
-  lastMessageId String?
-  lastMessage   PrivateMessage? @relation("PrivateLastMessage", fields: [lastMessageId], references: [id], onDelete: SetNull)
-
-  messages PrivateMessage[]
-
-  status ConversationStatus @default(ACTIVE)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @default(now()) @updatedAt
-
-  @@unique([user1Id, user2Id])
-  @@map("private_conversations")
-}
-
 model PrivateMessage {
   id String @id @default(uuid())
 
@@ -77,10 +54,5 @@ enum MessageType {
   VIDEO
   AUDIO
   FILE
-}
-
-enum ConversationStatus {
-  ACTIVE
-  ARCHIVED
-  BLOCKED
+  CALL_EVENT
 }

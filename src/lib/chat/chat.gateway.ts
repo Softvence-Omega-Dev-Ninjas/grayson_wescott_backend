@@ -124,249 +124,249 @@ export class ChatGateway
     );
   }
 
-  /** Load all conversations for the connected user */
-  @SubscribeMessage(ChatEvents.LOAD_CONVERSATIONS)
-  async handleLoadConversations(@ConnectedSocket() client: Socket) {
-    const userId = client.data.userId;
-    if (!userId) {
-      client.emit(ChatEvents.ERROR, { message: 'User not authenticated' });
-      client.disconnect(true);
-      this.logger.log('User not authenticated');
-      return;
-    }
+  // /** Load all conversations for the connected user */
+  // @SubscribeMessage(ChatEvents.LOAD_CONVERSATIONS)
+  // async handleLoadConversations(@ConnectedSocket() client: Socket) {
+  //   const userId = client.data.userId;
+  //   if (!userId) {
+  //     client.emit(ChatEvents.ERROR, { message: 'User not authenticated' });
+  //     client.disconnect(true);
+  //     this.logger.log('User not authenticated');
+  //     return;
+  //   }
 
-    const res = await this.chatService.getUserConversations(userId);
-    client.emit(ChatEvents.CONVERSATION_LIST, res?.data ?? []);
-  }
+  //   const res = await this.chatService.getUserConversations(userId);
+  //   client.emit(ChatEvents.CONVERSATION_LIST, res?.data ?? []);
+  // }
 
-  /** Load a single conversation (initial load: latest N messages) */
-  @SubscribeMessage(ChatEvents.LOAD_SINGLE_CONVERSATION)
-  async handleLoadSingleConversation(
-    @MessageBody() body: { conversationId: string; limit?: number } | string,
-    @ConnectedSocket() client: Socket,
-  ) {
-    const userId = client.data.userId;
-    if (!userId) {
-      client.emit(ChatEvents.ERROR, { message: 'User not authenticated' });
-      client.disconnect(true);
-      this.logger.log('User not authenticated');
-      return;
-    }
+  // /** Load a single conversation (initial load: latest N messages) */
+  // @SubscribeMessage(ChatEvents.LOAD_SINGLE_CONVERSATION)
+  // async handleLoadSingleConversation(
+  //   @MessageBody() body: { conversationId: string; limit?: number } | string,
+  //   @ConnectedSocket() client: Socket,
+  // ) {
+  //   const userId = client.data.userId;
+  //   if (!userId) {
+  //     client.emit(ChatEvents.ERROR, { message: 'User not authenticated' });
+  //     client.disconnect(true);
+  //     this.logger.log('User not authenticated');
+  //     return;
+  //   }
 
-    const payload =
-      typeof body === 'string'
-        ? { conversationId: body, limit: undefined }
-        : body;
+  //   const payload =
+  //     typeof body === 'string'
+  //       ? { conversationId: body, limit: undefined }
+  //       : body;
 
-    const conversationRes =
-      await this.chatService.getPrivateConversationWithMessages(
-        payload.conversationId,
-        userId,
-        payload.limit,
-      );
+  //   const conversationRes =
+  //     await this.chatService.getPrivateConversationWithMessages(
+  //       payload.conversationId,
+  //       userId,
+  //       payload.limit,
+  //     );
 
-    client.emit(ChatEvents.NEW_CONVERSATION, conversationRes?.data ?? null);
-  }
+  //   client.emit(ChatEvents.NEW_CONVERSATION, conversationRes?.data ?? null);
+  // }
 
-  /**
-   * Load messages with cursor-based pagination (scroll-up behavior).
-   * Payload: { conversationId, limit?, beforeMessageId? }
-   *
-   * - initial load: beforeMessageId omitted -> returns latest `limit` messages (chronological)
-   * - load previous: provide beforeMessageId -> returns older messages < beforeMessageId (chronological)
-   */
-  @SubscribeMessage(ChatEvents.LOAD_MESSAGES)
-  async handleLoadMessages(
-    @MessageBody()
-    payload: {
-      conversationId: string;
-      limit?: number;
-      beforeMessageId?: string;
-    },
-    @ConnectedSocket() client: Socket,
-  ) {
-    const userId = client.data.userId;
-    if (!userId) {
-      client.emit(ChatEvents.ERROR, { message: 'User not authenticated' });
-      client.disconnect(true);
-      this.logger.log('User not authenticated');
-      return;
-    }
+  // /**
+  //  * Load messages with cursor-based pagination (scroll-up behavior).
+  //  * Payload: { conversationId, limit?, beforeMessageId? }
+  //  *
+  //  * - initial load: beforeMessageId omitted -> returns latest `limit` messages (chronological)
+  //  * - load previous: provide beforeMessageId -> returns older messages < beforeMessageId (chronological)
+  //  */
+  // @SubscribeMessage(ChatEvents.LOAD_MESSAGES)
+  // async handleLoadMessages(
+  //   @MessageBody()
+  //   payload: {
+  //     conversationId: string;
+  //     limit?: number;
+  //     beforeMessageId?: string;
+  //   },
+  //   @ConnectedSocket() client: Socket,
+  // ) {
+  //   const userId = client.data.userId;
+  //   if (!userId) {
+  //     client.emit(ChatEvents.ERROR, { message: 'User not authenticated' });
+  //     client.disconnect(true);
+  //     this.logger.log('User not authenticated');
+  //     return;
+  //   }
 
-    const { conversationId, limit = 20, beforeMessageId } = payload;
-    const res = await this.chatService.getConversationMessages(
-      conversationId,
-      limit,
-      beforeMessageId,
-    );
+  //   const { conversationId, limit = 20, beforeMessageId } = payload;
+  //   const res = await this.chatService.getConversationMessages(
+  //     conversationId,
+  //     limit,
+  //     beforeMessageId,
+  //   );
 
-    client.emit(ChatEvents.MESSAGES, {
-      conversationId,
-      messages: res?.data ?? [],
-      beforeMessageId,
-    });
-  }
+  //   client.emit(ChatEvents.MESSAGES, {
+  //     conversationId,
+  //     messages: res?.data ?? [],
+  //     beforeMessageId,
+  //   });
+  // }
 
-  /** Send a message (create conversation if new) */
-  @SubscribeMessage(ChatEvents.SEND_MESSAGE)
-  async handleMessage(
-    @MessageBody()
-    payload:
-      | {
-          recipientId: string;
-          dto: SendPrivateMessageDto;
-          file?: any;
-          userId: string;
-        }
-      | any,
-    @ConnectedSocket() client: Socket,
-  ) {
-    const { recipientId, dto, file, userId } = payload;
+  // /** Send a message (create conversation if new) */
+  // @SubscribeMessage(ChatEvents.SEND_MESSAGE)
+  // async handleMessage(
+  //   @MessageBody()
+  //   payload:
+  //     | {
+  //         recipientId: string;
+  //         dto: SendPrivateMessageDto;
+  //         file?: any;
+  //         userId: string;
+  //       }
+  //     | any,
+  //   @ConnectedSocket() client: Socket,
+  // ) {
+  //   const { recipientId, dto, file, userId } = payload;
 
-    // Validate sender matches token
-    if (client.data.userId !== userId) {
-      client.emit(ChatEvents.ERROR, { message: 'User ID mismatch' });
-      this.logger.warn(
-        `User ID mismatch: client ${client.data.userId} vs payload ${userId}`,
-      );
-      return;
-    }
+  //   // Validate sender matches token
+  //   if (client.data.userId !== userId) {
+  //     client.emit(ChatEvents.ERROR, { message: 'User ID mismatch' });
+  //     this.logger.warn(
+  //       `User ID mismatch: client ${client.data.userId} vs payload ${userId}`,
+  //     );
+  //     return;
+  //   }
 
-    // Prevent sending to self
-    if (userId === recipientId) {
-      client.emit(ChatEvents.ERROR, {
-        message: 'Cannot send message to yourself',
-      });
-      this.logger.log(`User ${userId} cannot send message to themselves`);
-      return;
-    }
+  //   // Prevent sending to self
+  //   if (userId === recipientId) {
+  //     client.emit(ChatEvents.ERROR, {
+  //       message: 'Cannot send message to yourself',
+  //     });
+  //     this.logger.log(`User ${userId} cannot send message to themselves`);
+  //     return;
+  //   }
 
-    // Find existing conversation
-    const convRes = await this.chatService.findConversation(
-      userId,
-      recipientId,
-    );
-    let conversation = convRes?.data ?? null;
-    let isNewConversation = false;
+  //   // Find existing conversation
+  //   const convRes = await this.chatService.findConversation(
+  //     userId,
+  //     recipientId,
+  //   );
+  //   let conversation = convRes?.data ?? null;
+  //   let isNewConversation = false;
 
-    if (!conversation) {
-      const createRes = await this.chatService.createConversation(
-        userId,
-        recipientId,
-      );
-      conversation = createRes?.data ?? null;
-      isNewConversation = true;
-    }
+  //   if (!conversation) {
+  //     const createRes = await this.chatService.createConversation(
+  //       userId,
+  //       recipientId,
+  //     );
+  //     conversation = createRes?.data ?? null;
+  //     isNewConversation = true;
+  //   }
 
-    if (!conversation) {
-      client.emit(ChatEvents.ERROR, {
-        message: 'Failed to get or create conversation',
-      });
-      this.logger.warn(
-        `Failed to get/create conversation between ${userId} and ${recipientId}`,
-      );
-      return;
-    }
+  //   if (!conversation) {
+  //     client.emit(ChatEvents.ERROR, {
+  //       message: 'Failed to get or create conversation',
+  //     });
+  //     this.logger.warn(
+  //       `Failed to get/create conversation between ${userId} and ${recipientId}`,
+  //     );
+  //     return;
+  //   }
 
-    // Send message via service
-    const messageRes = await this.chatService.sendPrivateMessage(
-      conversation.id,
-      userId,
-      dto,
-      file,
-    );
-    const message = messageRes?.data ?? null;
-    if (!message) {
-      client.emit(ChatEvents.ERROR, { message: 'Failed to send message' });
-      this.logger.warn(
-        `Failed to send message in conversation ${conversation.id}`,
-      );
-      return;
-    }
+  //   // Send message via service
+  //   const messageRes = await this.chatService.sendPrivateMessage(
+  //     conversation.id,
+  //     userId,
+  //     dto,
+  //     file,
+  //   );
+  //   const message = messageRes?.data ?? null;
+  //   if (!message) {
+  //     client.emit(ChatEvents.ERROR, { message: 'Failed to send message' });
+  //     this.logger.warn(
+  //       `Failed to send message in conversation ${conversation.id}`,
+  //     );
+  //     return;
+  //   }
 
-    // Emit new message to both users (they are joined to rooms with their userId)
-    this.server.to(userId).emit(ChatEvents.NEW_MESSAGE, message);
-    this.server.to(recipientId).emit(ChatEvents.NEW_MESSAGE, message);
+  //   // Emit new message to both users (they are joined to rooms with their userId)
+  //   this.server.to(userId).emit(ChatEvents.NEW_MESSAGE, message);
+  //   this.server.to(recipientId).emit(ChatEvents.NEW_MESSAGE, message);
 
-    // If this was a new conversation, refresh both users' chat lists
-    if (isNewConversation) {
-      const senderConversationsRes =
-        await this.chatService.getUserConversations(userId);
-      const recipientConversationsRes =
-        await this.chatService.getUserConversations(recipientId);
+  //   // If this was a new conversation, refresh both users' chat lists
+  //   if (isNewConversation) {
+  //     const senderConversationsRes =
+  //       await this.chatService.getUserConversations(userId);
+  //     const recipientConversationsRes =
+  //       await this.chatService.getUserConversations(recipientId);
 
-      this.server
-        .to(userId)
-        .emit(ChatEvents.NEW_CONVERSATION, senderConversationsRes?.data ?? []);
-      this.server
-        .to(recipientId)
-        .emit(
-          ChatEvents.NEW_CONVERSATION,
-          recipientConversationsRes?.data ?? [],
-        );
-    }
-  }
+  //     this.server
+  //       .to(userId)
+  //       .emit(ChatEvents.NEW_CONVERSATION, senderConversationsRes?.data ?? []);
+  //     this.server
+  //       .to(recipientId)
+  //       .emit(
+  //         ChatEvents.NEW_CONVERSATION,
+  //         recipientConversationsRes?.data ?? [],
+  //       );
+  //   }
+  // }
 
-  /**
-   * Mark a message as read (for the current user) and broadcast status changes.
-   * Payload: { messageId }
-   */
-  @SubscribeMessage(ChatEvents.MARK_READ)
-  async handleMarkRead(
-    @MessageBody() body: { messageId: string },
-    @ConnectedSocket() client: Socket,
-  ) {
-    const userId = client.data.userId;
-    if (!userId) {
-      client.emit(ChatEvents.ERROR, { message: 'User not authenticated' });
-      return;
-    }
+  // /**
+  //  * Mark a message as read (for the current user) and broadcast status changes.
+  //  * Payload: { messageId }
+  //  */
+  // @SubscribeMessage(ChatEvents.MARK_READ)
+  // async handleMarkRead(
+  //   @MessageBody() body: { messageId: string },
+  //   @ConnectedSocket() client: Socket,
+  // ) {
+  //   const userId = client.data.userId;
+  //   if (!userId) {
+  //     client.emit(ChatEvents.ERROR, { message: 'User not authenticated' });
+  //     return;
+  //   }
 
-    const { messageId } = body;
-    if (!messageId) {
-      client.emit(ChatEvents.ERROR, { message: 'messageId is required' });
-      return;
-    }
+  //   const { messageId } = body;
+  //   if (!messageId) {
+  //     client.emit(ChatEvents.ERROR, { message: 'messageId is required' });
+  //     return;
+  //   }
 
-    // Update status
-    const updateRes = await this.chatService.markConversationMessagesAsRead(
-      messageId,
-      userId,
-      new Date(),
-    );
+  //   // Update status
+  //   const updateRes = await this.chatService.markConversationMessagesAsRead(
+  //     messageId,
+  //     userId,
+  //     new Date(),
+  //   );
 
-    // Fetch message to find conversation participants so we can broadcast status update
-    const messageRecord = await this.prisma.privateMessage.findUnique({
-      where: { id: messageId },
-      include: {
-        conversation: {
-          select: { user1Id: true, user2Id: true },
-        },
-      },
-    });
+  //   // Fetch message to find conversation participants so we can broadcast status update
+  //   const messageRecord = await this.prisma.privateMessage.findUnique({
+  //     where: { id: messageId },
+  //     include: {
+  //       conversation: {
+  //         select: { user1Id: true, user2Id: true },
+  //       },
+  //     },
+  //   });
 
-    if (messageRecord && messageRecord.conversation) {
-      const { user1Id, user2Id } = messageRecord.conversation;
+  //   if (messageRecord && messageRecord.conversation) {
+  //     const { user1Id, user2Id } = messageRecord.conversation;
 
-      // Prepare a minimal payload for status update (the client can map it)
-      const statusPayload = {
-        messageId,
-        userId,
-        status: 'READ',
-        updatedAt: new Date().toISOString(),
-      };
+  //     // Prepare a minimal payload for status update (the client can map it)
+  //     const statusPayload = {
+  //       messageId,
+  //       userId,
+  //       status: 'READ',
+  //       updatedAt: new Date().toISOString(),
+  //     };
 
-      // Broadcast to both participants so both UIs can update status icons
-      this.server.to(user1Id).emit(ChatEvents.MESSAGE_STATUS, statusPayload);
-      this.server.to(user2Id).emit(ChatEvents.MESSAGE_STATUS, statusPayload);
+  //     // Broadcast to both participants so both UIs can update status icons
+  //     this.server.to(user1Id).emit(ChatEvents.MESSAGE_STATUS, statusPayload);
+  //     this.server.to(user2Id).emit(ChatEvents.MESSAGE_STATUS, statusPayload);
 
-      client.emit(ChatEvents.SUCCESS, updateRes?.data ?? null);
-    } else {
-      client.emit(ChatEvents.ERROR, {
-        message: 'Message or conversation not found',
-      });
-    }
-  }
+  //     client.emit(ChatEvents.SUCCESS, updateRes?.data ?? null);
+  //   } else {
+  //     client.emit(ChatEvents.ERROR, {
+  //       message: 'Message or conversation not found',
+  //     });
+  //   }
+  // }
 
   /** Helper for external services to emit new messages (keeps compatibility) */
   emitNewMessage(userId: string, message: any) {

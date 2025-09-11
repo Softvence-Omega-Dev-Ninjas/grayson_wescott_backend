@@ -34,8 +34,9 @@ export class AuthGetProfileService {
       include: {
         authProviders: true,
         notifications: true,
-        privateConversation1: true,
-        privateConversation2: true,
+        privateCallInitiator: true,
+        privateCallParticipant: true,
+        privateConversationParticipant: true,
         privateMessage: true,
         privateMessageStatus: true,
       },
@@ -49,8 +50,9 @@ export class AuthGetProfileService {
     const {
       authProviders,
       notifications,
-      privateConversation1,
-      privateConversation2,
+      privateCallInitiator,
+      privateCallParticipant,
+      privateConversationParticipant,
       privateMessage,
       privateMessageStatus,
       ...mainUser
@@ -66,8 +68,9 @@ export class AuthGetProfileService {
       ...sanitizedUser,
       authProviders,
       notifications,
-      privateConversation1,
-      privateConversation2,
+      privateCallInitiator,
+      privateCallParticipant,
+      privateConversationParticipant,
       privateMessage,
       privateMessageStatus,
     };
