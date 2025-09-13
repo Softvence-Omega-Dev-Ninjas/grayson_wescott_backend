@@ -3,7 +3,7 @@ import { CacheModule } from '@nestjs/cache-manager';
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { EventEmitterModule } from '@nestjs/event-emitter';
-import { JwtModule, JwtService } from '@nestjs/jwt';
+import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { ScheduleModule } from '@nestjs/schedule';
 import { ServeStaticModule } from '@nestjs/serve-static';
@@ -26,10 +26,12 @@ import { MainModule } from './main/main.module';
 
     ServeStaticModule.forRoot({
       rootPath: join(process.cwd(), 'uploads'),
-      serveRoot: '/files',
+      serveRoot: '/api/files',
     }),
 
-    EventEmitterModule.forRoot(),
+    EventEmitterModule.forRoot({
+      global: true,
+    }),
 
     ScheduleModule.forRoot(),
 
@@ -67,8 +69,8 @@ import { MainModule } from './main/main.module';
 
     LibModule,
   ],
-  providers: [JwtStrategy, JwtService],
-  exports: [JwtStrategy, JwtService],
+  providers: [JwtStrategy],
+  exports: [JwtStrategy],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
