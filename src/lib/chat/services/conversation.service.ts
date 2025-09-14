@@ -80,7 +80,7 @@ export class ConversationService {
 
     // Emit to all participants
     participantIds.forEach((uid) => {
-      this.chatGateway.emitToUser(
+      this.chatGateway.emitToClient(
         uid,
         ChatEventsEnum.NEW_CONVERSATION,
         conversation,

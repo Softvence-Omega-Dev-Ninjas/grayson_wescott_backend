@@ -1,7 +1,8 @@
 import { forwardRef, Inject, Injectable, Logger } from '@nestjs/common';
-import { AppError } from '@project/common/error/handle-error.app';
+import { ConversationParticipantType } from '@prisma/client';
 import { HandleError } from '@project/common/error/handle-error.decorator';
 import {
+  errorResponse,
   successResponse,
   TResponse,
 } from '@project/common/utils/response.util';
@@ -10,9 +11,8 @@ import { Socket } from 'socket.io';
 import { ChatGateway } from '../chat.gateway';
 import { ChatEventsEnum } from '../enum/chat-events.enum';
 import {
-  LoadMessagesPayload,
-  MarkReadPayload,
-  SendMessagePayload,
+  AdminMessagePayload,
+  ClientMessagePayload,
 } from '../types/message-payloads';
 
 @Injectable()
@@ -25,95 +25,160 @@ export class MessageService {
     private readonly chatGateway: ChatGateway,
   ) {}
 
-  @HandleError('Failed to send message', 'MessageService')
-  async handleSendMessage(
+  /**
+   * Client → Admin(s)
+   */
+  @HandleError('Failed to send message to admin(s)', 'MessageService')
+  async sendMessageFromClient(
     client: Socket,
-    payload: SendMessagePayload,
+    payload: ClientMessagePayload,
   ): Promise<TResponse<any>> {
-    const conversation = await this.prisma.privateConversation.findUnique({
-      where: { id: payload.conversationId },
-      include: { participants: true },
-    });
-
-    if (!conversation || conversation.participants.length === 0) {
-      this.logger.error({
-        message: 'Conversation not found',
-        conversationId: payload.conversationId,
-      });
-      throw new AppError(404, 'Conversation not found');
+    const senderId = client.data.userId;
+    if (!senderId) {
+      client.emit(ChatEventsEnum.ERROR, { message: 'Unauthorized' });
+      return errorResponse(null, 'Unauthorized');
     }
 
+    const admins = await this.getAllAdminParticipants();
+
+    // 1. Find or create conversation
+    let conversation = payload.conversationId
+      ? await this.prisma.privateConversation.findUnique({
+          where: { id: payload.conversationId },
+          include: { participants: true },
+        })
+      : null;
+
+    if (!conversation) {
+      conversation = await this.prisma.privateConversation.create({
+        data: {
+          participants: {
+            create: [{ userId: senderId, type: 'USER' }, ...admins],
+          },
+        },
+        include: { participants: true },
+      });
+    }
+
+    // 2. Save message
     const message = await this.prisma.privateMessage.create({
       data: {
+        conversationId: conversation.id,
         content: payload.content,
-        type: payload.type || 'TEXT',
+        type: payload.type ?? 'TEXT',
         fileId: payload.fileId,
-        conversationId: payload.conversationId,
-        senderId: client.data.userId,
+        senderId,
       },
     });
 
-    // Emit message to all participants via gateway helpers
-    conversation.participants.forEach((p) => {
-      if (p.userId)
-        this.chatGateway.emitToUser(
-          p.userId,
-          ChatEventsEnum.NEW_MESSAGE,
-          message,
-        );
-    });
+    // 3. Save message status for all participants
+    await Promise.all(
+      conversation.participants.map((p) =>
+        p.userId
+          ? this.prisma.privateMessageStatus.create({
+              data: { messageId: message.id, userId: p.userId },
+            })
+          : null,
+      ),
+    );
 
-    this.logger.log({
-      message: 'New message sent',
-      conversationId: payload.conversationId,
-      senderId: client.data.userId,
-      content: payload.content,
-    });
+    // 4. Emit to all admins
+    admins.forEach((admin) =>
+      this.chatGateway.server
+        .to(admin.userId)
+        .emit(ChatEventsEnum.NEW_MESSAGE, message),
+    );
 
     return successResponse(message, 'Message sent successfully');
   }
 
-  @HandleError('Failed to load messages', 'MessageService')
-  async handleLoadMessages(
-    client: Socket,
-    payload: LoadMessagesPayload,
-  ): Promise<TResponse<any>> {
-    const messages = await this.prisma.privateMessage.findMany({
-      where: { conversationId: payload.conversationId },
-      orderBy: { createdAt: 'asc' },
-      take: payload.limit,
-      cursor: payload.cursor ? { id: payload.cursor } : undefined,
+  /**
+   * Admin → Client
+   */
+  async sendMessageFromAdmin(client: Socket, payload: AdminMessagePayload) {
+    const senderId = client.data.userId;
+    if (!senderId) {
+      client.emit(ChatEventsEnum.ERROR, { message: 'Unauthorized' });
+      return;
+    }
+
+    // 1. Find or create conversation
+    let conversation = payload.conversationId
+      ? await this.prisma.privateConversation.findUnique({
+          where: { id: payload.conversationId },
+          include: { participants: true },
+        })
+      : null;
+
+    if (!conversation) {
+      conversation = await this.prisma.privateConversation.create({
+        data: {
+          participants: {
+            create: [
+              { userId: senderId, type: 'ADMIN_GROUP' },
+              { userId: payload.clientId, type: 'USER' },
+            ],
+          },
+        },
+        include: { participants: true },
+      });
+    }
+
+    // 2. Save message
+    const message = await this.prisma.privateMessage.create({
+      data: {
+        conversationId: conversation.id,
+        content: payload.content,
+        type: payload.type ?? 'TEXT',
+        senderId,
+      },
     });
 
-    this.logger.log({
-      message: 'Messages loaded',
-      conversationId: payload.conversationId,
-    });
+    // 3. Add admin to participants if not already there
+    if (!conversation.participants.some((p) => p.userId === senderId)) {
+      await this.prisma.privateConversation.update({
+        where: { id: conversation.id },
+        data: {
+          participants: {
+            create: { userId: senderId, type: 'ADMIN_GROUP' },
+          },
+        },
+      });
+    }
 
-    return successResponse(messages, 'Messages loaded successfully');
+    // 4. Save message status for all participants
+    await Promise.all(
+      conversation.participants.map((p) =>
+        p.userId
+          ? this.prisma.privateMessageStatus.create({
+              data: { messageId: message.id, userId: p.userId },
+            })
+          : null,
+      ),
+    );
+
+    // 5. Emit to client only
+    this.chatGateway.server
+      .to(payload.clientId)
+      .emit(ChatEventsEnum.NEW_MESSAGE, {
+        message,
+        fromAdmin: true,
+      });
+
+    return message;
   }
 
-  @HandleError('Failed to mark message as read', 'MessageService')
-  async handleMarkRead(
-    client: Socket,
-    payload: MarkReadPayload,
-  ): Promise<TResponse<any>> {
-    const message = await this.prisma.privateMessageStatus.update({
-      where: {
-        messageId_userId: {
-          messageId: payload.messageId,
-          userId: client.data.userId,
-        },
-      },
-      data: { status: 'READ' },
+  /**
+   * Helper → get all admins as participants
+   */
+  private async getAllAdminParticipants() {
+    const admins = await this.prisma.user.findMany({
+      where: { role: 'ADMIN' },
+      select: { id: true },
     });
-
-    this.logger.log({
-      message: 'Message marked as read',
-      messageId: payload.messageId,
-      userId: client.data.userId,
-    });
-
-    return successResponse(message, 'Message marked as read successfully');
+    return admins.map((a) => ({
+      userId: a.id,
+      type: ConversationParticipantType.ADMIN_GROUP,
+    }));
   }
 }

@@ -16,7 +16,7 @@ export class WebRTCService {
 
   @HandleError('Failed to send WebRTC offer', 'WebRTCService')
   async handleOffer(client: Socket, payload: WebRTCPayload) {
-    this.chatGateway.emitToUser(
+    this.chatGateway.emitToClient(
       payload.targetUserId,
       ChatEventsEnum.WEBRTC_OFFER,
       {
@@ -36,7 +36,7 @@ export class WebRTCService {
 
   @HandleError('Failed to send WebRTC answer', 'WebRTCService')
   async handleAnswer(client: Socket, payload: WebRTCPayload) {
-    this.chatGateway.emitToUser(
+    this.chatGateway.emitToClient(
       payload.targetUserId,
       ChatEventsEnum.WEBRTC_ANSWER,
       {
@@ -56,7 +56,7 @@ export class WebRTCService {
 
   @HandleError('Failed to send WebRTC ice candidate', 'WebRTCService')
   async handleIceCandidate(client: Socket, payload: WebRTCPayload) {
-    this.chatGateway.emitToUser(
+    this.chatGateway.emitToClient(
       payload.targetUserId,
       ChatEventsEnum.WEBRTC_ICE_CANDIDATE,
       {

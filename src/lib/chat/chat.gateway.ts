@@ -1,4 +1,4 @@
-import { Logger, Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import {
@@ -21,13 +21,8 @@ import { ConversationService } from './services/conversation.service';
 import { MessageService } from './services/message.service';
 import { WebRTCService } from './services/webrtc.service';
 import {
-  LoadConversationsPayload,
-  NewConversationPayload,
-} from './types/conversation-payloads';
-import {
-  LoadMessagesPayload,
-  MarkReadPayload,
-  SendMessagePayload,
+  AdminMessagePayload,
+  ClientMessagePayload,
 } from './types/message-payloads';
 
 @WebSocketGateway({
@@ -60,7 +55,7 @@ export class ChatGateway
     );
   }
 
-  /** Handle socket connection and authentication */
+  /** ---------------- AUTHENTICATION ---------------- */
   async handleConnection(client: Socket) {
     // Accept token either in Authorization header (Bearer) or handshake.auth.token
     const authHeader =
@@ -90,30 +85,22 @@ export class ChatGateway
       const payload = this.jwtService.verify<JWTPayload>(token, {
         secret: this.configService.getOrThrow(ENVEnum.JWT_SECRET),
       });
-      const userId = payload.sub;
 
       const user = await this.prisma.user.findUnique({
-        where: { id: userId },
-        select: { id: true, email: true },
+        where: { id: payload.sub },
+        select: { id: true, role: true, name: true, avatarUrl: true },
       });
 
-      if (!user) {
-        client.emit(ChatEventsEnum.ERROR, { message: 'User not found' });
-        client.disconnect(true);
-        this.logger.warn(`User not found: ${userId}`);
-        return;
-      }
+      if (!user) return this.disconnectWithError(client, 'User not found');
 
-      client.data.userId = userId;
-      client.join(userId);
-      client.emit(ChatEventsEnum.SUCCESS, userId);
-      this.logger.log(`User ${userId} connected, socket ${client.id}`);
+      client.data.userId = user.id;
+      client.data.role = user.role;
+      client.join(user.id);
+
+      this.logger.log(`User connected: ${user.id} (socket ${client.id})`);
+      client.emit(ChatEventsEnum.SUCCESS, { userId: user.id });
     } catch (err: any) {
-      client.emit(ChatEventsEnum.ERROR, {
-        message: err?.message ?? 'Auth failed',
-      });
-      client.disconnect(true);
-      this.logger.warn(`Authentication failed: ${err?.message ?? err}`);
+      this.disconnectWithError(client, err?.message ?? 'Auth failed');
     }
   }
 
@@ -123,147 +110,43 @@ export class ChatGateway
     this.logger.log(`Disconnected: ${client.id} (user ${userId ?? 'unknown'})`);
   }
 
-  // ================== MESSAGE EVENTS ==================
-  @SubscribeMessage(ChatEventsEnum.SEND_MESSAGE)
-  async handleSendMessage(
+  /** ---------------- MESSAGE EVENTS ---------------- */
+  @SubscribeMessage(ChatEventsEnum.SEND_MESSAGE_CLIENT)
+  async onSendMessageClient(
     @ConnectedSocket() client: Socket,
-    @MessageBody() payload: SendMessagePayload,
+    @MessageBody() payload: ClientMessagePayload,
   ) {
-    return this.messageService.handleSendMessage(client, payload);
+    await this.messageService.sendMessageFromClient(client, payload);
   }
 
-  @SubscribeMessage(ChatEventsEnum.LOAD_MESSAGES)
-  async handleLoadMessages(
+  @SubscribeMessage(ChatEventsEnum.SEND_MESSAGE_ADMIN)
+  async onSendMessageAdmin(
     @ConnectedSocket() client: Socket,
-    @MessageBody() payload: LoadMessagesPayload,
+    @MessageBody() payload: AdminMessagePayload,
   ) {
-    return this.messageService.handleLoadMessages(client, payload);
+    await this.messageService.sendMessageFromAdmin(client, payload);
   }
 
-  @SubscribeMessage(ChatEventsEnum.MARK_READ)
-  async handleMarkRead(
-    @ConnectedSocket() client: Socket,
-    @MessageBody() payload: MarkReadPayload,
+  /** ---------------- HELPER EMITS ---------------- */
+  private disconnectWithError(client: Socket, message: string) {
+    client.emit(ChatEventsEnum.ERROR, { message });
+    client.disconnect(true);
+    this.logger.warn(`Disconnect ${client.id}: ${message}`);
+  }
+
+  public async emitToClient(
+    conversationId: string,
+    event: ChatEventsEnum,
+    payload: any,
   ) {
-    return this.messageService.handleMarkRead(client, payload);
-  }
+    const clientParticipant =
+      await this.prisma.privateConversationParticipant.findFirst({
+        where: { conversationId, type: 'USER' },
+        select: { userId: true },
+      });
 
-  // ================== CONVERSATION EVENTS ==================
-  @SubscribeMessage(ChatEventsEnum.NEW_CONVERSATION)
-  async handleCreateConversation(
-    @ConnectedSocket() client: Socket,
-    @MessageBody() payload: NewConversationPayload,
-  ) {
-    return this.conversationService.handleNewConversation(client, payload);
-  }
-
-  @SubscribeMessage(ChatEventsEnum.LOAD_CONVERSATIONS)
-  async handleLoadConversations(
-    @ConnectedSocket() client: Socket,
-    @MessageBody() payload: LoadConversationsPayload,
-  ) {
-    return this.conversationService.handleLoadConversations(client, payload);
-  }
-
-  @SubscribeMessage(ChatEventsEnum.LOAD_SINGLE_CONVERSATION)
-  async handleLoadSingleConversation(
-    @ConnectedSocket() client: Socket,
-    @MessageBody() payload: any,
-  ) {
-    return this.conversationService.handleLoadSingleConversation(
-      client,
-      payload,
-    );
-  }
-
-  // ================== CALL EVENTS ==================
-  @SubscribeMessage(ChatEventsEnum.CALL_INITIATE)
-  async handleCallInitiate(
-    @ConnectedSocket() client: Socket,
-    @MessageBody() payload: any,
-  ) {
-    this.logger.log(`CALL_INITIATE by ${client.data.userId}`, payload);
-  }
-
-  @SubscribeMessage(ChatEventsEnum.CALL_ACCEPT)
-  async handleCallAccept(
-    @ConnectedSocket() client: Socket,
-    @MessageBody() payload: any,
-  ) {
-    this.logger.log(`CALL_ACCEPT by ${client.data.userId}`, payload);
-  }
-
-  @SubscribeMessage(ChatEventsEnum.CALL_REJECT)
-  async handleCallReject(
-    @ConnectedSocket() client: Socket,
-    @MessageBody() payload: any,
-  ) {
-    this.logger.log(`CALL_REJECT by ${client.data.userId}`, payload);
-  }
-
-  @SubscribeMessage(ChatEventsEnum.CALL_JOIN)
-  async handleCallJoin(
-    @ConnectedSocket() client: Socket,
-    @MessageBody() payload: any,
-  ) {
-    this.logger.log(`CALL_JOIN by ${client.data.userId}`, payload);
-  }
-
-  @SubscribeMessage(ChatEventsEnum.CALL_LEAVE)
-  async handleCallLeave(
-    @ConnectedSocket() client: Socket,
-    @MessageBody() payload: any,
-  ) {
-    this.logger.log(`CALL_LEAVE by ${client.data.userId}`, payload);
-  }
-
-  @SubscribeMessage(ChatEventsEnum.CALL_END)
-  async handleCallEnd(
-    @ConnectedSocket() client: Socket,
-    @MessageBody() payload: any,
-  ) {
-    this.logger.log(`CALL_END triggered`, payload);
-  }
-
-  @SubscribeMessage(ChatEventsEnum.CALL_MISSED)
-  async handleCallMissed(
-    @ConnectedSocket() client: Socket,
-    @MessageBody() payload: any,
-  ) {
-    this.logger.log(`CALL_MISSED for ${client.data.userId}`, payload);
-  }
-
-  // ================== WEBRTC SIGNALING EVENTS ==================
-  @SubscribeMessage(ChatEventsEnum.WEBRTC_OFFER)
-  async handleWebRTCOffer(
-    @ConnectedSocket() client: Socket,
-    @MessageBody() payload: any,
-  ) {
-    this.logger.log(`WEBRTC_OFFER from ${client.data.userId}`, payload);
-  }
-
-  @SubscribeMessage(ChatEventsEnum.WEBRTC_ANSWER)
-  async handleWebRTCAnswer(
-    @ConnectedSocket() client: Socket,
-    @MessageBody() payload: any,
-  ) {
-    this.logger.log(`WEBRTC_ANSWER from ${client.data.userId}`, payload);
-  }
-
-  @SubscribeMessage(ChatEventsEnum.WEBRTC_ICE_CANDIDATE)
-  async handleWebRTCIce(
-    @ConnectedSocket() client: Socket,
-    @MessageBody() payload: any,
-  ) {
-    this.logger.log(`WEBRTC_ICE_CANDIDATE from ${client.data.userId}`, payload);
-  }
-
-  // ================== HELPER TO EMIT EVENTS ==================
-  public emitToUser(userId: string, event: ChatEventsEnum, payload: any) {
-    this.server.to(userId).emit(event, payload);
-  }
-
-  public emitToRoom(roomId: string, event: ChatEventsEnum, payload: any) {
-    this.server.to(roomId).emit(event, payload);
+    if (clientParticipant) {
+      this.server.to(clientParticipant.userId as string).emit(event, payload);
+    }
   }
 }

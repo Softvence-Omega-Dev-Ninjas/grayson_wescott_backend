@@ -37,7 +37,7 @@ export class CallService {
 
     // Notify all participants
     payload.participantIds.forEach((uid) => {
-      this.chatGateway.emitToUser(uid, ChatEventsEnum.CALL_INITIATE, call);
+      this.chatGateway.emitToClient(uid, ChatEventsEnum.CALL_INITIATE, call);
     });
 
     return call;
@@ -49,7 +49,7 @@ export class CallService {
       data: { status: 'JOINED', joinedAt: new Date() },
     });
 
-    this.chatGateway.emitToUser(
+    this.chatGateway.emitToClient(
       client.data.userId,
       ChatEventsEnum.CALL_ACCEPT,
       { callId: payload.callId },
@@ -62,7 +62,7 @@ export class CallService {
       data: { status: 'MISSED' },
     });
 
-    this.chatGateway.emitToUser(
+    this.chatGateway.emitToClient(
       client.data.userId,
       ChatEventsEnum.CALL_REJECT,
       { callId: payload.callId },
@@ -75,9 +75,13 @@ export class CallService {
       data: { status: 'JOINED', joinedAt: new Date() },
     });
 
-    this.chatGateway.emitToUser(client.data.userId, ChatEventsEnum.CALL_JOIN, {
-      callId: payload.callId,
-    });
+    this.chatGateway.emitToClient(
+      client.data.userId,
+      ChatEventsEnum.CALL_JOIN,
+      {
+        callId: payload.callId,
+      },
+    );
   }
 
   async handleCallLeave(client: Socket, payload: CallJoinPayload) {
@@ -86,9 +90,13 @@ export class CallService {
       data: { status: 'LEFT', leftAt: new Date() },
     });
 
-    this.chatGateway.emitToUser(client.data.userId, ChatEventsEnum.CALL_LEAVE, {
-      callId: payload.callId,
-    });
+    this.chatGateway.emitToClient(
+      client.data.userId,
+      ChatEventsEnum.CALL_LEAVE,
+      {
+        callId: payload.callId,
+      },
+    );
   }
 
   async handleCallEnd(client: Socket, payload: CallActionPayload) {
@@ -97,7 +105,7 @@ export class CallService {
       data: { status: 'ENDED', endedAt: new Date() },
     });
 
-    this.chatGateway.emitToUser(client.data.userId, ChatEventsEnum.CALL_END, {
+    this.chatGateway.emitToClient(client.data.userId, ChatEventsEnum.CALL_END, {
       callId: payload.callId,
     });
   }
