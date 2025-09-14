@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { forwardRef, Inject, Injectable, Logger } from '@nestjs/common';
 import { AppError } from '@project/common/error/handle-error.app';
 import { HandleError } from '@project/common/error/handle-error.decorator';
 import {
@@ -6,7 +6,8 @@ import {
   TResponse,
 } from '@project/common/utils/response.util';
 import { PrismaService } from '@project/lib/prisma/prisma.service';
-import { Server, Socket } from 'socket.io';
+import { Socket } from 'socket.io';
+import { ChatGateway } from '../chat.gateway';
 import { ChatEventsEnum } from '../enum/chat-events.enum';
 import {
   LoadMessagesPayload,
@@ -20,10 +21,11 @@ export class MessageService {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly server: Server,
+    @Inject(forwardRef(() => ChatGateway))
+    private readonly chatGateway: ChatGateway,
   ) {}
 
-  @HandleError('Failed to send message', 'ChatGateway')
+  @HandleError('Failed to send message', 'MessageService')
   async handleSendMessage(
     client: Socket,
     payload: SendMessagePayload,
@@ -38,7 +40,6 @@ export class MessageService {
         message: 'Conversation not found',
         conversationId: payload.conversationId,
       });
-
       throw new AppError(404, 'Conversation not found');
     }
 
@@ -52,13 +53,16 @@ export class MessageService {
       },
     });
 
+    // Emit message to all participants via gateway helpers
     conversation.participants.forEach((p) => {
-      p.userId
-        ? this.server.to(p.userId).emit(ChatEventsEnum.NEW_MESSAGE, message)
-        : null;
+      if (p.userId)
+        this.chatGateway.emitToUser(
+          p.userId,
+          ChatEventsEnum.NEW_MESSAGE,
+          message,
+        );
     });
 
-    // * A Details Logger
     this.logger.log({
       message: 'New message sent',
       conversationId: payload.conversationId,
@@ -69,7 +73,7 @@ export class MessageService {
     return successResponse(message, 'Message sent successfully');
   }
 
-  @HandleError('Failed to load messages', 'ChatGateway')
+  @HandleError('Failed to load messages', 'MessageService')
   async handleLoadMessages(
     client: Socket,
     payload: LoadMessagesPayload,
@@ -89,7 +93,7 @@ export class MessageService {
     return successResponse(messages, 'Messages loaded successfully');
   }
 
-  @HandleError('Failed to mark message as read', 'ChatGateway')
+  @HandleError('Failed to mark message as read', 'MessageService')
   async handleMarkRead(
     client: Socket,
     payload: MarkReadPayload,

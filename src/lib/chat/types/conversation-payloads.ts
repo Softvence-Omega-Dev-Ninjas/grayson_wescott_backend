@@ -8,6 +8,7 @@ export interface LoadSingleConversationPayload {
 }
 
 export interface NewConversationPayload {
-  participantIds: string[];
+  userId: string;
+  adminGroupId: string;
   initialMessage?: string;
 }

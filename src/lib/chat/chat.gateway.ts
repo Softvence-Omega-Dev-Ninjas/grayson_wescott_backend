@@ -1,4 +1,4 @@
-import { Logger } from '@nestjs/common';
+import { Logger, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import {
@@ -17,8 +17,13 @@ import { PrismaService } from '@project/lib/prisma/prisma.service';
 import { Server, Socket } from 'socket.io';
 import { ChatEventsEnum } from './enum/chat-events.enum';
 import { CallService } from './services/call.service';
+import { ConversationService } from './services/conversation.service';
 import { MessageService } from './services/message.service';
 import { WebRTCService } from './services/webrtc.service';
+import {
+  LoadConversationsPayload,
+  NewConversationPayload,
+} from './types/conversation-payloads';
 import {
   LoadMessagesPayload,
   MarkReadPayload,
@@ -29,6 +34,7 @@ import {
   cors: { origin: '*' },
   namespace: '/api/chat',
 })
+@Injectable()
 export class ChatGateway
   implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect
 {
@@ -39,6 +45,7 @@ export class ChatGateway
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
     private readonly messageService: MessageService,
+    private readonly conversationService: ConversationService,
     private readonly callService: CallService,
     private readonly webRTCService: WebRTCService,
   ) {}
@@ -142,9 +149,20 @@ export class ChatGateway
   }
 
   // ================== CONVERSATION EVENTS ==================
+  @SubscribeMessage(ChatEventsEnum.NEW_CONVERSATION)
+  async handleCreateConversation(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() payload: NewConversationPayload,
+  ) {
+    return this.conversationService.handleNewConversation(client, payload);
+  }
+
   @SubscribeMessage(ChatEventsEnum.LOAD_CONVERSATIONS)
-  async handleLoadConversations(@ConnectedSocket() client: Socket) {
-    this.logger.log(`LOAD_CONVERSATIONS requested by ${client.data.userId}`);
+  async handleLoadConversations(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() payload: LoadConversationsPayload,
+  ) {
+    return this.conversationService.handleLoadConversations(client, payload);
   }
 
   @SubscribeMessage(ChatEventsEnum.LOAD_SINGLE_CONVERSATION)
@@ -152,8 +170,8 @@ export class ChatGateway
     @ConnectedSocket() client: Socket,
     @MessageBody() payload: any,
   ) {
-    this.logger.log(
-      `LOAD_SINGLE_CONVERSATION for ${client.data.userId}`,
+    return this.conversationService.handleLoadSingleConversation(
+      client,
       payload,
     );
   }
@@ -241,11 +259,11 @@ export class ChatGateway
   }
 
   // ================== HELPER TO EMIT EVENTS ==================
-  emitToUser(userId: string, event: ChatEventsEnum, payload: any) {
+  public emitToUser(userId: string, event: ChatEventsEnum, payload: any) {
     this.server.to(userId).emit(event, payload);
   }
 
-  emitToRoom(roomId: string, event: ChatEventsEnum, payload: any) {
+  public emitToRoom(roomId: string, event: ChatEventsEnum, payload: any) {
     this.server.to(roomId).emit(event, payload);
   }
 }

@@ -1,6 +1,7 @@
-import { Injectable } from '@nestjs/common';
+import { forwardRef, Inject, Injectable } from '@nestjs/common';
 import { PrismaService } from '@project/lib/prisma/prisma.service';
-import { Server, Socket } from 'socket.io';
+import { Socket } from 'socket.io';
+import { ChatGateway } from '../chat.gateway';
 import { ChatEventsEnum } from '../enum/chat-events.enum';
 import {
   CallActionPayload,
@@ -12,7 +13,8 @@ import {
 export class CallService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly server: Server,
+    @Inject(forwardRef(() => ChatGateway))
+    private readonly chatGateway: ChatGateway,
   ) {}
 
   /** Initiate a call */
@@ -35,7 +37,7 @@ export class CallService {
 
     // Notify all participants
     payload.participantIds.forEach((uid) => {
-      this.server.to(uid).emit(ChatEventsEnum.CALL_INCOMING, call);
+      this.chatGateway.emitToUser(uid, ChatEventsEnum.CALL_INITIATE, call);
     });
 
     return call;
@@ -47,9 +49,11 @@ export class CallService {
       data: { status: 'JOINED', joinedAt: new Date() },
     });
 
-    this.server
-      .to(payload.callId)
-      .emit(ChatEventsEnum.CALL_ACCEPT, { userId: client.data.userId });
+    this.chatGateway.emitToUser(
+      client.data.userId,
+      ChatEventsEnum.CALL_ACCEPT,
+      { callId: payload.callId },
+    );
   }
 
   async handleCallReject(client: Socket, payload: CallActionPayload) {
@@ -58,9 +62,11 @@ export class CallService {
       data: { status: 'MISSED' },
     });
 
-    this.server
-      .to(payload.callId)
-      .emit(ChatEventsEnum.CALL_REJECT, { userId: client.data.userId });
+    this.chatGateway.emitToUser(
+      client.data.userId,
+      ChatEventsEnum.CALL_REJECT,
+      { callId: payload.callId },
+    );
   }
 
   async handleCallJoin(client: Socket, payload: CallJoinPayload) {
@@ -69,9 +75,9 @@ export class CallService {
       data: { status: 'JOINED', joinedAt: new Date() },
     });
 
-    this.server
-      .to(payload.callId)
-      .emit(ChatEventsEnum.CALL_JOIN, { userId: client.data.userId });
+    this.chatGateway.emitToUser(client.data.userId, ChatEventsEnum.CALL_JOIN, {
+      callId: payload.callId,
+    });
   }
 
   async handleCallLeave(client: Socket, payload: CallJoinPayload) {
@@ -80,9 +86,9 @@ export class CallService {
       data: { status: 'LEFT', leftAt: new Date() },
     });
 
-    this.server
-      .to(payload.callId)
-      .emit(ChatEventsEnum.CALL_LEAVE, { userId: client.data.userId });
+    this.chatGateway.emitToUser(client.data.userId, ChatEventsEnum.CALL_LEAVE, {
+      callId: payload.callId,
+    });
   }
 
   async handleCallEnd(client: Socket, payload: CallActionPayload) {
@@ -91,8 +97,8 @@ export class CallService {
       data: { status: 'ENDED', endedAt: new Date() },
     });
 
-    this.server
-      .to(payload.callId)
-      .emit(ChatEventsEnum.CALL_END, { callId: payload.callId });
+    this.chatGateway.emitToUser(client.data.userId, ChatEventsEnum.CALL_END, {
+      callId: payload.callId,
+    });
   }
 }
