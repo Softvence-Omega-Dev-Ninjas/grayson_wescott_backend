@@ -116,7 +116,7 @@ export class ChatGateway
     @ConnectedSocket() client: Socket,
     @MessageBody() payload: ClientMessagePayload,
   ) {
-    await this.messageService.sendMessageFromClient(client, payload);
+    return this.messageService.sendMessageFromClient(client, payload);
   }
 
   @SubscribeMessage(ChatEventsEnum.SEND_MESSAGE_ADMIN)
@@ -124,7 +124,7 @@ export class ChatGateway
     @ConnectedSocket() client: Socket,
     @MessageBody() payload: AdminMessagePayload,
   ) {
-    await this.messageService.sendMessageFromAdmin(client, payload);
+    return this.messageService.sendMessageFromAdmin(client, payload);
   }
 
   /** ---------------- HELPER EMITS ---------------- */

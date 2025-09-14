@@ -33,12 +33,13 @@ export class MessageService {
     client: Socket,
     payload: ClientMessagePayload,
   ): Promise<TResponse<any>> {
+    console.log(payload);
     const senderId = client.data.userId;
     if (!senderId) {
       client.emit(ChatEventsEnum.ERROR, { message: 'Unauthorized' });
       return errorResponse(null, 'Unauthorized');
     }
-
+    console.log(payload);
     const admins = await this.getAllAdminParticipants();
 
     // 1. Find or create conversation
@@ -95,11 +96,15 @@ export class MessageService {
   /**
    * Admin → Client
    */
-  async sendMessageFromAdmin(client: Socket, payload: AdminMessagePayload) {
+  @HandleError('Failed to send message to client', 'MessageService')
+  async sendMessageFromAdmin(
+    client: Socket,
+    payload: AdminMessagePayload,
+  ): Promise<TResponse<any>> {
     const senderId = client.data.userId;
     if (!senderId) {
       client.emit(ChatEventsEnum.ERROR, { message: 'Unauthorized' });
-      return;
+      return errorResponse(null, 'Unauthorized');
     }
 
     // 1. Find or create conversation
@@ -165,7 +170,7 @@ export class MessageService {
         fromAdmin: true,
       });
 
-    return message;
+    return successResponse(message, 'Message sent successfully');
   }
 
   /**
@@ -173,7 +178,9 @@ export class MessageService {
    */
   private async getAllAdminParticipants() {
     const admins = await this.prisma.user.findMany({
-      where: { role: 'ADMIN' },
+      where: {
+        OR: [{ role: 'ADMIN' }, { role: 'SUPER_ADMIN' }],
+      },
       select: { id: true },
     });
     return admins.map((a) => ({
