@@ -18,7 +18,12 @@ import { Server, Socket } from 'socket.io';
 import { ChatEventsEnum } from './enum/chat-events.enum';
 import { CallService } from './services/call.service';
 import { MessageService } from './services/message.service';
-import { WebrtcService } from './services/webrtc.service';
+import { WebRTCService } from './services/webrtc.service';
+import {
+  LoadMessagesPayload,
+  MarkReadPayload,
+  SendMessagePayload,
+} from './types/message-payloads';
 
 @WebSocketGateway({
   cors: { origin: '*' },
@@ -35,7 +40,7 @@ export class ChatGateway
     private readonly jwtService: JwtService,
     private readonly messageService: MessageService,
     private readonly callService: CallService,
-    private readonly webrtcService: WebrtcService,
+    private readonly webRTCService: WebRTCService,
   ) {}
 
   @WebSocketServer()
@@ -115,25 +120,25 @@ export class ChatGateway
   @SubscribeMessage(ChatEventsEnum.SEND_MESSAGE)
   async handleSendMessage(
     @ConnectedSocket() client: Socket,
-    @MessageBody() payload: any,
+    @MessageBody() payload: SendMessagePayload,
   ) {
-    this.logger.log(`SEND_MESSAGE from ${client.data.userId}`, payload);
+    return this.messageService.handleSendMessage(client, payload);
   }
 
   @SubscribeMessage(ChatEventsEnum.LOAD_MESSAGES)
   async handleLoadMessages(
     @ConnectedSocket() client: Socket,
-    @MessageBody() payload: any,
+    @MessageBody() payload: LoadMessagesPayload,
   ) {
-    this.logger.log(`LOAD_MESSAGES for ${client.data.userId}`, payload);
+    return this.messageService.handleLoadMessages(client, payload);
   }
 
   @SubscribeMessage(ChatEventsEnum.MARK_READ)
   async handleMarkRead(
     @ConnectedSocket() client: Socket,
-    @MessageBody() payload: any,
+    @MessageBody() payload: MarkReadPayload,
   ) {
-    this.logger.log(`MARK_READ by ${client.data.userId}`, payload);
+    return this.messageService.handleMarkRead(client, payload);
   }
 
   // ================== CONVERSATION EVENTS ==================

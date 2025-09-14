@@ -19,5 +19,5 @@ export interface LoadMessagesPayload {
 
 export interface MessageStatusPayload {
   messageId: string;
-  status: MessageDeliveryStatus; 
+  status: MessageDeliveryStatus;
 }
