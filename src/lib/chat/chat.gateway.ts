@@ -2,9 +2,12 @@ import { Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import {
+  ConnectedSocket,
+  MessageBody,
   OnGatewayConnection,
   OnGatewayDisconnect,
   OnGatewayInit,
+  SubscribeMessage,
   WebSocketGateway,
   WebSocketServer,
 } from '@nestjs/websockets';
@@ -44,7 +47,8 @@ export class ChatGateway
     // Accept token either in Authorization header (Bearer) or handshake.auth.token
     const authHeader =
       (client.handshake.headers.authorization as string) ||
-      (client.handshake.auth && (client.handshake.auth.token as string));
+      (client.handshake.auth?.token as string);
+
     if (!authHeader) {
       client.emit(ChatEventsEnum.ERROR, {
         message: 'Missing authorization header',
@@ -74,10 +78,9 @@ export class ChatGateway
         where: { id: userId },
         select: { id: true, email: true },
       });
+
       if (!user) {
-        client.emit(ChatEventsEnum.ERROR, {
-          message: 'User not found in database',
-        });
+        client.emit(ChatEventsEnum.ERROR, { message: 'User not found' });
         client.disconnect(true);
         this.logger.warn(`User not found: ${userId}`);
         return;
@@ -86,9 +89,7 @@ export class ChatGateway
       client.data.userId = userId;
       client.join(userId);
       client.emit(ChatEventsEnum.SUCCESS, userId);
-      this.logger.log(
-        `Private chat: User ${userId} connected, socket ${client.id}`,
-      );
+      this.logger.log(`User ${userId} connected, socket ${client.id}`);
     } catch (err: any) {
       client.emit(ChatEventsEnum.ERROR, {
         message: err?.message ?? 'Auth failed',
@@ -101,13 +102,139 @@ export class ChatGateway
   handleDisconnect(client: Socket) {
     const userId = client.data?.userId;
     if (userId) client.leave(userId);
+    this.logger.log(`Disconnected: ${client.id} (user ${userId ?? 'unknown'})`);
+  }
+
+  // ================== MESSAGE EVENTS ==================
+  @SubscribeMessage(ChatEventsEnum.SEND_MESSAGE)
+  async handleSendMessage(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() payload: any,
+  ) {
+    this.logger.log(`SEND_MESSAGE from ${client.data.userId}`, payload);
+  }
+
+  @SubscribeMessage(ChatEventsEnum.LOAD_MESSAGES)
+  async handleLoadMessages(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() payload: any,
+  ) {
+    this.logger.log(`LOAD_MESSAGES for ${client.data.userId}`, payload);
+  }
+
+  @SubscribeMessage(ChatEventsEnum.MARK_READ)
+  async handleMarkRead(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() payload: any,
+  ) {
+    this.logger.log(`MARK_READ by ${client.data.userId}`, payload);
+  }
+
+  // ================== CONVERSATION EVENTS ==================
+  @SubscribeMessage(ChatEventsEnum.LOAD_CONVERSATIONS)
+  async handleLoadConversations(@ConnectedSocket() client: Socket) {
+    this.logger.log(`LOAD_CONVERSATIONS requested by ${client.data.userId}`);
+  }
+
+  @SubscribeMessage(ChatEventsEnum.LOAD_SINGLE_CONVERSATION)
+  async handleLoadSingleConversation(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() payload: any,
+  ) {
     this.logger.log(
-      `Private chat disconnected: ${client.id} (user ${userId ?? 'unknown'})`,
+      `LOAD_SINGLE_CONVERSATION for ${client.data.userId}`,
+      payload,
     );
   }
 
-  /** Helper for external services to emit new messages (keeps compatibility) */
-  emitNewMessage(userId: string, message: any) {
-    this.server.to(userId).emit(ChatEventsEnum.NEW_MESSAGE, message);
+  // ================== CALL EVENTS ==================
+  @SubscribeMessage(ChatEventsEnum.CALL_INITIATE)
+  async handleCallInitiate(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() payload: any,
+  ) {
+    this.logger.log(`CALL_INITIATE by ${client.data.userId}`, payload);
+  }
+
+  @SubscribeMessage(ChatEventsEnum.CALL_ACCEPT)
+  async handleCallAccept(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() payload: any,
+  ) {
+    this.logger.log(`CALL_ACCEPT by ${client.data.userId}`, payload);
+  }
+
+  @SubscribeMessage(ChatEventsEnum.CALL_REJECT)
+  async handleCallReject(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() payload: any,
+  ) {
+    this.logger.log(`CALL_REJECT by ${client.data.userId}`, payload);
+  }
+
+  @SubscribeMessage(ChatEventsEnum.CALL_JOIN)
+  async handleCallJoin(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() payload: any,
+  ) {
+    this.logger.log(`CALL_JOIN by ${client.data.userId}`, payload);
+  }
+
+  @SubscribeMessage(ChatEventsEnum.CALL_LEAVE)
+  async handleCallLeave(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() payload: any,
+  ) {
+    this.logger.log(`CALL_LEAVE by ${client.data.userId}`, payload);
+  }
+
+  @SubscribeMessage(ChatEventsEnum.CALL_END)
+  async handleCallEnd(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() payload: any,
+  ) {
+    this.logger.log(`CALL_END triggered`, payload);
+  }
+
+  @SubscribeMessage(ChatEventsEnum.CALL_MISSED)
+  async handleCallMissed(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() payload: any,
+  ) {
+    this.logger.log(`CALL_MISSED for ${client.data.userId}`, payload);
+  }
+
+  // ================== WEBRTC SIGNALING EVENTS ==================
+  @SubscribeMessage(ChatEventsEnum.WEBRTC_OFFER)
+  async handleWebRTCOffer(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() payload: any,
+  ) {
+    this.logger.log(`WEBRTC_OFFER from ${client.data.userId}`, payload);
+  }
+
+  @SubscribeMessage(ChatEventsEnum.WEBRTC_ANSWER)
+  async handleWebRTCAnswer(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() payload: any,
+  ) {
+    this.logger.log(`WEBRTC_ANSWER from ${client.data.userId}`, payload);
+  }
+
+  @SubscribeMessage(ChatEventsEnum.WEBRTC_ICE_CANDIDATE)
+  async handleWebRTCIce(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() payload: any,
+  ) {
+    this.logger.log(`WEBRTC_ICE_CANDIDATE from ${client.data.userId}`, payload);
+  }
+
+  // ================== HELPER TO EMIT EVENTS ==================
+  emitToUser(userId: string, event: ChatEventsEnum, payload: any) {
+    this.server.to(userId).emit(event, payload);
+  }
+
+  emitToRoom(roomId: string, event: ChatEventsEnum, payload: any) {
+    this.server.to(roomId).emit(event, payload);
   }
 }
