@@ -16,6 +16,9 @@ import { JWTPayload } from '@project/common/jwt/jwt.interface';
 import { PrismaService } from '@project/lib/prisma/prisma.service';
 import { Server, Socket } from 'socket.io';
 import { ChatEventsEnum } from './enum/chat-events.enum';
+import { CallService } from './services/call.service';
+import { MessageService } from './services/message.service';
+import { WebrtcService } from './services/webrtc.service';
 
 @WebSocketGateway({
   cors: { origin: '*' },
@@ -30,6 +33,9 @@ export class ChatGateway
     private readonly configService: ConfigService,
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
+    private readonly messageService: MessageService,
+    private readonly callService: CallService,
+    private readonly webrtcService: WebrtcService,
   ) {}
 
   @WebSocketServer()
