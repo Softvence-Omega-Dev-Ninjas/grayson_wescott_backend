@@ -16,3 +16,10 @@ export class LoadSingleConversationDto extends PaginationDto {
   @IsString()
   conversationId: string;
 }
+
+export class InitConversationWithClientDto {
+  @ApiProperty({ description: 'Client ID to send message to' })
+  @IsNotEmpty()
+  @IsString()
+  clientId: string;
+}

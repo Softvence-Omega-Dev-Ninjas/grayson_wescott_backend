@@ -17,6 +17,7 @@ import { JWTPayload } from '@project/common/jwt/jwt.interface';
 import { PrismaService } from '@project/lib/prisma/prisma.service';
 import { Server, Socket } from 'socket.io';
 import {
+  InitConversationWithClientDto,
   LoadConversationsDto,
   LoadSingleConversationDto,
 } from './dto/conversation.dto';
@@ -176,6 +177,17 @@ export class ChatGateway
     @MessageBody() payload: PaginationDto,
   ) {
     return this.conversationService.handleLoadClientConversation(
+      client,
+      payload,
+    );
+  }
+
+  @SubscribeMessage(ChatEventsEnum.INIT_CONVERSATION_WITH_CLIENT)
+  async onInitConversationWithClient(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() payload: InitConversationWithClientDto,
+  ) {
+    return this.conversationService.handleInitConversationWithClient(
       client,
       payload,
     );

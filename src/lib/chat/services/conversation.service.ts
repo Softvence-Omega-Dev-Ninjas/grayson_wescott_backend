@@ -1,4 +1,5 @@
 import { forwardRef, Inject, Injectable } from '@nestjs/common';
+import { ConversationParticipantType, MessageType } from '@prisma/client';
 import { PaginationDto } from '@project/common/dto/pagination.dto';
 import { HandleError } from '@project/common/error/handle-error.decorator';
 import {
@@ -12,6 +13,7 @@ import { PrismaService } from '@project/lib/prisma/prisma.service';
 import { Socket } from 'socket.io';
 import { ChatGateway } from '../chat.gateway';
 import {
+  InitConversationWithClientDto,
   LoadConversationsDto,
   LoadSingleConversationDto,
 } from '../dto/conversation.dto';
@@ -177,6 +179,94 @@ export class ConversationService {
       .emit(ChatEventsEnum.SINGLE_CONVERSATION, output);
 
     return successResponse(output, 'Conversation loaded successfully');
+  }
+
+  @HandleError('Failed to init conversation with client', 'ConversationService')
+  async handleInitConversationWithClient(
+    client: Socket,
+    payload: InitConversationWithClientDto,
+  ): Promise<TResponse<any>> {
+    const adminId = client.data.userId;
+    const clientId = payload.clientId;
+
+    const [conversation] = await this.prisma.$transaction(async (tx) => {
+      // First, try to find an existing conversation with client as a user participant
+      const existingConversation = await tx.privateConversation.findFirst({
+        where: {
+          participants: {
+            some: {
+              userId: clientId,
+              type: ConversationParticipantType.USER,
+            },
+          },
+        },
+        include: {
+          participants: true,
+        },
+      });
+
+      let conversation;
+      if (existingConversation) {
+        conversation = existingConversation;
+        const adminParticipant = existingConversation.participants.find(
+          (p) => p.userId === adminId,
+        );
+        if (!adminParticipant) {
+          await tx.privateConversation.update({
+            where: { id: existingConversation.id },
+            data: {
+              participants: {
+                create: {
+                  userId: adminId,
+                  type: ConversationParticipantType.ADMIN_GROUP,
+                },
+              },
+            },
+          });
+        }
+      } else {
+        conversation = await tx.privateConversation.create({
+          data: {
+            participants: {
+              create: [
+                {
+                  userId: adminId,
+                  type: ConversationParticipantType.ADMIN_GROUP,
+                },
+                {
+                  userId: clientId,
+                  type: ConversationParticipantType.USER,
+                },
+              ],
+            },
+          },
+        });
+
+        // Add a starter message for new conversation
+        const firstMessage = await tx.privateMessage.create({
+          data: {
+            content: 'Conversation started',
+            type: MessageType.TEXT,
+            senderId: adminId,
+            conversationId: conversation.id,
+          },
+        });
+
+        await tx.privateConversation.update({
+          where: { id: conversation.id },
+          data: { lastMessageId: firstMessage.id },
+        });
+      }
+
+      return [conversation];
+    });
+
+    // Reuse loader to keep output in sync
+    return this.handleLoadSingleConversationByAdmin(client, {
+      conversationId: conversation.id,
+      page: 1,
+      limit: 10,
+    });
   }
 
   @HandleError('Failed to load conversation of a client', 'ConversationService')
