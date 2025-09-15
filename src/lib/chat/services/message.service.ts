@@ -15,6 +15,7 @@ import { ChatGateway } from '../chat.gateway';
 import {
   AdminMessageDto,
   ClientMessageDto,
+  MarkReadDto,
   MessageDeliveryStatusDto,
 } from '../dto/message.dto';
 import { ChatEventsEnum } from '../enum/chat-events.enum';
@@ -27,9 +28,7 @@ export class MessageService {
     private readonly chatGateway: ChatGateway,
   ) {}
 
-  /**
-   * Client → Admin(s)
-   */
+  // Send message to admin(s)
   @HandleError('Failed to send message to admin(s)', 'MessageService')
   async sendMessageFromClient(
     client: Socket,
@@ -94,9 +93,7 @@ export class MessageService {
     return successResponse(message, 'Message sent successfully');
   }
 
-  /**
-   * Admin → Client
-   */
+  // Send message to client
   @HandleError('Failed to send message to client', 'MessageService')
   async sendMessageFromAdmin(
     client: Socket,
@@ -183,7 +180,7 @@ export class MessageService {
     if (clientSockets && clientSockets.size > 0) {
       this.chatGateway.server
         .to(clientId)
-        .emit(ChatEventsEnum.MESSAGE_STATUS_UPDATE, {
+        .emit(ChatEventsEnum.UPDATE_MESSAGE_STATUS, {
           messageId: message.id,
           userId: senderId,
           status: MessageDeliveryStatus.DELIVERED,
@@ -193,7 +190,7 @@ export class MessageService {
       admins.forEach((admin) =>
         this.chatGateway.server
           .to(admin.userId)
-          .emit(ChatEventsEnum.MESSAGE_STATUS_UPDATE, {
+          .emit(ChatEventsEnum.UPDATE_MESSAGE_STATUS, {
             messageId: message.id,
             userId: senderId,
             status: MessageDeliveryStatus.DELIVERED,
@@ -204,18 +201,60 @@ export class MessageService {
     return successResponse(message, 'Message sent successfully');
   }
 
+  // Update message status
   @HandleError('Failed to update message status', 'MessageService')
-  async messageStatusUpdate(client: Socket, payload: MessageDeliveryStatusDto) {
-    const { messageId, userId, status } = payload;
+  async messageStatusUpdate(
+    client: Socket,
+    payload: MessageDeliveryStatusDto,
+  ): Promise<TResponse<any>> {
+    const { messageId, userId: payloadUserId, status } = payload;
+    const userId = payloadUserId ?? client.data.userId;
+
     await this.prisma.privateMessageStatus.upsert({
       where: { messageId_userId: { messageId, userId } },
       update: { status },
-      create: { messageId, userId: client.data.userId, status },
+      create: { messageId, userId, status },
     });
 
-    client.emit(ChatEventsEnum.MESSAGE_STATUS_UPDATE, payload);
+    // Broadcast the update back to the requester (and optionally to admins)
+    client.emit(ChatEventsEnum.UPDATE_MESSAGE_STATUS, {
+      messageId,
+      userId,
+      status,
+    });
+
+    // notify admins about status change so UI can update
+    const admins = await this.getAllAdminParticipants();
+    admins.forEach((admin) =>
+      this.chatGateway.server
+        .to(admin.userId)
+        .emit(ChatEventsEnum.UPDATE_MESSAGE_STATUS, {
+          messageId,
+          userId,
+          status,
+        }),
+    );
+
+    return successResponse(
+      { messageId, userId, status },
+      'Message status updated',
+    );
   }
 
+  // Mark message(s) as read
+  @HandleError('Failed to mark message(s) as read', 'MessageService')
+  async markMessagesAsRead(payload: MarkReadDto): Promise<TResponse<any>> {
+    await this.prisma.privateMessageStatus.updateMany({
+      where: { messageId: { in: payload.messageIds } },
+      data: { status: MessageDeliveryStatus.READ },
+    });
+    return successResponse(null, 'Message marked as read');
+  }
+
+  /**
+   *  Helper functions
+   */
+  // Get all admin participants
   private async getAllAdminParticipants() {
     const admins = await this.prisma.user.findMany({
       where: { role: { in: ['ADMIN', 'SUPER_ADMIN'] } },
@@ -227,6 +266,7 @@ export class MessageService {
     }));
   }
 
+  // Emit error
   private emitError(client: Socket, message: string) {
     client.emit(ChatEventsEnum.ERROR, { message });
     return errorResponse(null, message);

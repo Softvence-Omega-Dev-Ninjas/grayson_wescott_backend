@@ -1,6 +1,12 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { MessageDeliveryStatus, MessageType } from '@prisma/client';
-import { IsEnum, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import {
+  IsArray,
+  IsEnum,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+} from 'class-validator';
 
 // ----------------------
 // Base DTO
@@ -48,10 +54,11 @@ export class AdminMessageDto extends BaseMessageDto {
 // Mark message as read
 // ----------------------
 export class MarkReadDto {
-  @ApiProperty({ description: 'ID of the message to mark as read' })
+  @ApiProperty({ description: 'IDs of messages to mark as read' })
   @IsNotEmpty()
-  @IsString()
-  messageId: string;
+  @IsArray()
+  @IsString({ each: true })
+  messageIds: string[];
 }
 
 // ----------------------

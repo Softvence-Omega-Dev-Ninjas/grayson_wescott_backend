@@ -26,7 +26,7 @@ export class ConversationService {
   ) {}
 
   @HandleError('Failed to load conversations', 'ConversationService')
-  async handleLoadConversationsForAdmins(
+  async handleLoadConversationsByAdmin(
     client: Socket,
     payload?: LoadConversationsDto,
   ): Promise<TPaginatedResponse<any>> {
@@ -180,7 +180,7 @@ export class ConversationService {
   }
 
   @HandleError('Failed to load conversation of a client', 'ConversationService')
-  async handleLoadConversationOfAClient(
+  async handleLoadClientConversation(
     client: Socket,
     payload: PaginationDto,
   ): Promise<TResponse<any>> {

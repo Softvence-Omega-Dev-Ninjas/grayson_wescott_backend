@@ -131,11 +131,11 @@ export class ChatGateway
 
   /** ---------------- MESSAGE EVENTS ---------------- **/
   @SubscribeMessage(ChatEventsEnum.LOAD_CONVERSATION_LIST)
-  async onLoadConversationsForAdmins(
+  async onLoadConversationsByAdmin(
     @ConnectedSocket() client: Socket,
     @MessageBody() payload: LoadConversationsDto,
   ) {
-    return this.conversationService.handleLoadConversationsForAdmins(
+    return this.conversationService.handleLoadConversationsByAdmin(
       client,
       payload,
     );
@@ -153,11 +153,11 @@ export class ChatGateway
   }
 
   @SubscribeMessage(ChatEventsEnum.LOAD_CLIENT_CONVERSATION)
-  async onLoadConversationOfAClient(
+  async onLoadClientConversation(
     @ConnectedSocket() client: Socket,
     @MessageBody() payload: PaginationDto,
   ) {
-    return this.conversationService.handleLoadConversationOfAClient(
+    return this.conversationService.handleLoadClientConversation(
       client,
       payload,
     );
