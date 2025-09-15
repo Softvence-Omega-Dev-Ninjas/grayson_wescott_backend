@@ -2,6 +2,7 @@ import { forwardRef, Inject, Injectable } from '@nestjs/common';
 import {
   ConversationParticipantType,
   MessageDeliveryStatus,
+  MessageType,
 } from '@prisma/client';
 import { HandleError } from '@project/common/error/handle-error.decorator';
 import {
@@ -28,7 +29,11 @@ export class MessageService {
     private readonly chatGateway: ChatGateway,
   ) {}
 
-  // Send message to admin(s)
+  /**
+   * =======================
+   * Public API
+   * =======================
+   */
   @HandleError('Failed to send message to admin(s)', 'MessageService')
   async sendMessageFromClient(
     client: Socket,
@@ -39,7 +44,7 @@ export class MessageService {
 
     const admins = await this.getAllAdminParticipants();
 
-    // Find or create conversation in one go using upsert if payload.conversationId exists
+    // Ensure conversation exists or create a new one
     const conversation = await this.prisma.privateConversation.upsert({
       where: { id: payload.conversationId || 'non-existent-id' }, // * a dummy id if none is provided; important to complete the upsert
       update: {}, // * do nothing if it exists
@@ -54,46 +59,25 @@ export class MessageService {
       include: { participants: true },
     });
 
-    // Save message
-    const message = await this.prisma.privateMessage.create({
-      data: {
-        conversationId: conversation.id,
-        content: payload.content,
-        type: payload.type ?? 'TEXT',
-        fileId: payload.fileId,
-        senderId,
-      },
-    });
-
-    // Update last message and create message statuses in a single transaction
-    const participantStatuses = conversation.participants
-      .filter((p) => p.userId)
-      .map((p) => ({ messageId: message.id, userId: p.userId! }));
-
-    await this.prisma.$transaction([
-      this.prisma.privateConversation.update({
-        where: { id: conversation.id },
-        data: { lastMessageId: message.id },
-      }),
-      ...participantStatuses.map((status) =>
-        this.prisma.privateMessageStatus.create({ data: status }),
-      ),
-    ]);
-
-    // Emit to all admins
-    admins.forEach((admin) =>
-      this.chatGateway.server
-        .to(admin.userId)
-        .emit(ChatEventsEnum.NEW_MESSAGE, message),
+    const message = await this.createMessage(
+      conversation.id,
+      senderId,
+      payload.content,
+      payload.type,
+      payload.fileId,
     );
 
-    // Emit to client
+    await this.updateConversationAndStatuses(conversation.id, message.id, [
+      ...conversation.participants.map((p) => p.userId!),
+    ]);
+
+    // Notify admins + client
+    this.emitToAdmins(admins, ChatEventsEnum.NEW_MESSAGE, message);
     client.emit(ChatEventsEnum.NEW_MESSAGE, message);
 
     return successResponse(message, 'Message sent successfully');
   }
 
-  // Send message to client
   @HandleError('Failed to send message to client', 'MessageService')
   async sendMessageFromAdmin(
     client: Socket,
@@ -114,94 +98,54 @@ export class MessageService {
     const clientId = conversation.participants.find(
       (p) => p.type === ConversationParticipantType.USER,
     )?.userId;
-    if (!clientId) {
+    if (!clientId)
       return this.emitError(client, 'Client not found in conversation');
-    }
 
-    // Save message
-    const message = await this.prisma.privateMessage.create({
-      data: {
-        conversationId: conversation.id,
-        content: payload.content,
-        type: payload.type ?? 'TEXT',
-        fileId: payload.fileId,
-        senderId,
-      },
-    });
-
-    // Add admin participant if not exists
-    const newParticipants = conversation.participants.some(
-      (p) => p.userId === senderId,
-    )
-      ? []
-      : [{ userId: senderId, type: ConversationParticipantType.ADMIN_GROUP }];
-
-    // Batch update last message, add new participants, and create message statuses
-    const participantStatuses = [
-      ...conversation.participants.map((p) => ({
-        messageId: message.id,
-        userId: p.userId!,
-      })),
-      ...newParticipants.map((p) => ({
-        messageId: message.id,
-        userId: p.userId!,
-      })),
-    ];
-
-    await this.prisma.$transaction([
-      this.prisma.privateConversation.update({
-        where: { id: conversation.id },
-        data: {
-          lastMessageId: message.id,
-          participants: { create: newParticipants },
-        },
-      }),
-      ...participantStatuses.map((status) =>
-        this.prisma.privateMessageStatus.create({ data: status }),
-      ),
-    ]);
-
-    // Emit to client
-    this.chatGateway.server
-      .to(clientId) // emits to the room with that userId
-      .emit(ChatEventsEnum.NEW_MESSAGE, { message, fromAdmin: true });
-
-    // Emit to all admins
-    const admins = await this.getAllAdminParticipants();
-    admins.forEach((admin) =>
-      this.chatGateway.server
-        .to(admin.userId)
-        .emit(ChatEventsEnum.NEW_MESSAGE, { message, fromAdmin: true }),
+    const message = await this.createMessage(
+      conversation.id,
+      senderId,
+      payload.content,
+      payload.type,
+      payload.fileId,
     );
 
-    // Mark message as delivered if client is online & for all active clients
-    const clientSockets =
-      this.chatGateway.server.sockets.adapter.rooms.get(clientId);
-    if (clientSockets && clientSockets.size > 0) {
-      this.chatGateway.server
-        .to(clientId)
-        .emit(ChatEventsEnum.UPDATE_MESSAGE_STATUS, {
-          messageId: message.id,
-          userId: senderId,
-          status: MessageDeliveryStatus.DELIVERED,
-        });
+    // Ensure admin is part of conversation
+    const newAdmin =
+      conversation.participants.some((p) => p.userId === senderId) === false
+        ? [{ userId: senderId, type: ConversationParticipantType.ADMIN_GROUP }]
+        : [];
 
-      // Emit to all admins
-      admins.forEach((admin) =>
-        this.chatGateway.server
-          .to(admin.userId)
-          .emit(ChatEventsEnum.UPDATE_MESSAGE_STATUS, {
-            messageId: message.id,
-            userId: senderId,
-            status: MessageDeliveryStatus.DELIVERED,
-          }),
-      );
+    const participantIds = [
+      ...conversation.participants.map((p) => p.userId!),
+      ...newAdmin.map((p) => p.userId!),
+    ];
+
+    await this.updateConversationAndStatuses(
+      conversation.id,
+      message.id,
+      participantIds,
+      newAdmin,
+    );
+
+    // Notify client + admins
+    this.chatGateway.server
+      .to(clientId)
+      .emit(ChatEventsEnum.NEW_MESSAGE, { message, fromAdmin: true });
+
+    const admins = await this.getAllAdminParticipants();
+    this.emitToAdmins(admins, ChatEventsEnum.NEW_MESSAGE, {
+      message,
+      fromAdmin: true,
+    });
+
+    // If client online → mark delivered
+    if (this.isClientOnline(clientId)) {
+      this.emitDeliveryStatus(admins, clientId, message.id, senderId);
     }
 
     return successResponse(message, 'Message sent successfully');
   }
 
-  // Update message status
   @HandleError('Failed to update message status', 'MessageService')
   async messageStatusUpdate(
     client: Socket,
@@ -210,51 +154,73 @@ export class MessageService {
     const { messageId, userId: payloadUserId, status } = payload;
     const userId = payloadUserId ?? client.data.userId;
 
-    await this.prisma.privateMessageStatus.upsert({
+    const messageStatus = await this.prisma.privateMessageStatus.upsert({
       where: { messageId_userId: { messageId, userId } },
       update: { status },
       create: { messageId, userId, status },
     });
 
-    // Broadcast the update back to the requester (and optionally to admins)
-    client.emit(ChatEventsEnum.UPDATE_MESSAGE_STATUS, {
+    const updatePayload = {
       messageId,
       userId,
-      status,
-    });
+      status: messageStatus.status,
+    };
 
-    // notify admins about status change so UI can update
-    const admins = await this.getAllAdminParticipants();
-    admins.forEach((admin) =>
-      this.chatGateway.server
-        .to(admin.userId)
-        .emit(ChatEventsEnum.UPDATE_MESSAGE_STATUS, {
-          messageId,
-          userId,
-          status,
-        }),
-    );
-
-    return successResponse(
-      { messageId, userId, status },
-      'Message status updated',
-    );
+    return successResponse(updatePayload, 'Message status updated');
   }
 
-  // Mark message(s) as read
   @HandleError('Failed to mark message(s) as read', 'MessageService')
   async markMessagesAsRead(payload: MarkReadDto): Promise<TResponse<any>> {
-    await this.prisma.privateMessageStatus.updateMany({
+    const message = await this.prisma.privateMessageStatus.updateMany({
       where: { messageId: { in: payload.messageIds } },
       data: { status: MessageDeliveryStatus.READ },
     });
-    return successResponse(null, 'Message marked as read');
+
+    return successResponse(message, 'Message marked as read');
   }
 
   /**
-   *  Helper functions
+   * =======================
+   * Helpers
+   * =======================
    */
-  // Get all admin participants
+  private async createMessage(
+    conversationId: string,
+    senderId: string,
+    content: string = '',
+    type: MessageType = 'TEXT',
+    fileId?: string,
+  ) {
+    return this.prisma.privateMessage.create({
+      data: { conversationId, senderId, content, type, fileId },
+    });
+  }
+
+  private async updateConversationAndStatuses(
+    conversationId: string,
+    messageId: string,
+    participantIds: string[],
+    newParticipants: {
+      userId: string;
+      type: ConversationParticipantType;
+    }[] = [],
+  ) {
+    await this.prisma.$transaction([
+      this.prisma.privateConversation.update({
+        where: { id: conversationId },
+        data: {
+          lastMessageId: messageId,
+          participants: { create: newParticipants },
+        },
+      }),
+      ...participantIds.map((id) =>
+        this.prisma.privateMessageStatus.create({
+          data: { messageId, userId: id },
+        }),
+      ),
+    ]);
+  }
+
   private async getAllAdminParticipants() {
     const admins = await this.prisma.user.findMany({
       where: { role: { in: ['ADMIN', 'SUPER_ADMIN'] } },
@@ -266,9 +232,41 @@ export class MessageService {
     }));
   }
 
-  // Emit error
   private emitError(client: Socket, message: string) {
     client.emit(ChatEventsEnum.ERROR, { message });
     return errorResponse(null, message);
+  }
+
+  private emitToAdmins(
+    admins: { userId: string }[],
+    event: ChatEventsEnum,
+    payload: any,
+  ) {
+    admins.forEach((admin) =>
+      this.chatGateway.server.to(admin.userId).emit(event, payload),
+    );
+  }
+
+  private isClientOnline(clientId: string): boolean {
+    const sockets = this.chatGateway.server.sockets.adapter.rooms.get(clientId);
+    return !!sockets?.size;
+  }
+
+  private emitDeliveryStatus(
+    admins: { userId: string }[],
+    clientId: string,
+    messageId: string,
+    senderId: string,
+  ) {
+    const payload = {
+      messageId,
+      userId: senderId,
+      status: MessageDeliveryStatus.DELIVERED,
+    };
+
+    this.chatGateway.server
+      .to(clientId)
+      .emit(ChatEventsEnum.UPDATE_MESSAGE_STATUS, payload);
+    this.emitToAdmins(admins, ChatEventsEnum.UPDATE_MESSAGE_STATUS, payload);
   }
 }

@@ -20,7 +20,12 @@ import {
   LoadConversationsDto,
   LoadSingleConversationDto,
 } from './dto/conversation.dto';
-import { AdminMessageDto, ClientMessageDto } from './dto/message.dto';
+import {
+  AdminMessageDto,
+  ClientMessageDto,
+  MarkReadDto,
+  MessageDeliveryStatusDto,
+} from './dto/message.dto';
 import { ChatEventsEnum } from './enum/chat-events.enum';
 import { CallService } from './services/call.service';
 import { ConversationService } from './services/conversation.service';
@@ -129,7 +134,20 @@ export class ChatGateway
     return this.messageService.sendMessageFromAdmin(client, payload);
   }
 
-  /** ---------------- MESSAGE EVENTS ---------------- **/
+  @SubscribeMessage(ChatEventsEnum.UPDATE_MESSAGE_STATUS)
+  async onMessageStatusUpdate(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() payload: MessageDeliveryStatusDto,
+  ) {
+    return this.messageService.messageStatusUpdate(client, payload);
+  }
+
+  @SubscribeMessage(ChatEventsEnum.MARK_MESSAGE_READ)
+  async onMarkMessagesAsRead(@MessageBody() payload: MarkReadDto) {
+    return this.messageService.markMessagesAsRead(payload);
+  }
+
+  /** ---------------- CONVERSATION EVENTS ---------------- **/
   @SubscribeMessage(ChatEventsEnum.LOAD_CONVERSATION_LIST)
   async onLoadConversationsByAdmin(
     @ConnectedSocket() client: Socket,
