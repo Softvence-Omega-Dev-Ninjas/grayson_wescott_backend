@@ -1,14 +1,10 @@
-export interface LoadConversationsPayload {
+export interface Pagination {
   limit?: number;
-  cursor?: string; // pagination
+  page?: number;
 }
 
-export interface LoadSingleConversationPayload {
+export interface LoadConversationsPayload extends Pagination {}
+
+export interface LoadSingleConversationPayload extends Pagination {
   conversationId: string;
-}
-
-export interface NewConversationPayload {
-  userId: string;
-  adminGroupId: string;
-  initialMessage?: string;
 }

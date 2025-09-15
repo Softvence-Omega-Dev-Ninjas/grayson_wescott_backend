@@ -33,13 +33,12 @@ export class MessageService {
     client: Socket,
     payload: ClientMessagePayload,
   ): Promise<TResponse<any>> {
-    console.log(payload);
     const senderId = client.data.userId;
     if (!senderId) {
       client.emit(ChatEventsEnum.ERROR, { message: 'Unauthorized' });
       return errorResponse(null, 'Unauthorized');
     }
-    console.log(payload);
+
     const admins = await this.getAllAdminParticipants();
 
     // 1. Find or create conversation
@@ -72,7 +71,15 @@ export class MessageService {
       },
     });
 
-    // 3. Save message status for all participants
+    // 3. Update last message of the conversation
+    await this.prisma.privateConversation.update({
+      where: { id: conversation.id },
+      data: {
+        lastMessageId: message.id,
+      },
+    });
+
+    // 4. Save message status for all participants
     await Promise.all(
       conversation.participants.map((p) =>
         p.userId
@@ -83,7 +90,7 @@ export class MessageService {
       ),
     );
 
-    // 4. Emit to all admins
+    // 5. Emit to all admins
     admins.forEach((admin) =>
       this.chatGateway.server
         .to(admin.userId)
@@ -139,7 +146,15 @@ export class MessageService {
       },
     });
 
-    // 3. Add admin to participants if not already there
+    // 3. Update last message of the conversation
+    await this.prisma.privateConversation.update({
+      where: { id: conversation.id },
+      data: {
+        lastMessageId: message.id,
+      },
+    });
+
+    // 4. Add admin to participants if not already there
     if (!conversation.participants.some((p) => p.userId === senderId)) {
       await this.prisma.privateConversation.update({
         where: { id: conversation.id },
@@ -151,7 +166,7 @@ export class MessageService {
       });
     }
 
-    // 4. Save message status for all participants
+    // 5. Save message status for all participants
     await Promise.all(
       conversation.participants.map((p) =>
         p.userId
@@ -162,7 +177,7 @@ export class MessageService {
       ),
     );
 
-    // 5. Emit to client only
+    // 6. Emit to client only
     this.chatGateway.server
       .to(payload.clientId)
       .emit(ChatEventsEnum.NEW_MESSAGE, {

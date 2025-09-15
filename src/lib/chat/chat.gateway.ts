@@ -20,6 +20,7 @@ import { CallService } from './services/call.service';
 import { ConversationService } from './services/conversation.service';
 import { MessageService } from './services/message.service';
 import { WebRTCService } from './services/webrtc.service';
+import { LoadConversationsPayload } from './types/conversation-payloads';
 import {
   AdminMessagePayload,
   ClientMessagePayload,
@@ -125,6 +126,15 @@ export class ChatGateway
     @MessageBody() payload: AdminMessagePayload,
   ) {
     return this.messageService.sendMessageFromAdmin(client, payload);
+  }
+
+  /** ---------------- MESSAGE EVENTS ---------------- **/
+  @SubscribeMessage(ChatEventsEnum.LOAD_CONVERSATIONS)
+  async onLoadConversationsForAdmins(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() payload: LoadConversationsPayload,
+  ) {
+    return this.conversationService.handleLoadConversationsForAdmins(client, payload);
   }
 
   /** ---------------- HELPER EMITS ---------------- */

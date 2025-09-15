@@ -13,7 +13,6 @@ export enum ChatEventsEnum {
   MESSAGE_STATUS = 'private:message_status', // Server -> Client: delivery/read update
 
   // === Conversation events ===
-  NEW_CONVERSATION = 'private:new_conversation', // Server -> Client: new conversation created
   LOAD_CONVERSATIONS = 'private:load_conversations', // Client -> Server: request conversation list
   CONVERSATION_LIST = 'private:conversation_list', // Server -> Client: conversation list response
   LOAD_SINGLE_CONVERSATION = 'private:load_single_conversation', // Client -> Server: request single conversation

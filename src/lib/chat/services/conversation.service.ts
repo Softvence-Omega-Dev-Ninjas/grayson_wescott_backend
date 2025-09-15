@@ -1,7 +1,10 @@
 import { forwardRef, Inject, Injectable, Logger } from '@nestjs/common';
+import { AppError } from '@project/common/error/handle-error.app';
 import { HandleError } from '@project/common/error/handle-error.decorator';
 import {
+  successPaginatedResponse,
   successResponse,
+  TPaginatedResponse,
   TResponse,
 } from '@project/common/utils/response.util';
 import { PrismaService } from '@project/lib/prisma/prisma.service';
@@ -11,7 +14,6 @@ import { ChatEventsEnum } from '../enum/chat-events.enum';
 import {
   LoadConversationsPayload,
   LoadSingleConversationPayload,
-  NewConversationPayload,
 } from '../types/conversation-payloads';
 
 @Injectable()
@@ -24,98 +26,61 @@ export class ConversationService {
     private readonly chatGateway: ChatGateway,
   ) {}
 
-  /** Initialize a new conversation or return existing */
-  @HandleError('Failed to create conversation', 'ConversationService')
-  async handleNewConversation(
-    client: Socket,
-    payload: NewConversationPayload,
-  ): Promise<TResponse<any>> {
-    const participantIds = [payload.userId, payload.adminGroupId];
-    const userId = payload.userId;
-    const adminGroupId = payload.adminGroupId;
-
-    // Check for existing conversation between admin group and user
-    const existing = await this.prisma.privateConversation.findFirst({
-      where: {
-        participants: {
-          every: { userId: { in: participantIds } },
-        },
-      },
-      include: { participants: true, lastMessage: true },
-    });
-
-    if (existing) {
-      client.emit(ChatEventsEnum.NEW_CONVERSATION, existing);
-      return successResponse(existing, 'Conversation already exists');
-    }
-
-    // Create new conversation
-    const conversation = await this.prisma.privateConversation.create({
-      data: {
-        participants: {
-          create: [
-            { userId, type: 'USER' },
-            { userId: adminGroupId, type: 'ADMIN_GROUP' },
-          ],
-        },
-      },
-      include: { participants: true },
-    });
-
-    // Optional initial message
-    if (payload.initialMessage) {
-      const message = await this.prisma.privateMessage.create({
-        data: {
-          content: payload.initialMessage,
-          conversationId: conversation.id,
-          senderId: client.data.userId,
-        },
-      });
-
-      await this.prisma.privateConversation.update({
-        where: { id: conversation.id },
-        data: { lastMessageId: message.id },
-      });
-    }
-
-    // Emit to all participants
-    participantIds.forEach((uid) => {
-      this.chatGateway.emitToClient(
-        uid,
-        ChatEventsEnum.NEW_CONVERSATION,
-        conversation,
-      );
-    });
-
-    this.logger.log({
-      message: 'Conversation created',
-      userId,
-      adminGroupId,
-    });
-
-    return successResponse(conversation, 'Conversation created');
-  }
-
   @HandleError('Failed to load conversations', 'ConversationService')
-  async handleLoadConversations(
+  async handleLoadConversationsForAdmins(
     client: Socket,
     payload?: LoadConversationsPayload,
-  ): Promise<TResponse<any>> {
+  ): Promise<TPaginatedResponse<any>> {
+    // Pagination
+    const limit = payload?.limit ?? 10;
+    const page = payload?.page && +payload.page > 0 ? +payload.page : 1;
+
+    // RAW Conversations
     const conversations = await this.prisma.privateConversation.findMany({
-      where: {
-        participants: { some: { userId: client.data.userId } },
+      include: {
+        lastMessage: true,
+        participants: {
+          where: { type: 'USER' },
+          include: { user: true },
+        },
       },
       orderBy: { updatedAt: 'desc' },
-      take: payload?.limit,
-      cursor: payload?.cursor ? { id: payload.cursor } : undefined,
+      take: payload?.limit ?? 10,
+      skip: (page - 1) * limit,
     });
 
-    this.logger.log({
-      message: 'Conversations loaded',
-      userId: client.data.userId,
+    // Output
+    const outputData = conversations.map((conversation) => {
+      return {
+        conversationId: conversation.id,
+        lastMessage: conversation.lastMessage,
+        profile: {
+          id: conversation.participants[0].user?.id,
+          name: conversation.participants[0].user?.name,
+          avatarUrl: conversation.participants[0].user?.avatarUrl,
+          role: conversation.participants[0].user?.role,
+          email: conversation.participants[0].user?.email,
+        },
+      };
     });
 
-    return successResponse(conversations, 'Conversations loaded successfully');
+    // Emit
+    this.chatGateway.server.emit(
+      ChatEventsEnum.CONVERSATION_LIST,
+      outputData,
+      client.data.userId,
+    );
+
+    // Response
+    return successPaginatedResponse(
+      outputData,
+      {
+        limit,
+        page,
+        total: conversations.length,
+      },
+      'Conversations loaded successfully',
+    );
   }
 
   @HandleError('Failed to load single conversation', 'ConversationService')
@@ -133,14 +98,8 @@ export class ConversationService {
         message: 'Conversation not found',
         conversationId: payload.conversationId,
       });
-      throw new Error('Conversation not found');
+      throw new AppError(404, 'Conversation not found');
     }
-
-    this.logger.log({
-      message: 'Conversation loaded',
-      conversationId: payload.conversationId,
-      userId: client.data.userId,
-    });
 
     return successResponse(conversation, 'Conversation loaded successfully');
   }
