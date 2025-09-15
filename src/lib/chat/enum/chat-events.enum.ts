@@ -8,6 +8,7 @@ export enum ChatEventsEnum {
   SEND_MESSAGE_ADMIN = 'private:send_message_admin', // Client -> Server: send new message by admin
   NEW_MESSAGE = 'private:new_message', // Server -> participants: broadcast new message
   MARK_READ = 'private:mark_read', // Client -> Server: mark message(s) as read
+  MESSAGE_STATUS_UPDATE = 'private:message_status_update', // Server -> Client: message status update
 
   // === Conversation events ===
   // FOR ADMIN

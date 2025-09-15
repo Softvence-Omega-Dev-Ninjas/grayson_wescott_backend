@@ -1,5 +1,8 @@
 import { forwardRef, Inject, Injectable } from '@nestjs/common';
-import { ConversationParticipantType } from '@prisma/client';
+import {
+  ConversationParticipantType,
+  MessageDeliveryStatus,
+} from '@prisma/client';
 import { HandleError } from '@project/common/error/handle-error.decorator';
 import {
   errorResponse,
@@ -9,7 +12,11 @@ import {
 import { PrismaService } from '@project/lib/prisma/prisma.service';
 import { Socket } from 'socket.io';
 import { ChatGateway } from '../chat.gateway';
-import { AdminMessageDto, ClientMessageDto } from '../dto/message.dto';
+import {
+  AdminMessageDto,
+  ClientMessageDto,
+  MessageDeliveryStatusDto,
+} from '../dto/message.dto';
 import { ChatEventsEnum } from '../enum/chat-events.enum';
 
 @Injectable()
@@ -29,33 +36,26 @@ export class MessageService {
     payload: ClientMessageDto,
   ): Promise<TResponse<any>> {
     const senderId = client.data.userId;
-    if (!senderId) {
-      client.emit(ChatEventsEnum.ERROR, { message: 'Unauthorized' });
-      return errorResponse(null, 'Unauthorized');
-    }
+    if (!senderId) return this.emitError(client, 'Unauthorized');
 
     const admins = await this.getAllAdminParticipants();
 
-    // 1. Find or create conversation
-    let conversation = payload.conversationId
-      ? await this.prisma.privateConversation.findUnique({
-          where: { id: payload.conversationId },
-          include: { participants: true },
-        })
-      : null;
-
-    if (!conversation) {
-      conversation = await this.prisma.privateConversation.create({
-        data: {
-          participants: {
-            create: [{ userId: senderId, type: 'USER' }, ...admins],
-          },
+    // Find or create conversation in one go using upsert if payload.conversationId exists
+    const conversation = await this.prisma.privateConversation.upsert({
+      where: { id: payload.conversationId || 'non-existent-id' }, // * a dummy id if none is provided; important to complete the upsert
+      update: {}, // * do nothing if it exists
+      create: {
+        participants: {
+          create: [
+            { userId: senderId, type: ConversationParticipantType.USER },
+            ...admins,
+          ],
         },
-        include: { participants: true },
-      });
-    }
+      },
+      include: { participants: true },
+    });
 
-    // 2. Save message
+    // Save message
     const message = await this.prisma.privateMessage.create({
       data: {
         conversationId: conversation.id,
@@ -66,31 +66,30 @@ export class MessageService {
       },
     });
 
-    // 3. Update last message of the conversation
-    await this.prisma.privateConversation.update({
-      where: { id: conversation.id },
-      data: {
-        lastMessageId: message.id,
-      },
-    });
+    // Update last message and create message statuses in a single transaction
+    const participantStatuses = conversation.participants
+      .filter((p) => p.userId)
+      .map((p) => ({ messageId: message.id, userId: p.userId! }));
 
-    // 4. Save message status for all participants
-    await Promise.all(
-      conversation.participants.map((p) =>
-        p.userId
-          ? this.prisma.privateMessageStatus.create({
-              data: { messageId: message.id, userId: p.userId },
-            })
-          : null,
+    await this.prisma.$transaction([
+      this.prisma.privateConversation.update({
+        where: { id: conversation.id },
+        data: { lastMessageId: message.id },
+      }),
+      ...participantStatuses.map((status) =>
+        this.prisma.privateMessageStatus.create({ data: status }),
       ),
-    );
+    ]);
 
-    // 5. Emit to all admins
+    // Emit to all admins
     admins.forEach((admin) =>
       this.chatGateway.server
         .to(admin.userId)
         .emit(ChatEventsEnum.NEW_MESSAGE, message),
     );
+
+    // Emit to client
+    client.emit(ChatEventsEnum.NEW_MESSAGE, message);
 
     return successResponse(message, 'Message sent successfully');
   }
@@ -104,39 +103,25 @@ export class MessageService {
     payload: AdminMessageDto,
   ): Promise<TResponse<any>> {
     const senderId = client.data.userId;
-    if (!senderId) {
-      client.emit(ChatEventsEnum.ERROR, { message: 'Unauthorized' });
-      return errorResponse(null, 'Unauthorized');
+    if (!senderId) return this.emitError(client, 'Unauthorized');
+    if (!payload.conversationId) {
+      return this.emitError(client, 'Conversation ID is required');
     }
 
-    const conversationId = payload.conversationId;
-    if (!conversationId) {
-      client.emit(ChatEventsEnum.ERROR, {
-        message: 'Conversation ID is required',
-      });
-      return errorResponse(null, 'Conversation ID is required');
-    }
-
-    // 1. Find conversation and validate clientId with it
     const conversation = await this.prisma.privateConversation.findUnique({
-      where: { id: conversationId },
+      where: { id: payload.conversationId },
       include: { participants: true },
     });
-
-    if (!conversation) {
-      client.emit(ChatEventsEnum.ERROR, { message: 'Conversation not found' });
-      return errorResponse(null, 'Conversation not found');
-    }
+    if (!conversation) return this.emitError(client, 'Conversation not found');
 
     const clientId = conversation.participants.find(
-      (p) => p.type === 'USER',
+      (p) => p.type === ConversationParticipantType.USER,
     )?.userId;
-    if (clientId !== senderId) {
-      client.emit(ChatEventsEnum.ERROR, { message: 'Unauthorized' });
-      return errorResponse(null, 'Unauthorized');
+    if (!clientId) {
+      return this.emitError(client, 'Client not found in conversation');
     }
 
-    // 2. Save message
+    // Save message
     const message = await this.prisma.privateMessage.create({
       data: {
         conversationId: conversation.id,
@@ -147,61 +132,103 @@ export class MessageService {
       },
     });
 
-    // 3. Update last message of the conversation
-    await this.prisma.privateConversation.update({
-      where: { id: conversation.id },
-      data: {
-        lastMessageId: message.id,
-      },
-    });
+    // Add admin participant if not exists
+    const newParticipants = conversation.participants.some(
+      (p) => p.userId === senderId,
+    )
+      ? []
+      : [{ userId: senderId, type: ConversationParticipantType.ADMIN_GROUP }];
 
-    // 4. Add admin to participants if not already there
-    if (!conversation.participants.some((p) => p.userId === senderId)) {
-      await this.prisma.privateConversation.update({
+    // Batch update last message, add new participants, and create message statuses
+    const participantStatuses = [
+      ...conversation.participants.map((p) => ({
+        messageId: message.id,
+        userId: p.userId!,
+      })),
+      ...newParticipants.map((p) => ({
+        messageId: message.id,
+        userId: p.userId!,
+      })),
+    ];
+
+    await this.prisma.$transaction([
+      this.prisma.privateConversation.update({
         where: { id: conversation.id },
         data: {
-          participants: {
-            create: { userId: senderId, type: 'ADMIN_GROUP' },
-          },
+          lastMessageId: message.id,
+          participants: { create: newParticipants },
         },
-      });
-    }
-
-    // 5. Save message status for all participants
-    await Promise.all(
-      conversation.participants.map((p) =>
-        p.userId
-          ? this.prisma.privateMessageStatus.create({
-              data: { messageId: message.id, userId: p.userId },
-            })
-          : null,
+      }),
+      ...participantStatuses.map((status) =>
+        this.prisma.privateMessageStatus.create({ data: status }),
       ),
+    ]);
+
+    // Emit to client
+    this.chatGateway.server
+      .to(clientId) // emits to the room with that userId
+      .emit(ChatEventsEnum.NEW_MESSAGE, { message, fromAdmin: true });
+
+    // Emit to all admins
+    const admins = await this.getAllAdminParticipants();
+    admins.forEach((admin) =>
+      this.chatGateway.server
+        .to(admin.userId)
+        .emit(ChatEventsEnum.NEW_MESSAGE, { message, fromAdmin: true }),
     );
 
-    // 6. Emit to client only
-    this.chatGateway.server
-      .to(payload.clientId)
-      .emit(ChatEventsEnum.NEW_MESSAGE, {
-        message,
-        fromAdmin: true,
-      });
+    // Mark message as delivered if client is online & for all active clients
+    const clientSockets =
+      this.chatGateway.server.sockets.adapter.rooms.get(clientId);
+    if (clientSockets && clientSockets.size > 0) {
+      this.chatGateway.server
+        .to(clientId)
+        .emit(ChatEventsEnum.MESSAGE_STATUS_UPDATE, {
+          messageId: message.id,
+          userId: senderId,
+          status: MessageDeliveryStatus.DELIVERED,
+        });
+
+      // Emit to all admins
+      admins.forEach((admin) =>
+        this.chatGateway.server
+          .to(admin.userId)
+          .emit(ChatEventsEnum.MESSAGE_STATUS_UPDATE, {
+            messageId: message.id,
+            userId: senderId,
+            status: MessageDeliveryStatus.DELIVERED,
+          }),
+      );
+    }
 
     return successResponse(message, 'Message sent successfully');
   }
 
-  /**
-   * Helper → get all admins as participants
-   */
+  @HandleError('Failed to update message status', 'MessageService')
+  async messageStatusUpdate(client: Socket, payload: MessageDeliveryStatusDto) {
+    const { messageId, userId, status } = payload;
+    await this.prisma.privateMessageStatus.upsert({
+      where: { messageId_userId: { messageId, userId } },
+      update: { status },
+      create: { messageId, userId: client.data.userId, status },
+    });
+
+    client.emit(ChatEventsEnum.MESSAGE_STATUS_UPDATE, payload);
+  }
+
   private async getAllAdminParticipants() {
     const admins = await this.prisma.user.findMany({
-      where: {
-        OR: [{ role: 'ADMIN' }, { role: 'SUPER_ADMIN' }],
-      },
+      where: { role: { in: ['ADMIN', 'SUPER_ADMIN'] } },
       select: { id: true },
     });
     return admins.map((a) => ({
       userId: a.id,
       type: ConversationParticipantType.ADMIN_GROUP,
     }));
+  }
+
+  private emitError(client: Socket, message: string) {
+    client.emit(ChatEventsEnum.ERROR, { message });
+    return errorResponse(null, message);
   }
 }

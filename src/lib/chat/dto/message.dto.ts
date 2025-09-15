@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { MessageType } from '@prisma/client';
+import { MessageDeliveryStatus, MessageType } from '@prisma/client';
 import { IsEnum, IsNotEmpty, IsOptional, IsString } from 'class-validator';
 
 // ----------------------
@@ -52,4 +52,34 @@ export class MarkReadDto {
   @IsNotEmpty()
   @IsString()
   messageId: string;
+}
+
+// ----------------------
+// Delete message
+// ----------------------
+export class DeleteMessageDto {
+  @ApiProperty({ description: 'ID of the message to delete' })
+  @IsNotEmpty()
+  @IsString()
+  messageId: string;
+}
+
+export class MessageDeliveryStatusDto {
+  @ApiProperty({ description: 'ID of the message to update status' })
+  @IsNotEmpty()
+  @IsString()
+  messageId: string;
+
+  @ApiProperty({
+    enum: MessageDeliveryStatus,
+    description: 'Status of message',
+  })
+  @IsNotEmpty()
+  @IsEnum(MessageDeliveryStatus)
+  status: MessageDeliveryStatus;
+
+  @ApiProperty({ description: 'User ID to update status for' })
+  @IsNotEmpty()
+  @IsString()
+  userId: string;
 }

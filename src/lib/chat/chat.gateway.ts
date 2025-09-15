@@ -130,7 +130,7 @@ export class ChatGateway
   }
 
   /** ---------------- MESSAGE EVENTS ---------------- **/
-  @SubscribeMessage(ChatEventsEnum.LOAD_CONVERSATIONS)
+  @SubscribeMessage(ChatEventsEnum.LOAD_CONVERSATION_LIST)
   async onLoadConversationsForAdmins(
     @ConnectedSocket() client: Socket,
     @MessageBody() payload: LoadConversationsDto,
