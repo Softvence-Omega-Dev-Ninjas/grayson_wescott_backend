@@ -1,7 +1,4 @@
-export interface Pagination {
-  limit?: number;
-  page?: number;
-}
+import { Pagination } from '@project/common/types/pagination.types';
 
 export interface LoadConversationsPayload extends Pagination {}
 

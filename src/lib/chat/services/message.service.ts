@@ -1,4 +1,4 @@
-import { forwardRef, Inject, Injectable, Logger } from '@nestjs/common';
+import { forwardRef, Inject, Injectable } from '@nestjs/common';
 import { ConversationParticipantType } from '@prisma/client';
 import { HandleError } from '@project/common/error/handle-error.decorator';
 import {
@@ -9,16 +9,11 @@ import {
 import { PrismaService } from '@project/lib/prisma/prisma.service';
 import { Socket } from 'socket.io';
 import { ChatGateway } from '../chat.gateway';
+import { AdminMessageDto, ClientMessageDto } from '../dto/message.dto';
 import { ChatEventsEnum } from '../enum/chat-events.enum';
-import {
-  AdminMessagePayload,
-  ClientMessagePayload,
-} from '../types/message-payloads';
 
 @Injectable()
 export class MessageService {
-  private readonly logger = new Logger(MessageService.name);
-
   constructor(
     private readonly prisma: PrismaService,
     @Inject(forwardRef(() => ChatGateway))
@@ -31,7 +26,7 @@ export class MessageService {
   @HandleError('Failed to send message to admin(s)', 'MessageService')
   async sendMessageFromClient(
     client: Socket,
-    payload: ClientMessagePayload,
+    payload: ClientMessageDto,
   ): Promise<TResponse<any>> {
     const senderId = client.data.userId;
     if (!senderId) {
@@ -106,7 +101,7 @@ export class MessageService {
   @HandleError('Failed to send message to client', 'MessageService')
   async sendMessageFromAdmin(
     client: Socket,
-    payload: AdminMessagePayload,
+    payload: AdminMessageDto,
   ): Promise<TResponse<any>> {
     const senderId = client.data.userId;
     if (!senderId) {

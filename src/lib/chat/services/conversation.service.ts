@@ -1,4 +1,5 @@
-import { forwardRef, Inject, Injectable, Logger } from '@nestjs/common';
+import { forwardRef, Inject, Injectable } from '@nestjs/common';
+import { PaginationDto } from '@project/common/dto/pagination.dto';
 import { HandleError } from '@project/common/error/handle-error.decorator';
 import {
   errorResponse,
@@ -10,16 +11,14 @@ import {
 import { PrismaService } from '@project/lib/prisma/prisma.service';
 import { Socket } from 'socket.io';
 import { ChatGateway } from '../chat.gateway';
-import { ChatEventsEnum } from '../enum/chat-events.enum';
 import {
-  LoadConversationsPayload,
-  LoadSingleConversationPayload,
-} from '../types/conversation-payloads';
+  LoadConversationsDto,
+  LoadSingleConversationDto,
+} from '../dto/conversation.dto';
+import { ChatEventsEnum } from '../enum/chat-events.enum';
 
 @Injectable()
 export class ConversationService {
-  private readonly logger = new Logger(ConversationService.name);
-
   constructor(
     private readonly prisma: PrismaService,
     @Inject(forwardRef(() => ChatGateway))
@@ -29,7 +28,7 @@ export class ConversationService {
   @HandleError('Failed to load conversations', 'ConversationService')
   async handleLoadConversationsForAdmins(
     client: Socket,
-    payload?: LoadConversationsPayload,
+    payload?: LoadConversationsDto,
   ): Promise<TPaginatedResponse<any>> {
     // Pagination
     const limit = payload?.limit ?? 10;
@@ -65,9 +64,9 @@ export class ConversationService {
     });
 
     // Emit
-    this.chatGateway.server.emit(
-      ChatEventsEnum.CONVERSATION_LIST,
-      {
+    this.chatGateway.server
+      .to(client.data.userId)
+      .emit(ChatEventsEnum.CONVERSATION_LIST, {
         data: outputData,
         metadata: {
           limit,
@@ -75,9 +74,7 @@ export class ConversationService {
           total: conversations.length,
           totalPage: Math.ceil(conversations.length / limit),
         },
-      },
-      client.data.userId,
-    );
+      });
 
     // Response
     return successPaginatedResponse(
@@ -94,7 +91,7 @@ export class ConversationService {
   @HandleError('Failed to load single conversation', 'ConversationService')
   async handleLoadSingleConversationByAdmin(
     client: Socket,
-    payload: LoadSingleConversationPayload,
+    payload: LoadSingleConversationDto,
   ): Promise<TResponse<any>> {
     // Pagination
     const limit = payload?.limit ?? 10;
@@ -102,11 +99,9 @@ export class ConversationService {
 
     // Check if conversation ID is provided
     if (!payload.conversationId) {
-      this.chatGateway.server.emit(
-        ChatEventsEnum.ERROR,
-        { message: 'Conversation ID is required' },
-        client.data.userId,
-      );
+      this.chatGateway.server
+        .to(client.data.userId)
+        .emit(ChatEventsEnum.ERROR, { message: 'Conversation ID is required' });
       return errorResponse(null, 'Conversation ID is required');
     }
 
@@ -133,11 +128,10 @@ export class ConversationService {
 
     // Check if conversation exists
     if (!conversation) {
-      this.chatGateway.server.emit(
-        ChatEventsEnum.ERROR,
-        { message: 'Conversation not found' },
-        client.data.userId,
-      );
+      this.chatGateway.server
+        .to(client.data.userId)
+        .emit(ChatEventsEnum.ERROR, { message: 'Conversation not found' });
+
       return errorResponse(null, 'Conversation not found');
     }
 
@@ -183,5 +177,57 @@ export class ConversationService {
       .emit(ChatEventsEnum.CONVERSATION_LOAD, output);
 
     return successResponse(output, 'Conversation loaded successfully');
+  }
+
+  @HandleError('Failed to load conversation of a client', 'ConversationService')
+  async handleLoadConversationOfAClient(
+    client: Socket,
+    payload: PaginationDto,
+  ): Promise<TResponse<any>> {
+    const limit = payload?.limit ?? 10;
+    const page = payload?.page && +payload.page > 0 ? +payload.page : 1;
+
+    // RAW Conversations
+    const conversations = await this.prisma.privateConversation.findFirst({
+      where: { participants: { some: { userId: client.data.userId } } },
+      include: {
+        lastMessage: true,
+        messages: {
+          orderBy: { createdAt: 'desc' },
+          take: limit,
+          skip: (page - 1) * limit,
+        },
+      },
+      orderBy: { updatedAt: 'desc' },
+    });
+
+    // OUTPUT
+    const outputData = {
+      messages: conversations?.messages.map((m) => ({
+        id: m.id,
+        content: m.content,
+        type: m.type,
+        createdAt: m.createdAt,
+        sender: {
+          name: 'System Admin',
+          avatarUrl:
+            'https://ui-avatars.com/api/?name=System+Admin&background=random&color=fff',
+          role: 'ADMIN',
+        },
+      })),
+      pagination: {
+        limit,
+        page,
+        total: conversations?.messages.length,
+      },
+    };
+
+    // Emit
+    this.chatGateway.server
+      .to(client.data.userId)
+      .emit(ChatEventsEnum.CLIENT_CONVERSATION, outputData);
+
+    // Response
+    return successResponse(outputData, 'Conversations loaded successfully');
   }
 }

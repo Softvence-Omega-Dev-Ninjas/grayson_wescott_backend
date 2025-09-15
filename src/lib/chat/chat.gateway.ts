@@ -11,21 +11,21 @@ import {
   WebSocketGateway,
   WebSocketServer,
 } from '@nestjs/websockets';
+import { PaginationDto } from '@project/common/dto/pagination.dto';
 import { ENVEnum } from '@project/common/enum/env.enum';
 import { JWTPayload } from '@project/common/jwt/jwt.interface';
 import { PrismaService } from '@project/lib/prisma/prisma.service';
 import { Server, Socket } from 'socket.io';
-import { LoadSingleConversationByAdminDto } from './dto/chat-gateway.dto';
+import {
+  LoadConversationsDto,
+  LoadSingleConversationDto,
+} from './dto/conversation.dto';
+import { AdminMessageDto, ClientMessageDto } from './dto/message.dto';
 import { ChatEventsEnum } from './enum/chat-events.enum';
 import { CallService } from './services/call.service';
 import { ConversationService } from './services/conversation.service';
 import { MessageService } from './services/message.service';
 import { WebRTCService } from './services/webrtc.service';
-import { LoadConversationsPayload } from './types/conversation-payloads';
-import {
-  AdminMessagePayload,
-  ClientMessagePayload,
-} from './types/message-payloads';
 
 @WebSocketGateway({
   cors: { origin: '*' },
@@ -116,7 +116,7 @@ export class ChatGateway
   @SubscribeMessage(ChatEventsEnum.SEND_MESSAGE_CLIENT)
   async onSendMessageClient(
     @ConnectedSocket() client: Socket,
-    @MessageBody() payload: ClientMessagePayload,
+    @MessageBody() payload: ClientMessageDto,
   ) {
     return this.messageService.sendMessageFromClient(client, payload);
   }
@@ -124,7 +124,7 @@ export class ChatGateway
   @SubscribeMessage(ChatEventsEnum.SEND_MESSAGE_ADMIN)
   async onSendMessageAdmin(
     @ConnectedSocket() client: Socket,
-    @MessageBody() payload: AdminMessagePayload,
+    @MessageBody() payload: AdminMessageDto,
   ) {
     return this.messageService.sendMessageFromAdmin(client, payload);
   }
@@ -133,7 +133,7 @@ export class ChatGateway
   @SubscribeMessage(ChatEventsEnum.LOAD_CONVERSATIONS)
   async onLoadConversationsForAdmins(
     @ConnectedSocket() client: Socket,
-    @MessageBody() payload: LoadConversationsPayload,
+    @MessageBody() payload: LoadConversationsDto,
   ) {
     return this.conversationService.handleLoadConversationsForAdmins(
       client,
@@ -144,9 +144,20 @@ export class ChatGateway
   @SubscribeMessage(ChatEventsEnum.LOAD_SINGLE_CONVERSATION)
   async onLoadSingleConversationByAdmin(
     @ConnectedSocket() client: Socket,
-    @MessageBody() payload: LoadSingleConversationByAdminDto,
+    @MessageBody() payload: LoadSingleConversationDto,
   ) {
     return this.conversationService.handleLoadSingleConversationByAdmin(
+      client,
+      payload,
+    );
+  }
+
+  @SubscribeMessage(ChatEventsEnum.LOAD_CLIENT_CONVERSATION)
+  async onLoadConversationOfAClient(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() payload: PaginationDto,
+  ) {
+    return this.conversationService.handleLoadConversationOfAClient(
       client,
       payload,
     );
