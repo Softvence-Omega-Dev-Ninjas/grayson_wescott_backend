@@ -174,7 +174,7 @@ export class ConversationService {
     // Emit event to requester only
     this.chatGateway.server
       .to(client.data.userId)
-      .emit(ChatEventsEnum.CONVERSATION_LOAD, output);
+      .emit(ChatEventsEnum.SINGLE_CONVERSATION, output);
 
     return successResponse(output, 'Conversation loaded successfully');
   }

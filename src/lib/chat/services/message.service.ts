@@ -109,26 +109,31 @@ export class MessageService {
       return errorResponse(null, 'Unauthorized');
     }
 
-    // 1. Find or create conversation
-    let conversation = payload.conversationId
-      ? await this.prisma.privateConversation.findUnique({
-          where: { id: payload.conversationId },
-          include: { participants: true },
-        })
-      : null;
+    const conversationId = payload.conversationId;
+    if (!conversationId) {
+      client.emit(ChatEventsEnum.ERROR, {
+        message: 'Conversation ID is required',
+      });
+      return errorResponse(null, 'Conversation ID is required');
+    }
+
+    // 1. Find conversation and validate clientId with it
+    const conversation = await this.prisma.privateConversation.findUnique({
+      where: { id: conversationId },
+      include: { participants: true },
+    });
 
     if (!conversation) {
-      conversation = await this.prisma.privateConversation.create({
-        data: {
-          participants: {
-            create: [
-              { userId: senderId, type: 'ADMIN_GROUP' },
-              { userId: payload.clientId, type: 'USER' },
-            ],
-          },
-        },
-        include: { participants: true },
-      });
+      client.emit(ChatEventsEnum.ERROR, { message: 'Conversation not found' });
+      return errorResponse(null, 'Conversation not found');
+    }
+
+    const clientId = conversation.participants.find(
+      (p) => p.type === 'USER',
+    )?.userId;
+    if (clientId !== senderId) {
+      client.emit(ChatEventsEnum.ERROR, { message: 'Unauthorized' });
+      return errorResponse(null, 'Unauthorized');
     }
 
     // 2. Save message
@@ -137,6 +142,7 @@ export class MessageService {
         conversationId: conversation.id,
         content: payload.content,
         type: payload.type ?? 'TEXT',
+        fileId: payload.fileId,
         senderId,
       },
     });

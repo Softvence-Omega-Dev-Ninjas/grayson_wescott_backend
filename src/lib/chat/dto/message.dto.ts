@@ -1,6 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { MessageDeliveryStatus, MessageType } from '@prisma/client';
-import { PaginationDto } from '@project/common/dto/pagination.dto';
+import { MessageType } from '@prisma/client';
 import { IsEnum, IsNotEmpty, IsOptional, IsString } from 'class-validator';
 
 // ----------------------
@@ -53,31 +52,4 @@ export class MarkReadDto {
   @IsNotEmpty()
   @IsString()
   messageId: string;
-}
-
-// ----------------------
-// Load messages with pagination
-// ----------------------
-export class LoadMessagesDto extends PaginationDto {
-  @ApiProperty({ description: 'Conversation ID to load messages from' })
-  @IsNotEmpty()
-  @IsString()
-  conversationId: string;
-}
-
-// ----------------------
-// Update message delivery status
-// ----------------------
-export class MessageStatusDto {
-  @ApiProperty({ description: 'ID of the message' })
-  @IsNotEmpty()
-  @IsString()
-  messageId: string;
-
-  @ApiProperty({
-    enum: MessageDeliveryStatus,
-    description: 'New delivery status of the message',
-  })
-  @IsEnum(MessageDeliveryStatus)
-  status: MessageDeliveryStatus;
 }

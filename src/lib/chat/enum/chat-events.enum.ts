@@ -7,16 +7,17 @@ export enum ChatEventsEnum {
   SEND_MESSAGE_CLIENT = 'private:send_message_client', // Client -> Server: send new message by client to admins
   SEND_MESSAGE_ADMIN = 'private:send_message_admin', // Client -> Server: send new message by admin
   NEW_MESSAGE = 'private:new_message', // Server -> participants: broadcast new message
-  LOAD_MESSAGES = 'private:load_messages', // Client -> Server: request messages
-  MESSAGES = 'private:messages', // Server -> Client: messages response
   MARK_READ = 'private:mark_read', // Client -> Server: mark message(s) as read
-  MESSAGE_STATUS = 'private:message_status', // Server -> Client: delivery/read update
 
   // === Conversation events ===
-  LOAD_CONVERSATIONS = 'private:load_conversations', // Client -> Server: request conversation list
+  // FOR ADMIN
+  LOAD_CONVERSATION_LIST = 'private:load_conversation_list', // Client -> Server: request conversation list
   CONVERSATION_LIST = 'private:conversation_list', // Server -> Client: conversation list response
   LOAD_SINGLE_CONVERSATION = 'private:load_single_conversation', // Client -> Server: request single conversation
-  CONVERSATION_LOAD = 'private:conversation_load', // Server -> Client: single conversation response
+  SINGLE_CONVERSATION = 'private:single_conversation', // Server -> Client: single conversation response
+  INIT_CONVERSATION_WITH_CLIENT = 'private:init_conversation_with_client', // Client -> Server: initiate conversation with client
+
+  // FOR CLIENT
   LOAD_CLIENT_CONVERSATION = 'private:load_client_conversation', // Client -> Server: request client conversation
   CLIENT_CONVERSATION = 'private:client_conversation', // Server -> Client: client conversation response
 
