@@ -15,6 +15,7 @@ import { ENVEnum } from '@project/common/enum/env.enum';
 import { JWTPayload } from '@project/common/jwt/jwt.interface';
 import { PrismaService } from '@project/lib/prisma/prisma.service';
 import { Server, Socket } from 'socket.io';
+import { LoadSingleConversationByAdminDto } from './dto/chat-gateway.dto';
 import { ChatEventsEnum } from './enum/chat-events.enum';
 import { CallService } from './services/call.service';
 import { ConversationService } from './services/conversation.service';
@@ -134,7 +135,21 @@ export class ChatGateway
     @ConnectedSocket() client: Socket,
     @MessageBody() payload: LoadConversationsPayload,
   ) {
-    return this.conversationService.handleLoadConversationsForAdmins(client, payload);
+    return this.conversationService.handleLoadConversationsForAdmins(
+      client,
+      payload,
+    );
+  }
+
+  @SubscribeMessage(ChatEventsEnum.LOAD_SINGLE_CONVERSATION)
+  async onLoadSingleConversationByAdmin(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() payload: LoadSingleConversationByAdminDto,
+  ) {
+    return this.conversationService.handleLoadSingleConversationByAdmin(
+      client,
+      payload,
+    );
   }
 
   /** ---------------- HELPER EMITS ---------------- */

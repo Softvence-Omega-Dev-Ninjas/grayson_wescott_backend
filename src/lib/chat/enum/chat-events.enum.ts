@@ -16,6 +16,7 @@ export enum ChatEventsEnum {
   LOAD_CONVERSATIONS = 'private:load_conversations', // Client -> Server: request conversation list
   CONVERSATION_LIST = 'private:conversation_list', // Server -> Client: conversation list response
   LOAD_SINGLE_CONVERSATION = 'private:load_single_conversation', // Client -> Server: request single conversation
+  CONVERSATION_LOAD = 'private:conversation_load', // Server -> Client: single conversation response
 
   // === Call lifecycle events ===
   CALL_INITIATE = 'private:call_initiate', // Client -> Server: start call

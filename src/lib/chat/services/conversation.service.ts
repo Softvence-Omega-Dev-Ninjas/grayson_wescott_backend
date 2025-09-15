@@ -1,7 +1,7 @@
 import { forwardRef, Inject, Injectable, Logger } from '@nestjs/common';
-import { AppError } from '@project/common/error/handle-error.app';
 import { HandleError } from '@project/common/error/handle-error.decorator';
 import {
+  errorResponse,
   successPaginatedResponse,
   successResponse,
   TPaginatedResponse,
@@ -67,7 +67,15 @@ export class ConversationService {
     // Emit
     this.chatGateway.server.emit(
       ChatEventsEnum.CONVERSATION_LIST,
-      outputData,
+      {
+        data: outputData,
+        metadata: {
+          limit,
+          page,
+          total: conversations.length,
+          totalPage: Math.ceil(conversations.length / limit),
+        },
+      },
       client.data.userId,
     );
 
@@ -84,23 +92,96 @@ export class ConversationService {
   }
 
   @HandleError('Failed to load single conversation', 'ConversationService')
-  async handleLoadSingleConversation(
+  async handleLoadSingleConversationByAdmin(
     client: Socket,
     payload: LoadSingleConversationPayload,
   ): Promise<TResponse<any>> {
-    const conversation = await this.prisma.privateConversation.findUnique({
-      where: { id: payload.conversationId },
-      include: { participants: true, messages: true },
-    });
+    // Pagination
+    const limit = payload?.limit ?? 10;
+    const page = payload?.page && +payload.page > 0 ? +payload.page : 1;
 
-    if (!conversation) {
-      this.logger.error({
-        message: 'Conversation not found',
-        conversationId: payload.conversationId,
-      });
-      throw new AppError(404, 'Conversation not found');
+    // Check if conversation ID is provided
+    if (!payload.conversationId) {
+      this.chatGateway.server.emit(
+        ChatEventsEnum.ERROR,
+        { message: 'Conversation ID is required' },
+        client.data.userId,
+      );
+      return errorResponse(null, 'Conversation ID is required');
     }
 
-    return successResponse(conversation, 'Conversation loaded successfully');
+    // RAW Conversation with participants + messages
+    const conversation = await this.prisma.privateConversation.findUnique({
+      where: { id: payload.conversationId },
+      include: {
+        participants: {
+          include: { user: true },
+        },
+        messages: {
+          orderBy: { createdAt: 'desc' },
+          take: limit,
+          skip: (page - 1) * limit,
+          include: {
+            sender: true,
+          },
+        },
+        _count: {
+          select: { messages: true },
+        },
+      },
+    });
+
+    // Check if conversation exists
+    if (!conversation) {
+      this.chatGateway.server.emit(
+        ChatEventsEnum.ERROR,
+        { message: 'Conversation not found' },
+        client.data.userId,
+      );
+      return errorResponse(null, 'Conversation not found');
+    }
+
+    // Transform participants
+    const participants = conversation.participants.map((p) => ({
+      id: p.user?.id,
+      name: p.user?.name,
+      avatarUrl: p.user?.avatarUrl,
+      role: p.user?.role,
+      email: p.user?.email,
+    }));
+
+    // Transform messages
+    const messages = conversation.messages.map((m) => ({
+      id: m.id,
+      content: m.content,
+      type: m.type,
+      createdAt: m.createdAt,
+      sender: {
+        id: m.sender?.id,
+        name: m.sender?.name,
+        avatarUrl: m.sender?.avatarUrl,
+        role: m.sender?.role,
+        email: m.sender?.email,
+      },
+    }));
+
+    // Output
+    const output = {
+      conversationId: conversation.id,
+      participants,
+      messages,
+      pagination: {
+        limit,
+        page,
+        total: conversation._count.messages,
+      },
+    };
+
+    // Emit event to requester only
+    this.chatGateway.server
+      .to(client.data.userId)
+      .emit(ChatEventsEnum.CONVERSATION_LOAD, output);
+
+    return successResponse(output, 'Conversation loaded successfully');
   }
 }
