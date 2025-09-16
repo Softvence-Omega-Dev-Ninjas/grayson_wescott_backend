@@ -66,17 +66,18 @@ export class ConversationService {
     });
 
     // Emit
-    this.chatGateway.server
-      .to(client.data.userId)
-      .emit(ChatEventsEnum.CONVERSATION_LIST, {
-        data: outputData,
-        metadata: {
+    this.chatGateway.server.to(client.data.userId).emit(
+      ChatEventsEnum.CONVERSATION_LIST,
+      successPaginatedResponse(
+        outputData,
+        {
           limit,
           page,
           total: conversations.length,
-          totalPage: Math.ceil(conversations.length / limit),
         },
-      });
+        'Conversations loaded successfully',
+      ),
+    );
 
     // Response
     return successPaginatedResponse(
@@ -130,7 +131,10 @@ export class ConversationService {
     if (!conversation) {
       this.chatGateway.server
         .to(client.data.userId)
-        .emit(ChatEventsEnum.ERROR, { message: 'Conversation not found' });
+        .emit(
+          ChatEventsEnum.ERROR,
+          errorResponse(null, 'Conversation not found'),
+        );
 
       return errorResponse(null, 'Conversation not found');
     }
@@ -148,7 +152,10 @@ export class ConversationService {
       (p) => p.type === ConversationParticipantType.USER,
     )?.userId;
     if (!conversationsClientId) {
-      client.emit(ChatEventsEnum.ERROR, 'Client not found in conversation');
+      client.emit(
+        ChatEventsEnum.ERROR,
+        errorResponse(null, 'Client not found in conversation'),
+      );
       return errorResponse(null, 'Client not found in conversation');
     }
 
@@ -191,7 +198,10 @@ export class ConversationService {
     // Emit event to requester only
     this.chatGateway.server
       .to(client.data.userId)
-      .emit(ChatEventsEnum.SINGLE_CONVERSATION, output);
+      .emit(
+        ChatEventsEnum.SINGLE_CONVERSATION,
+        successResponse(output, 'Conversation loaded successfully'),
+      );
 
     return successResponse(output, 'Conversation loaded successfully');
   }
@@ -331,21 +341,19 @@ export class ConversationService {
       },
     }));
 
-    // OUTPUT
-    const outputData = {
-      data: formattedMessages ?? [],
-      metadata: {
-        limit,
-        page,
-        total: conversations?.messages.length,
-        totalPage: Math.ceil(conversations?._count?.messages ?? 0 / limit),
-      },
-    };
-
     // Emit
-    this.chatGateway.server
-      .to(client.data.userId)
-      .emit(ChatEventsEnum.CLIENT_CONVERSATION, outputData);
+    this.chatGateway.server.to(client.data.userId).emit(
+      ChatEventsEnum.CLIENT_CONVERSATION,
+      successPaginatedResponse(
+        formattedMessages ?? [],
+        {
+          page,
+          limit,
+          total: conversations?._count?.messages ?? 0,
+        },
+        'Conversations loaded successfully',
+      ),
+    );
 
     // Response
     return successPaginatedResponse(

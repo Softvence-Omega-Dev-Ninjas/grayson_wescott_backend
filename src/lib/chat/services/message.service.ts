@@ -45,9 +45,7 @@ export class MessageService {
     const admins = await this.getAllAdminParticipants();
 
     // Find or create conversation
-    let conversation;
-
-    conversation = await this.prisma.privateConversation.findFirst({
+    let conversation = await this.prisma.privateConversation.findFirst({
       where: {
         participants: {
           some: {
@@ -85,10 +83,18 @@ export class MessageService {
     ]);
 
     // Notify admins + client
-    this.emitToAdmins(admins, ChatEventsEnum.NEW_MESSAGE, message);
+    this.emitToAdmins(
+      admins,
+      ChatEventsEnum.NEW_MESSAGE,
+      message,
+      'New message',
+    );
     client.emit(ChatEventsEnum.NEW_MESSAGE, message);
 
-    return successResponse(message, 'Message sent successfully');
+    return successResponse(
+      { conversationId: conversation.id, message },
+      'Message sent successfully',
+    );
   }
 
   @HandleError('Failed to send message to client', 'MessageService')
@@ -150,17 +156,25 @@ export class MessageService {
       .emit(ChatEventsEnum.NEW_MESSAGE, { message, fromAdmin: true });
 
     const admins = await this.getAllAdminParticipants();
-    this.emitToAdmins(admins, ChatEventsEnum.NEW_MESSAGE, {
-      message,
-      fromAdmin: true,
-    });
+    this.emitToAdmins(
+      admins,
+      ChatEventsEnum.NEW_MESSAGE,
+      {
+        message,
+        fromAdmin: true,
+      },
+      'New message from admin',
+    );
 
     // If client online → mark delivered
     if (this.isClientOnline(clientId)) {
       this.emitDeliveryStatus(admins, clientId, message.id, senderId);
     }
 
-    return successResponse(message, 'Message sent successfully');
+    return successResponse(
+      { conversationId: conversation.id, message },
+      'Message sent successfully',
+    );
   }
 
   @HandleError('Failed to update message status', 'MessageService')
@@ -183,7 +197,7 @@ export class MessageService {
       status: messageStatus.status,
     };
 
-    return successResponse(updatePayload, 'Message status updated');
+    return successResponse({ status: updatePayload }, 'Message status updated');
   }
 
   @HandleError('Failed to mark message(s) as read', 'MessageService')
@@ -193,7 +207,10 @@ export class MessageService {
       data: { status: MessageDeliveryStatus.READ },
     });
 
-    return successResponse(message, 'Message marked as read');
+    return successResponse(
+      { read: { updatedCount: message.count } },
+      'Messages marked as read',
+    );
   }
 
   /**
@@ -250,7 +267,7 @@ export class MessageService {
   }
 
   private emitError(client: Socket, message: string) {
-    client.emit(ChatEventsEnum.ERROR, { message });
+    client.emit(ChatEventsEnum.ERROR, errorResponse(null, message));
     return errorResponse(null, message);
   }
 
@@ -258,9 +275,12 @@ export class MessageService {
     admins: { userId: string }[],
     event: ChatEventsEnum,
     payload: any,
+    message: string,
   ) {
     admins.forEach((admin) =>
-      this.chatGateway.server.to(admin.userId).emit(event, payload),
+      this.chatGateway.server
+        .to(admin.userId)
+        .emit(event, successResponse(payload, message)),
     );
   }
 
@@ -283,7 +303,15 @@ export class MessageService {
 
     this.chatGateway.server
       .to(clientId)
-      .emit(ChatEventsEnum.UPDATE_MESSAGE_STATUS, payload);
-    this.emitToAdmins(admins, ChatEventsEnum.UPDATE_MESSAGE_STATUS, payload);
+      .emit(
+        ChatEventsEnum.UPDATE_MESSAGE_STATUS,
+        successResponse(payload, 'Your message has been delivered'),
+      );
+    this.emitToAdmins(
+      admins,
+      ChatEventsEnum.UPDATE_MESSAGE_STATUS,
+      payload,
+      'Your message has been delivered',
+    );
   }
 }
