@@ -1,5 +1,5 @@
 import { forwardRef, Inject, Injectable } from '@nestjs/common';
-import { CallParticipantStatus, CallStatus, CallType } from '@prisma/client';
+import { CallParticipantStatus, CallStatus } from '@prisma/client';
 import { HandleError } from '@project/common/error/handle-error.decorator';
 import {
   successResponse,
@@ -8,6 +8,7 @@ import {
 import { PrismaService } from '@project/lib/prisma/prisma.service';
 import { Socket } from 'socket.io';
 import { ChatGateway } from '../chat.gateway';
+import { InitiateCallDto } from '../dto/call.dto';
 import { ChatEventsEnum } from '../enum/chat-events.enum';
 
 @Injectable()
@@ -18,12 +19,14 @@ export class CallService {
     private readonly chatGateway: ChatGateway,
   ) {}
 
+  // === INITIATE CALL ===
   @HandleError('Failed to initiate call', 'CallService')
   async initiateCall(
     client: Socket,
-    conversationId: string,
-    type: CallType,
+    data: InitiateCallDto,
   ): Promise<TResponse<any>> {
+    const { conversationId, type } = data;
+
     const callerId = client.data.userId;
     if (!callerId) return this.chatGateway.emitError(client, 'Unauthorized');
 
@@ -55,7 +58,7 @@ export class CallService {
 
     // Notify all participants
     this.emitCallEvent(
-      conversation?.participants.map((p) => ({ userId: p.userId! })) || [],
+      conversation.participants.map((p) => ({ userId: p.userId! })),
       ChatEventsEnum.CALL_INCOMING,
       call,
     );
@@ -63,7 +66,8 @@ export class CallService {
     return successResponse(call, 'Call initiated successfully');
   }
 
-  @HandleError('Failed to join call', 'CallService')
+  // === ACCEPT CALL ===
+  @HandleError('Failed to accept call', 'CallService')
   async acceptCall(client: Socket, callId: string): Promise<TResponse<any>> {
     const userId = client.data.userId;
     if (!userId) return this.chatGateway.emitError(client, 'Unauthorized');
@@ -74,7 +78,6 @@ export class CallService {
     });
     if (!call) return this.chatGateway.emitError(client, 'Call not found');
 
-    // Update participant status
     const participant = call.participants.find((p) => p.userId === userId);
     if (participant) {
       await this.prisma.privateCallParticipant.update({
@@ -87,7 +90,6 @@ export class CallService {
       });
     }
 
-    // Update call status if needed
     if (call.status === CallStatus.INITIATED) {
       await this.prisma.privateCall.update({
         where: { id: call.id },
@@ -95,8 +97,61 @@ export class CallService {
       });
     }
 
-    // Notify all participants
-    this.emitCallEvent(call.participants, ChatEventsEnum.CALL_JOIN, {
+    this.emitCallEvent(call.participants, ChatEventsEnum.CALL_ACCEPT, {
+      callId,
+      userId,
+    });
+
+    return successResponse({ callId, userId }, 'Accepted call successfully');
+  }
+
+  // === REJECT CALL ===
+  @HandleError('Failed to reject call', 'CallService')
+  async rejectCall(client: Socket, callId: string): Promise<TResponse<any>> {
+    const userId = client.data.userId;
+    if (!userId) return this.chatGateway.emitError(client, 'Unauthorized');
+
+    const call = await this.prisma.privateCall.findUnique({
+      where: { id: callId },
+      include: { participants: true },
+    });
+    if (!call) return this.chatGateway.emitError(client, 'Call not found');
+
+    await this.prisma.privateCallParticipant.updateMany({
+      where: { callId, userId },
+      data: { status: CallParticipantStatus.MISSED, leftAt: new Date() },
+    });
+
+    this.emitCallEvent(call.participants, ChatEventsEnum.CALL_REJECT, {
+      callId,
+      userId,
+    });
+
+    return successResponse({ callId, userId }, 'Rejected call successfully');
+  }
+
+  // === JOIN ONGOING CALL ===
+  @HandleError('Failed to join call', 'CallService')
+  async joinCall(client: Socket, callId: string): Promise<TResponse<any>> {
+    const userId = client.data.userId;
+    if (!userId) return this.chatGateway.emitError(client, 'Unauthorized');
+
+    const participant = await this.prisma.privateCallParticipant.findFirst({
+      where: { callId, userId },
+    });
+
+    if (participant) {
+      await this.prisma.privateCallParticipant.update({
+        where: { id: participant.id },
+        data: { status: CallParticipantStatus.JOINED, joinedAt: new Date() },
+      });
+    } else {
+      await this.prisma.privateCallParticipant.create({
+        data: { callId, userId, status: CallParticipantStatus.JOINED },
+      });
+    }
+
+    this.emitCallEvent([{ userId }], ChatEventsEnum.CALL_JOIN, {
       callId,
       userId,
     });
@@ -104,6 +159,7 @@ export class CallService {
     return successResponse({ callId, userId }, 'Joined call successfully');
   }
 
+  // === LEAVE CALL ===
   @HandleError('Failed to leave call', 'CallService')
   async leaveCall(client: Socket, callId: string): Promise<TResponse<any>> {
     const userId = client.data.userId;
@@ -125,10 +181,10 @@ export class CallService {
       include: { participants: true },
     });
 
-    // If no participants left → end the call
     const activeParticipants = call?.participants.filter(
       (p) => p.status === CallParticipantStatus.JOINED,
     );
+
     if (!activeParticipants?.length) {
       await this.prisma.privateCall.update({
         where: { id: callId },
@@ -138,7 +194,6 @@ export class CallService {
         callId,
       });
     } else {
-      // Notify participants who left
       this.emitCallEvent(call?.participants || [], ChatEventsEnum.CALL_LEAVE, {
         callId,
         userId,
@@ -148,7 +203,42 @@ export class CallService {
     return successResponse({ callId, userId }, 'Left call successfully');
   }
 
-  /** ---------------- Helper to emit call events to all participants ---------------- */
+  // === END CALL (by initiator / server cleanup) ===
+  @HandleError('Failed to end call', 'CallService')
+  async endCall(client: Socket, callId: string): Promise<TResponse<any>> {
+    const call = await this.prisma.privateCall.update({
+      where: { id: callId },
+      data: { status: CallStatus.ENDED, endedAt: new Date() },
+      include: { participants: true },
+    });
+
+    this.emitCallEvent(call.participants, ChatEventsEnum.CALL_END, { callId });
+
+    return successResponse({ callId }, 'Call ended successfully');
+  }
+
+  // === MARK MISSED CALL ===
+  @HandleError('Failed to mark missed call', 'CallService')
+  async markMissedCall(callId: string): Promise<TResponse<any>> {
+    const call = await this.prisma.privateCall.update({
+      where: { id: callId },
+      data: { status: CallStatus.MISSED, endedAt: new Date() },
+      include: { participants: true },
+    });
+
+    await this.prisma.privateCallParticipant.updateMany({
+      where: { callId },
+      data: { status: CallParticipantStatus.MISSED },
+    });
+
+    this.emitCallEvent(call.participants, ChatEventsEnum.CALL_MISSED, {
+      callId,
+    });
+
+    return successResponse({ callId }, 'Call marked as missed');
+  }
+
+  /** ---------------- Helper to emit call events ---------------- */
   private emitCallEvent(
     participants: { userId: string }[],
     event: ChatEventsEnum,

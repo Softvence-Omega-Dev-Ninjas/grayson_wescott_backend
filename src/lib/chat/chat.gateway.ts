@@ -17,6 +17,7 @@ import { JWTPayload } from '@project/common/jwt/jwt.interface';
 import { PrismaService } from '@project/lib/prisma/prisma.service';
 import { Server, Socket } from 'socket.io';
 import { errorResponse } from './../../common/utils/response.util';
+import { CallActionDto, InitiateCallDto } from './dto/call.dto';
 import {
   InitConversationWithClientDto,
   LoadConversationsDto,
@@ -195,8 +196,53 @@ export class ChatGateway
   }
 
   /** ---------------- CALL EVENTS & WEBRTC ---------------- **/
-  // * TODO: Add call events
-  //* TODO: Add webrtc events if needed
+  @SubscribeMessage(ChatEventsEnum.CALL_INITIATE)
+  async onCallInitiate(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: InitiateCallDto,
+  ) {
+    return await this.callService.initiateCall(client, data);
+  }
+
+  @SubscribeMessage(ChatEventsEnum.CALL_ACCEPT)
+  async onCallAccept(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: CallActionDto,
+  ) {
+    return await this.callService.acceptCall(client, data.callId);
+  }
+
+  @SubscribeMessage(ChatEventsEnum.CALL_REJECT)
+  async onCallReject(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: CallActionDto,
+  ) {
+    return await this.callService.rejectCall(client, data.callId);
+  }
+
+  @SubscribeMessage(ChatEventsEnum.CALL_JOIN)
+  async onCallJoin(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: CallActionDto,
+  ) {
+    return await this.callService.joinCall(client, data.callId);
+  }
+
+  @SubscribeMessage(ChatEventsEnum.CALL_LEAVE)
+  async onCallLeave(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: CallActionDto,
+  ) {
+    return await this.callService.leaveCall(client, data.callId);
+  }
+
+  @SubscribeMessage(ChatEventsEnum.CALL_END)
+  async onCallEnd(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: CallActionDto,
+  ) {
+    return await this.callService.endCall(client, data.callId);
+  }
 
   /** ---------------- HELPER EMITS ---------------- */
   public disconnectWithError(client: Socket, message: string) {

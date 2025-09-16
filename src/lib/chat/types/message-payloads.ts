@@ -9,7 +9,7 @@ export interface BaseMessagePayload {
 }
 
 // client → admin(s)
-export interface ClientMessagePayload extends BaseMessagePayload {}
+// export interface ClientMessagePayload extends BaseMessagePayload {}
 
 // admin → client
 export interface AdminMessagePayload extends BaseMessagePayload {
