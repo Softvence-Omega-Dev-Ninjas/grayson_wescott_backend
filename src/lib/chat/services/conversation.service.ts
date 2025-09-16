@@ -11,7 +11,7 @@ import {
 } from '@project/common/utils/response.util';
 import { PrismaService } from '@project/lib/prisma/prisma.service';
 import { Socket } from 'socket.io';
-import { ChatGateway } from '../chat.gateway';
+import { ChatGateway } from '../../gateway/chat.gateway';
 import {
   InitConversationWithClientDto,
   LoadConversationsDto,

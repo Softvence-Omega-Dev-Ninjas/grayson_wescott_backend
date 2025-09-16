@@ -1,3 +1,4 @@
+import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import {
@@ -7,34 +8,33 @@ import {
 } from '@nestjs/websockets';
 import { PaginationDto } from '@project/common/dto/pagination.dto';
 import { Socket } from 'socket.io';
-import { GatewayGateway } from '../gateway/gateway.gateway';
-import { PrismaService } from '../prisma/prisma.service';
-import { CallActionDto, InitiateCallDto } from './dto/call.dto';
+import { CallActionDto, InitiateCallDto } from '../chat/dto/call.dto';
 import {
   InitConversationWithClientDto,
   LoadConversationsDto,
   LoadSingleConversationDto,
-} from './dto/conversation.dto';
+} from '../chat/dto/conversation.dto';
 import {
   AdminMessageDto,
   ClientMessageDto,
   MarkReadDto,
   MessageDeliveryStatusDto,
-} from './dto/message.dto';
+} from '../chat/dto/message.dto';
 import {
   RTCAnswerDto,
   RTCIceCandidateDto,
   RTCOfferDto,
-} from './dto/webrtc.dto';
-import { ChatEventsEnum } from './enum/chat-events.enum';
-import { CallService } from './services/call.service';
-import { ConversationService } from './services/conversation.service';
-import { MessageService } from './services/message.service';
-import { WebRTCService } from './services/webrtc.service';
-import { Injectable } from '@nestjs/common';
+} from '../chat/dto/webrtc.dto';
+import { ChatEventsEnum } from '../chat/enum/chat-events.enum';
+import { CallService } from '../chat/services/call.service';
+import { ConversationService } from '../chat/services/conversation.service';
+import { MessageService } from '../chat/services/message.service';
+import { WebRTCService } from '../chat/services/webrtc.service';
+import { PrismaService } from '../prisma/prisma.service';
+import { AppGateway } from './app.gateway';
 
 @Injectable()
-export class ChatGateway extends GatewayGateway {
+export class ChatGateway extends AppGateway {
   constructor(
     private readonly messageService: MessageService,
     private readonly conversationService: ConversationService,

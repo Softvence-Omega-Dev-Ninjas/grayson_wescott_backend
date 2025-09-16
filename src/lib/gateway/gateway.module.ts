@@ -1,9 +1,21 @@
 import { Global, Module } from '@nestjs/common';
-import { GatewayGateway } from './gateway.gateway';
+import { CallService } from '../chat/services/call.service';
+import { ConversationService } from '../chat/services/conversation.service';
+import { MessageService } from '../chat/services/message.service';
+import { WebRTCService } from '../chat/services/webrtc.service';
+import { AppGateway } from './app.gateway';
+import { ChatGateway } from './chat.gateway';
 
 @Global()
 @Module({
-  providers: [GatewayGateway],
-  exports: [GatewayGateway],
+  providers: [
+    AppGateway,
+    ChatGateway,
+    MessageService,
+    ConversationService,
+    CallService,
+    WebRTCService,
+  ],
+  exports: [AppGateway],
 })
 export class GatewayModule {}

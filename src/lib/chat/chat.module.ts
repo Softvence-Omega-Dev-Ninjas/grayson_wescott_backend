@@ -1,5 +1,5 @@
 import { Global, Module } from '@nestjs/common';
-import { ChatGateway } from './chat.gateway';
+import { ChatGateway } from '../gateway/chat.gateway';
 import { CallService } from './services/call.service';
 import { ConversationService } from './services/conversation.service';
 import { MessageService } from './services/message.service';
@@ -14,6 +14,6 @@ import { WebRTCService } from './services/webrtc.service';
     CallService,
     WebRTCService,
   ],
-  exports: [ChatGateway],
+  exports: [],
 })
 export class ChatModule {}
