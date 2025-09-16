@@ -12,13 +12,6 @@ import {
 // Base DTO
 // ----------------------
 export class BaseMessageDto {
-  @ApiPropertyOptional({
-    description: 'Conversation ID, optional for first message',
-  })
-  @IsOptional()
-  @IsString()
-  conversationId?: string;
-
   @ApiPropertyOptional({ description: 'Message content' })
   @IsOptional()
   @IsString()

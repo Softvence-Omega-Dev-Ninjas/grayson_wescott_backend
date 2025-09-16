@@ -118,9 +118,7 @@ export class ConversationService {
           orderBy: { createdAt: 'desc' },
           take: limit,
           skip: (page - 1) * limit,
-          include: {
-            sender: true,
-          },
+          include: { sender: true, file: true },
         },
         _count: {
           select: { messages: true },
@@ -146,12 +144,28 @@ export class ConversationService {
       email: p.user?.email,
     }));
 
+    const conversationsClientId = conversation.participants.find(
+      (p) => p.type === ConversationParticipantType.USER,
+    )?.userId;
+    if (!conversationsClientId) {
+      client.emit(ChatEventsEnum.ERROR, 'Client not found in conversation');
+      return errorResponse(null, 'Client not found in conversation');
+    }
+
     // Transform messages
     const messages = conversation.messages.map((m) => ({
       id: m.id,
       content: m.content,
       type: m.type,
+      file: {
+        id: m.file?.id,
+        url: m.file?.url,
+        type: m.file?.fileType,
+        mimeType: m.file?.mimeType,
+      },
       createdAt: m.createdAt,
+      isSentByAdmin: m.sender?.id === client.data.userId,
+      isSentByAdminGroup: m.sender?.id !== conversationsClientId,
       sender: {
         id: m.sender?.id,
         name: m.sender?.name,
@@ -164,13 +178,14 @@ export class ConversationService {
     // Output
     const output = {
       conversationId: conversation.id,
-      participants,
-      messages,
-      pagination: {
+      data: messages,
+      metadata: {
         limit,
         page,
         total: conversation._count.messages,
+        totalPage: Math.ceil(conversation._count.messages / limit),
       },
+      participants,
     };
 
     // Emit event to requester only
@@ -283,32 +298,47 @@ export class ConversationService {
       include: {
         lastMessage: true,
         messages: {
+          include: { sender: true, file: true },
           orderBy: { createdAt: 'desc' },
           take: limit,
           skip: (page - 1) * limit,
+        },
+        _count: {
+          select: { messages: true },
         },
       },
       orderBy: { updatedAt: 'desc' },
     });
 
+    const formattedMessages = conversations?.messages.map((m) => ({
+      id: m.id,
+      content: m.content,
+      type: m.type,
+      createdAt: m.createdAt,
+      isSendByClient: m.sender?.id === client.data.userId,
+      file: {
+        id: m.file?.id,
+        url: m.file?.url,
+        type: m.file?.fileType,
+        mimeType: m.file?.mimeType,
+      },
+      sender: {
+        id: m.sender?.id,
+        name: m.sender?.name,
+        avatarUrl: m.sender?.avatarUrl,
+        role: m.sender?.role,
+        email: m.sender?.email,
+      },
+    }));
+
     // OUTPUT
     const outputData = {
-      messages: conversations?.messages.map((m) => ({
-        id: m.id,
-        content: m.content,
-        type: m.type,
-        createdAt: m.createdAt,
-        sender: {
-          name: 'System Admin',
-          avatarUrl:
-            'https://ui-avatars.com/api/?name=System+Admin&background=random&color=fff',
-          role: 'ADMIN',
-        },
-      })),
-      pagination: {
+      data: formattedMessages ?? [],
+      metadata: {
         limit,
         page,
         total: conversations?.messages.length,
+        totalPage: Math.ceil(conversations?._count?.messages ?? 0 / limit),
       },
     };
 
@@ -318,6 +348,14 @@ export class ConversationService {
       .emit(ChatEventsEnum.CLIENT_CONVERSATION, outputData);
 
     // Response
-    return successResponse(outputData, 'Conversations loaded successfully');
+    return successPaginatedResponse(
+      formattedMessages ?? [],
+      {
+        page,
+        limit,
+        total: conversations?._count?.messages ?? 0,
+      },
+      'Conversations loaded successfully',
+    );
   }
 }

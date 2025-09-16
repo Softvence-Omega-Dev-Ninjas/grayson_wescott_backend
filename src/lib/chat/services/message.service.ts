@@ -44,20 +44,33 @@ export class MessageService {
 
     const admins = await this.getAllAdminParticipants();
 
-    // Ensure conversation exists or create a new one
-    const conversation = await this.prisma.privateConversation.upsert({
-      where: { id: payload.conversationId || 'non-existent-id' }, // * a dummy id if none is provided; important to complete the upsert
-      update: {}, // * do nothing if it exists
-      create: {
+    // Find or create conversation
+    let conversation;
+
+    conversation = await this.prisma.privateConversation.findFirst({
+      where: {
         participants: {
-          create: [
-            { userId: senderId, type: ConversationParticipantType.USER },
-            ...admins,
-          ],
+          some: {
+            userId: senderId,
+            type: ConversationParticipantType.USER,
+          },
         },
       },
       include: { participants: true },
     });
+
+    if (!conversation) {
+      conversation = await this.prisma.privateConversation.create({
+        data: {
+          participants: {
+            create: [
+              { userId: senderId, type: ConversationParticipantType.USER },
+            ],
+          },
+        },
+        include: { participants: true },
+      });
+    }
 
     const message = await this.createMessage(
       conversation.id,
@@ -85,12 +98,16 @@ export class MessageService {
   ): Promise<TResponse<any>> {
     const senderId = client.data.userId;
     if (!senderId) return this.emitError(client, 'Unauthorized');
-    if (!payload.conversationId) {
-      return this.emitError(client, 'Conversation ID is required');
-    }
 
-    const conversation = await this.prisma.privateConversation.findUnique({
-      where: { id: payload.conversationId },
+    const conversation = await this.prisma.privateConversation.findFirst({
+      where: {
+        participants: {
+          some: {
+            userId: payload.clientId,
+            type: ConversationParticipantType.USER,
+          },
+        },
+      },
       include: { participants: true },
     });
     if (!conversation) return this.emitError(client, 'Conversation not found');
