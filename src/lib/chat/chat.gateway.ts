@@ -5,33 +5,34 @@ import {
   ConnectedSocket,
   MessageBody,
   SubscribeMessage,
+  WebSocketGateway,
 } from '@nestjs/websockets';
 import { PaginationDto } from '@project/common/dto/pagination.dto';
 import { Socket } from 'socket.io';
-import { CallActionDto, InitiateCallDto } from '../chat/dto/call.dto';
+import { AppGateway } from '../gateway/app.gateway';
+import { PrismaService } from '../prisma/prisma.service';
+import { CallActionDto, InitiateCallDto } from './dto/call.dto';
 import {
   InitConversationWithClientDto,
   LoadConversationsDto,
   LoadSingleConversationDto,
-} from '../chat/dto/conversation.dto';
+} from './dto/conversation.dto';
 import {
   AdminMessageDto,
   ClientMessageDto,
   MarkReadDto,
   MessageDeliveryStatusDto,
-} from '../chat/dto/message.dto';
+} from './dto/message.dto';
 import {
   RTCAnswerDto,
   RTCIceCandidateDto,
   RTCOfferDto,
-} from '../chat/dto/webrtc.dto';
-import { ChatEventsEnum } from '../chat/enum/chat-events.enum';
-import { CallService } from '../chat/services/call.service';
-import { ConversationService } from '../chat/services/conversation.service';
-import { MessageService } from '../chat/services/message.service';
-import { WebRTCService } from '../chat/services/webrtc.service';
-import { PrismaService } from '../prisma/prisma.service';
-import { AppGateway } from './app.gateway';
+} from './dto/webrtc.dto';
+import { ChatEventsEnum } from './enum/chat-events.enum';
+import { CallService } from './services/call.service';
+import { ConversationService } from './services/conversation.service';
+import { MessageService } from './services/message.service';
+import { WebRTCService } from './services/webrtc.service';
 
 @Injectable()
 export class ChatGateway extends AppGateway {
@@ -45,6 +46,7 @@ export class ChatGateway extends AppGateway {
     jwtService: JwtService,
   ) {
     super(configService, prisma, jwtService);
+    console.log('ChatGateway initialized');
   }
 
   /** ---------------- MESSAGE EVENTS ---------------- */

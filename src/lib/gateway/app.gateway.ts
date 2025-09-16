@@ -1,13 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
-import {
-  OnGatewayConnection,
-  OnGatewayDisconnect,
-  OnGatewayInit,
-  WebSocketGateway,
-  WebSocketServer,
-} from '@nestjs/websockets';
+import { WebSocketGateway, WebSocketServer } from '@nestjs/websockets';
 import { ENVEnum } from '@project/common/enum/env.enum';
 import { Notification } from '@project/common/interface/events-payload';
 import { JWTPayload } from '@project/common/jwt/jwt.interface';
@@ -24,9 +18,7 @@ import { PrismaService } from '../prisma/prisma.service';
   namespace: '/api/gateway',
 })
 @Injectable()
-export class AppGateway
-  implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect
-{
+export class AppGateway {
   private readonly logger = new Logger(AppGateway.name);
   private readonly clients = new Map<string, Set<Socket>>();
 
@@ -98,7 +90,7 @@ export class AppGateway
     }
   }
 
-  /** ---------------- NOTIFICATION HELPERS ---------------- */
+  /** ---------------- CLIENT HELPERS ---------------- */
   private subscribeClient(userId: string, client: Socket) {
     if (!this.clients.has(userId)) {
       this.clients.set(userId, new Set());

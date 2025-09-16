@@ -4,13 +4,11 @@ import { ConversationService } from '../chat/services/conversation.service';
 import { MessageService } from '../chat/services/message.service';
 import { WebRTCService } from '../chat/services/webrtc.service';
 import { AppGateway } from './app.gateway';
-import { ChatGateway } from './chat.gateway';
 
 @Global()
 @Module({
   providers: [
     AppGateway,
-    ChatGateway,
     MessageService,
     ConversationService,
     CallService,
