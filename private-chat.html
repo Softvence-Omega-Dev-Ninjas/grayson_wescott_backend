@@ -1,480 +1,101 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <title>Private Chat WebSocket Test (Full)</title>
-    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
-    <style>
-      body {
-        font-family: Arial, sans-serif;
-        padding: 20px;
-        display: grid;
-        grid-template-columns: 360px 1fr;
-        gap: 20px;
-      }
-      .panel {
-        background: #fff;
-        border: 1px solid #e6e6e6;
-        padding: 12px;
-        border-radius: 6px;
-      }
-      input,
-      button,
-      select {
-        margin: 6px 0;
-        width: 100%;
-        box-sizing: border-box;
-        padding: 8px;
-      }
-      #log {
-        background: #f7f7f7;
-        padding: 10px;
-        height: 180px;
-        overflow-y: auto;
-        white-space: pre-wrap;
-        border-radius: 4px;
-        border: 1px solid #eee;
-      }
-      #conversations {
-        height: 360px;
-        overflow-y: auto;
-        border-radius: 4px;
-        border: 1px solid #eee;
-        padding: 8px;
-        background: #fafafa;
-      }
-      .conv {
-        padding: 8px;
-        border-bottom: 1px solid #eee;
-        cursor: pointer;
-      }
-      .conv:hover {
-        background: #f0f8ff;
-      }
-      .selected {
-        background: #e6f3ff !important;
-      }
-      #messages {
-        height: 360px;
-        overflow-y: auto;
-        border-radius: 4px;
-        border: 1px solid #eee;
-        padding: 8px;
-        background: #fafafa;
-      }
-      .msg {
-        margin: 6px 0;
-        padding: 8px;
-        border-radius: 6px;
-        background: #fff;
-        box-shadow: 0 0 0 1px #f0f0f0 inset;
-      }
-      .msg.me {
-        background: #e8f5e9;
-        align-self: flex-end;
-      }
-      .meta {
-        font-size: 12px;
-        color: #666;
-        margin-bottom: 4px;
-      }
-    </style>
-  </head>
-  <body>
-    <div class="panel">
-      <h3>Connection</h3>
-      <label>JWT Token</label>
-      <input type="text" id="token" placeholder="Enter your JWT token here" />
+<head>
+  <meta charset="UTF-8">
+  <title>Chat Test</title>
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+</head>
+<body>
+  <h1>Chat Test Page</h1>
 
-      <label>Server URL</label>
-      <input type="text" id="serverUrl" value="http://localhost:3000" />
+  <div>
+    <label>
+      Role:
+      <select id="role">
+        <option value="client">Client</option>
+        <option value="admin">Admin</option>
+      </select>
+    </label>
+    <br>
+    <label>
+      Token:
+      <input type="text" id="token" placeholder="Paste JWT here" size="60" />
+    </label>
+    <br>
+    <button id="connectBtn">Connect</button>
+  </div>
 
-      <button id="connectBtn">Connect</button>
+  <hr>
 
-      <div style="margin-top: 12px">
-        <strong>Authenticated userId:</strong>
-        <div id="currentUserId" style="word-break: break-all; color: #0b6">
-          — not connected —
-        </div>
-      </div>
+  <div>
+    <textarea id="messageInput" rows="3" cols="50" placeholder="Type a message..."></textarea><br>
+    <button id="sendBtn">Send Message</button>
+  </div>
 
-      <hr />
+  <hr>
 
-      <h4>Conversation controls</h4>
-      <button id="loadConvosBtn">Load all conversations</button>
+  <div>
+    <h3>Logs</h3>
+    <pre id="logs"></pre>
+  </div>
 
-      <label>Conversation ID (open)</label>
-      <input
-        type="text"
-        id="conversationIdInput"
-        placeholder="paste conversationId or click a conversation"
-      />
+  <script>
+    let socket;
 
-      <button id="openConversationBtn">Open conversation (load history)</button>
+    const log = (msg, data) => {
+      const logs = document.getElementById("logs");
+      logs.textContent += msg + (data ? " " + JSON.stringify(data) : "") + "\n";
+    };
 
-      <label>Find conversation by participantId</label>
-      <input
-        type="text"
-        id="findByParticipant"
-        placeholder="other user id (find chatId)"
-      />
-      <button id="findConversationBtn">Find & Open conversation</button>
+    document.getElementById("connectBtn").onclick = () => {
+      const token = document.getElementById("token").value.trim();
+      const role = document.getElementById("role").value;
 
-      <hr />
-
-      <h4>Send message</h4>
-      <label>Recipient ID</label>
-      <input
-        type="text"
-        id="recipientId"
-        placeholder="recipient user id (use selected conversation participant if open)"
-      />
-
-      <label>Message</label>
-      <input type="text" id="message" placeholder="Enter message" />
-
-      <button id="sendMsgBtn">Send message</button>
-
-      <hr />
-      <h4>Logs</h4>
-      <div id="log"></div>
-    </div>
-
-    <div class="panel">
-      <h3>Conversations</h3>
-      <div id="conversations"></div>
-
-      <h3 style="margin-top: 12px">Messages (opened conversation)</h3>
-      <div id="messages"></div>
-    </div>
-
-    <script>
-      // ======= state =======
-      let socket = null;
-      let currentUserId = null; // set from private:success
-      let conversationList = []; // array from private:conversation_list / private:new_conversation (when array)
-      const conversationsById = {}; // chatId -> summary
-      const messagesByConversation = {}; // chatId -> { messages: [], ids: Set() }
-      let currentConversationId = null;
-
-      // ======= UI helpers =======
-      const logBox = document.getElementById('log');
-      function log(msg) {
-        const time = new Date().toISOString().replace('T', ' ').split('.')[0];
-        logBox.textContent += `[${time}] ${msg}\n`;
-        logBox.scrollTop = logBox.scrollHeight;
+      if (!token) {
+        alert("Please enter JWT token");
+        return;
       }
 
-      function renderConversationList() {
-        const container = document.getElementById('conversations');
-        container.innerHTML = '';
-        conversationList.forEach((conv) => {
-          conversationsById[conv.chatId] = conv;
-          const d = document.createElement('div');
-          d.className =
-            'conv' + (conv.chatId === currentConversationId ? ' selected' : '');
-          d.dataset.chatId = conv.chatId;
-          const name =
-            conv.participant?.profile?.firstName || conv.participant?.id;
-          const last = conv.lastMessage
-            ? conv.lastMessage.content
-            : '(no messages)';
-          d.innerHTML = `<strong>${name}</strong><div style="font-size:12px;color:#666">${last}</div><div style="font-size:11px;color:#999;margin-top:6px">chatId: ${conv.chatId}</div>`;
-          d.onclick = () => {
-            document.getElementById('conversationIdInput').value = conv.chatId;
-            openConversation(conv.chatId);
-          };
-          container.appendChild(d);
-        });
-      }
-
-      function renderMessagesForCurrentConversation() {
-        const messagesEl = document.getElementById('messages');
-        messagesEl.innerHTML = '';
-        if (!currentConversationId) {
-          messagesEl.textContent = 'No conversation opened';
-          return;
-        }
-        const store = messagesByConversation[currentConversationId];
-        if (!store || store.messages.length === 0) {
-          messagesEl.textContent = 'No messages';
-          return;
-        }
-        store.messages.forEach((m) => {
-          const el = document.createElement('div');
-          el.className = 'msg' + (m.senderId === currentUserId ? ' me' : '');
-          const meta = document.createElement('div');
-          meta.className = 'meta';
-          const senderName =
-            m.sender?.profile?.firstName || m.sender?.id || m.senderId;
-          meta.textContent = `${senderName} • ${new Date(m.createdAt).toLocaleString()}`;
-          const content = document.createElement('div');
-          content.textContent = m.content;
-          el.appendChild(meta);
-          el.appendChild(content);
-          messagesEl.appendChild(el);
-        });
-        messagesEl.scrollTop = messagesEl.scrollHeight;
-      }
-
-      function ensureConversationStore(chatId) {
-        if (!messagesByConversation[chatId]) {
-          messagesByConversation[chatId] = { messages: [], ids: new Set() };
-        }
-      }
-
-      function pushMessageToStore(chatId, message) {
-        ensureConversationStore(chatId);
-        const store = messagesByConversation[chatId];
-        if (store.ids.has(message.id)) return false; // dedupe
-        store.ids.add(message.id);
-        store.messages.push(message);
-        // keep sort by createdAt asc (messages created in ascending order typically)
-        store.messages.sort(
-          (a, b) => new Date(a.createdAt) - new Date(b.createdAt),
-        );
-        return true;
-      }
-
-      // ======= socket handlers & actions =======
-      document
-        .getElementById('connectBtn')
-        .addEventListener('click', connectSocket);
-      document
-        .getElementById('loadConvosBtn')
-        .addEventListener('click', loadConversations);
-      document
-        .getElementById('openConversationBtn')
-        .addEventListener('click', () => {
-          const id = document
-            .getElementById('conversationIdInput')
-            .value.trim();
-          if (!id) {
-            alert('Please enter conversationId');
-            return;
-          }
-          openConversation(id);
-        });
-      document
-        .getElementById('findConversationBtn')
-        .addEventListener('click', () => {
-          const other = document
-            .getElementById('findByParticipant')
-            .value.trim();
-          if (!other) {
-            alert('enter participant id');
-            return;
-          }
-          // try find in conversationList
-          const found = conversationList.find(
-            (c) => c.participant?.id === other,
-          );
-          if (found) {
-            document.getElementById('conversationIdInput').value = found.chatId;
-            openConversation(found.chatId);
-          } else {
-            log(
-              '❗ No existing conversation found for that participant — you can send a message to create one.',
-            );
-          }
-        });
-
-      document.getElementById('sendMsgBtn').addEventListener('click', () => {
-        sendMessage();
+      // connect
+      socket = io("http://localhost:5010/api/chat", {
+        extraHeaders: { Authorization: "Bearer " + token },
       });
 
-      function connectSocket() {
-        const token = document.getElementById('token').value.trim();
-        const serverUrl = document.getElementById('serverUrl').value.trim();
-        if (!token) {
-          alert('Please enter a JWT token');
-          return;
-        }
-        if (!serverUrl) {
-          alert('Please enter server URL');
-          return;
-        }
+      socket.on("connect", () => log("Connected as " + role));
+      socket.on("disconnect", () => log("Disconnected"));
+      socket.on("private:success", (data) => log("SUCCESS:", data));
+      socket.on("private:error", (data) => log("ERROR:", data));
+      socket.on("private:new_message", (data) => log("NEW_MESSAGE:", data));
+    };
 
-        socket = io(`${serverUrl}/js/private`, {
-          auth: { token: `Bearer ${token}` },
-          transports: ['websocket'],
-        });
+    document.getElementById("sendBtn").onclick = () => {
+      if (!socket || !socket.connected) {
+        alert("Not connected!");
+        return;
+      }
+      const role = document.getElementById("role").value;
+      const content = document.getElementById("messageInput").value.trim();
 
-        socket.on('connect', () => {
-          log('✅ Connected to Private Chat server');
-          document.getElementById('connectBtn').disabled = true;
-        });
-
-        socket.on('disconnect', (reason) => {
-          log('❌ Disconnected: ' + reason);
-          document.getElementById('connectBtn').disabled = false;
-          currentUserId = null;
-          document.getElementById('currentUserId').textContent =
-            '— not connected —';
-        });
-
-        socket.on('connect_error', (err) => {
-          log('⚠️ Connection error: ' + (err?.message || err));
-        });
-
-        // Core events
-        socket.on('private:success', (userId) => {
-          log('✅ Authenticated successfully as user: ' + userId);
-          currentUserId = userId;
-          document.getElementById('currentUserId').textContent = userId;
-        });
-
-        socket.on('private:error', (err) => {
-          log('❌ Error: ' + JSON.stringify(err, null, 2));
-        });
-
-        socket.on('private:conversation_list', (conversations) => {
-          log(
-            '📄 Conversation list received (' +
-              (conversations?.length || 0) +
-              ')',
-          );
-          conversationList = conversations || [];
-          renderConversationList();
-        });
-
-        // NEW_CONVERSATION is used both to deliver refreshed conversation lists (when a new conv is created)
-        // and also used by the gateway to return a single conversation object (see gateway code).
-        socket.on('private:new_conversation', (payload) => {
-          if (Array.isArray(payload)) {
-            // refreshed conversation list
-            log(
-              '🆕 Received refreshed conversation list (' +
-                payload.length +
-                ')',
-            );
-            conversationList = payload;
-            renderConversationList();
-          } else if (payload && payload.conversationId) {
-            // single conversation with messages (response to load single)
-            log('📂 Loaded single conversation: ' + payload.conversationId);
-            // store summary (if participant info available)
-            conversationsById[payload.conversationId] =
-              conversationsById[payload.conversationId] || {};
-            // store messages
-            ensureConversationStore(payload.conversationId);
-            // replace messages
-            messagesByConversation[payload.conversationId].messages =
-              payload.messages || [];
-            messagesByConversation[payload.conversationId].ids = new Set(
-              (payload.messages || []).map((m) => m.id),
-            );
-            currentConversationId = payload.conversationId;
-            document.getElementById('conversationIdInput').value =
-              currentConversationId;
-            renderConversationList();
-            renderMessagesForCurrentConversation();
-          } else {
-            log(
-              '🆕 Received new_conversation payload (unknown shape): ' +
-                JSON.stringify(payload),
-            );
-          }
-        });
-
-        socket.on('private:new_message', (message) => {
-          log(
-            '📩 New message received (id=' +
-              message.id +
-              ', conv=' +
-              (message.conversationId || 'N/A') +
-              ')',
-          );
-          const convId = message.conversationId;
-          if (!convId) {
-            log(
-              '⚠️ Message without conversationId received: ' +
-                JSON.stringify(message),
-            );
-            return;
-          }
-          pushMessageToStore(convId, message);
-          // If the opened conversation is this one -> render messages
-          if (currentConversationId === convId) {
-            renderMessagesForCurrentConversation();
-          } else {
-            // mark unread visually in conversation list (simple log action)
-            log('🔔 New message for other conversation: ' + convId);
-          }
-        });
+      if (!content) {
+        alert("Please type a message");
+        return;
       }
 
-      // Load all conversations (short list with last message)
-      function loadConversations() {
-        if (!socket || !socket.connected) {
-          log('⚠️ Not connected');
-          return;
-        }
-        socket.emit('private:load_conversations');
-        log('📤 Requested conversation list');
+      if (role === "client") {
+        socket.emit("private:send_message_client", {
+          content,
+          type: "TEXT",
+        });
+        log("Sent CLIENT message:", { content });
+      } else {
+        socket.emit("private:send_message_admin", {
+          clientId: "e5023b82-5f18-49d7-8e7b-6df0f6be2978", 
+          content,
+          type: "TEXT",
+        });
+        log("Sent ADMIN message:", { content });
       }
-
-      // Load single conversation (full history) by conversationId
-      function openConversation(conversationId) {
-        if (!socket || !socket.connected) {
-          log('⚠️ Not connected');
-          return;
-        }
-        if (!conversationId) {
-          alert('conversationId required');
-          return;
-        }
-        log('📤 Requesting conversation history for: ' + conversationId);
-        socket.emit('private:load_single_conversation', conversationId);
-      }
-
-      // Convenience: find or create conversation by sending a message
-      function sendMessage() {
-        if (!socket || !socket.connected) {
-          log('⚠️ Not connected');
-          return;
-        }
-        if (!currentUserId) {
-          alert('Not authenticated yet. Wait for private:success.');
-          return;
-        }
-
-        const recipientIdInput = document
-          .getElementById('recipientId')
-          .value.trim();
-        const messageText = document.getElementById('message').value.trim();
-
-        // Prefer recipient from opened conversation participant if none provided
-        let recipientId = recipientIdInput;
-        if (!recipientId && currentConversationId) {
-          const conv = conversationsById[currentConversationId];
-          if (conv && conv.participant && conv.participant.id) {
-            recipientId = conv.participant.id;
-          }
-        }
-
-        if (!recipientId) {
-          alert('Recipient ID required (or open a conversation)');
-          return;
-        }
-        if (!messageText) {
-          alert('Message text required');
-          return;
-        }
-
-        const payload = {
-          userId: currentUserId, // MUST match token sub
-          recipientId,
-          dto: { content: messageText },
-          file: null,
-        };
-
-        socket.emit('private:send_message', payload);
-        log('📤 Sent message:\n' + JSON.stringify(payload, null, 2));
-        // optimistic UI: append locally with a temp id if conversation open
-        // But we'll rely on private:new_message event from server to confirm / provide real id
-        document.getElementById('message').value = '';
-      }
-    </script>
-  </body>
+    };
+  </script>
+</body>
 </html>

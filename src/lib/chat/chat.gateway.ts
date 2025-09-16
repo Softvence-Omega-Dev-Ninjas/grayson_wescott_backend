@@ -1,23 +1,43 @@
-import { Logger } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import {
+  ConnectedSocket,
+  MessageBody,
   OnGatewayConnection,
   OnGatewayDisconnect,
   OnGatewayInit,
+  SubscribeMessage,
   WebSocketGateway,
   WebSocketServer,
 } from '@nestjs/websockets';
+import { PaginationDto } from '@project/common/dto/pagination.dto';
 import { ENVEnum } from '@project/common/enum/env.enum';
 import { JWTPayload } from '@project/common/jwt/jwt.interface';
 import { PrismaService } from '@project/lib/prisma/prisma.service';
 import { Server, Socket } from 'socket.io';
+import {
+  InitConversationWithClientDto,
+  LoadConversationsDto,
+  LoadSingleConversationDto,
+} from './dto/conversation.dto';
+import {
+  AdminMessageDto,
+  ClientMessageDto,
+  MarkReadDto,
+  MessageDeliveryStatusDto,
+} from './dto/message.dto';
 import { ChatEventsEnum } from './enum/chat-events.enum';
+import { CallService } from './services/call.service';
+import { ConversationService } from './services/conversation.service';
+import { MessageService } from './services/message.service';
+import { WebRTCService } from './services/webrtc.service';
 
 @WebSocketGateway({
   cors: { origin: '*' },
   namespace: '/api/chat',
 })
+@Injectable()
 export class ChatGateway
   implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect
 {
@@ -27,6 +47,10 @@ export class ChatGateway
     private readonly configService: ConfigService,
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
+    private readonly messageService: MessageService,
+    private readonly conversationService: ConversationService,
+    private readonly callService: CallService,
+    private readonly webRTCService: WebRTCService,
   ) {}
 
   @WebSocketServer()
@@ -39,12 +63,13 @@ export class ChatGateway
     );
   }
 
-  /** Handle socket connection and authentication */
+  /** ---------------- AUTHENTICATION ---------------- */
   async handleConnection(client: Socket) {
     // Accept token either in Authorization header (Bearer) or handshake.auth.token
     const authHeader =
       (client.handshake.headers.authorization as string) ||
-      (client.handshake.auth && (client.handshake.auth.token as string));
+      (client.handshake.auth?.token as string);
+
     if (!authHeader) {
       client.emit(ChatEventsEnum.ERROR, {
         message: 'Missing authorization header',
@@ -68,46 +93,126 @@ export class ChatGateway
       const payload = this.jwtService.verify<JWTPayload>(token, {
         secret: this.configService.getOrThrow(ENVEnum.JWT_SECRET),
       });
-      const userId = payload.sub;
 
       const user = await this.prisma.user.findUnique({
-        where: { id: userId },
-        select: { id: true, email: true },
+        where: { id: payload.sub },
+        select: { id: true, role: true, name: true, avatarUrl: true },
       });
-      if (!user) {
-        client.emit(ChatEventsEnum.ERROR, {
-          message: 'User not found in database',
-        });
-        client.disconnect(true);
-        this.logger.warn(`User not found: ${userId}`);
-        return;
-      }
 
-      client.data.userId = userId;
-      client.join(userId);
-      client.emit(ChatEventsEnum.SUCCESS, userId);
-      this.logger.log(
-        `Private chat: User ${userId} connected, socket ${client.id}`,
-      );
+      if (!user) return this.disconnectWithError(client, 'User not found');
+
+      client.data.userId = user.id;
+      client.data.role = user.role;
+      client.join(user.id);
+
+      this.logger.log(`User connected: ${user.id} (socket ${client.id})`);
+      client.emit(ChatEventsEnum.SUCCESS, { userId: user.id });
     } catch (err: any) {
-      client.emit(ChatEventsEnum.ERROR, {
-        message: err?.message ?? 'Auth failed',
-      });
-      client.disconnect(true);
-      this.logger.warn(`Authentication failed: ${err?.message ?? err}`);
+      this.disconnectWithError(client, err?.message ?? 'Auth failed');
     }
   }
 
   handleDisconnect(client: Socket) {
     const userId = client.data?.userId;
     if (userId) client.leave(userId);
-    this.logger.log(
-      `Private chat disconnected: ${client.id} (user ${userId ?? 'unknown'})`,
+    this.logger.log(`Disconnected: ${client.id} (user ${userId ?? 'unknown'})`);
+  }
+
+  /** ---------------- MESSAGE EVENTS ---------------- */
+  @SubscribeMessage(ChatEventsEnum.SEND_MESSAGE_CLIENT)
+  async onSendMessageClient(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() payload: ClientMessageDto,
+  ) {
+    return this.messageService.sendMessageFromClient(client, payload);
+  }
+
+  @SubscribeMessage(ChatEventsEnum.SEND_MESSAGE_ADMIN)
+  async onSendMessageAdmin(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() payload: AdminMessageDto,
+  ) {
+    return this.messageService.sendMessageFromAdmin(client, payload);
+  }
+
+  @SubscribeMessage(ChatEventsEnum.UPDATE_MESSAGE_STATUS)
+  async onMessageStatusUpdate(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() payload: MessageDeliveryStatusDto,
+  ) {
+    return this.messageService.messageStatusUpdate(client, payload);
+  }
+
+  @SubscribeMessage(ChatEventsEnum.MARK_MESSAGE_READ)
+  async onMarkMessagesAsRead(@MessageBody() payload: MarkReadDto) {
+    return this.messageService.markMessagesAsRead(payload);
+  }
+
+  /** ---------------- CONVERSATION EVENTS ---------------- **/
+  @SubscribeMessage(ChatEventsEnum.LOAD_CONVERSATION_LIST)
+  async onLoadConversationsByAdmin(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() payload: LoadConversationsDto,
+  ) {
+    return this.conversationService.handleLoadConversationsByAdmin(
+      client,
+      payload,
     );
   }
 
-  /** Helper for external services to emit new messages (keeps compatibility) */
-  emitNewMessage(userId: string, message: any) {
-    this.server.to(userId).emit(ChatEventsEnum.NEW_MESSAGE, message);
+  @SubscribeMessage(ChatEventsEnum.LOAD_SINGLE_CONVERSATION)
+  async onLoadSingleConversationByAdmin(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() payload: LoadSingleConversationDto,
+  ) {
+    return this.conversationService.handleLoadSingleConversationByAdmin(
+      client,
+      payload,
+    );
+  }
+
+  @SubscribeMessage(ChatEventsEnum.LOAD_CLIENT_CONVERSATION)
+  async onLoadClientConversation(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() payload: PaginationDto,
+  ) {
+    return this.conversationService.handleLoadClientConversation(
+      client,
+      payload,
+    );
+  }
+
+  @SubscribeMessage(ChatEventsEnum.INIT_CONVERSATION_WITH_CLIENT)
+  async onInitConversationWithClient(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() payload: InitConversationWithClientDto,
+  ) {
+    return this.conversationService.handleInitConversationWithClient(
+      client,
+      payload,
+    );
+  }
+
+  /** ---------------- HELPER EMITS ---------------- */
+  private disconnectWithError(client: Socket, message: string) {
+    client.emit(ChatEventsEnum.ERROR, { message });
+    client.disconnect(true);
+    this.logger.warn(`Disconnect ${client.id}: ${message}`);
+  }
+
+  public async emitToClient(
+    conversationId: string,
+    event: ChatEventsEnum,
+    payload: any,
+  ) {
+    const clientParticipant =
+      await this.prisma.privateConversationParticipant.findFirst({
+        where: { conversationId, type: 'USER' },
+        select: { userId: true },
+      });
+
+    if (clientParticipant) {
+      this.server.to(clientParticipant.userId as string).emit(event, payload);
+    }
   }
 }
