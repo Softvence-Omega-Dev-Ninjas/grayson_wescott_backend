@@ -33,7 +33,8 @@ export enum ChatEventsEnum {
   CALL_MISSED = 'private:call_missed', // Server -> participants: missed call
 
   // === WebRTC signaling events ===
-  WEBRTC_OFFER = 'private:webrtc_offer', // Client -> Server -> Other participant: SDP offer
-  WEBRTC_ANSWER = 'private:webrtc_answer', // Client -> Server -> Other participant: SDP answer
-  WEBRTC_ICE_CANDIDATE = 'private:webrtc_ice', // Client -> Server -> Other participant: ICE candidate
+  RTC_OFFER = 'private:rtc_offer', // Client -> Server: send offer SDP
+  RTC_ANSWER = 'private:rtc_answer', // Client -> Server: send answer SDP
+  RTC_ICE_CANDIDATE = 'private:rtc_candidate', // Client -> Server: send ICE candidate
+  RTC_SIGNAL = 'private:rtc_signal', // Server -> Participants: forward any signaling payload
 }

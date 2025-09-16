@@ -29,6 +29,11 @@ import {
   MarkReadDto,
   MessageDeliveryStatusDto,
 } from './dto/message.dto';
+import {
+  RTCAnswerDto,
+  RTCIceCandidateDto,
+  RTCOfferDto,
+} from './dto/webrtc.dto';
 import { ChatEventsEnum } from './enum/chat-events.enum';
 import { CallService } from './services/call.service';
 import { ConversationService } from './services/conversation.service';
@@ -195,7 +200,7 @@ export class ChatGateway
     );
   }
 
-  /** ---------------- CALL EVENTS & WEBRTC ---------------- **/
+  /** ---------------- CALL EVENTS ---------------- **/
   @SubscribeMessage(ChatEventsEnum.CALL_INITIATE)
   async onCallInitiate(
     @ConnectedSocket() client: Socket,
@@ -242,6 +247,31 @@ export class ChatGateway
     @MessageBody() data: CallActionDto,
   ) {
     return await this.callService.endCall(client, data.callId);
+  }
+
+  /** ---------------- WEBRTC EVENTS ---------------- */
+  @SubscribeMessage(ChatEventsEnum.RTC_OFFER)
+  async onRTCOffer(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() payload: RTCOfferDto,
+  ) {
+    return this.webRTCService.handleOffer(client, payload);
+  }
+
+  @SubscribeMessage(ChatEventsEnum.RTC_ANSWER)
+  async onRTCAnswer(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() payload: RTCAnswerDto,
+  ) {
+    return this.webRTCService.handleAnswer(client, payload);
+  }
+
+  @SubscribeMessage(ChatEventsEnum.RTC_ICE_CANDIDATE)
+  async onRTCIceCandidate(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() payload: RTCIceCandidateDto,
+  ) {
+    return this.webRTCService.handleCandidate(client, payload);
   }
 
   /** ---------------- HELPER EMITS ---------------- */
