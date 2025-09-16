@@ -16,10 +16,7 @@ import { ENVEnum } from '@project/common/enum/env.enum';
 import { JWTPayload } from '@project/common/jwt/jwt.interface';
 import { PrismaService } from '@project/lib/prisma/prisma.service';
 import { Server, Socket } from 'socket.io';
-import {
-  errorResponse,
-  successResponse,
-} from './../../common/utils/response.util';
+import { errorResponse } from './../../common/utils/response.util';
 import {
   InitConversationWithClientDto,
   LoadConversationsDto,
@@ -197,32 +194,19 @@ export class ChatGateway
     );
   }
 
-   /** ---------------- CALL EVENTS & WEBRTC ---------------- **/
-   // * TODO: Add call events
-   //* TODO: Add webrtc events if needed
+  /** ---------------- CALL EVENTS & WEBRTC ---------------- **/
+  // * TODO: Add call events
+  //* TODO: Add webrtc events if needed
 
   /** ---------------- HELPER EMITS ---------------- */
-  private disconnectWithError(client: Socket, message: string) {
+  public disconnectWithError(client: Socket, message: string) {
     client.emit(ChatEventsEnum.ERROR, errorResponse(null, message));
     client.disconnect(true);
     this.logger.warn(`Disconnect ${client.id}: ${message}`);
   }
 
-  public async emitToClient(
-    conversationId: string,
-    event: ChatEventsEnum,
-    payload: any,
-  ) {
-    const clientParticipant =
-      await this.prisma.privateConversationParticipant.findFirst({
-        where: { conversationId, type: 'USER' },
-        select: { userId: true },
-      });
-
-    if (clientParticipant) {
-      this.server
-        .to(clientParticipant.userId as string)
-        .emit(event, successResponse(payload));
-    }
+  public emitError(client: Socket, message: string) {
+    client.emit(ChatEventsEnum.ERROR, errorResponse(null, message));
+    return errorResponse(null, message);
   }
 }
