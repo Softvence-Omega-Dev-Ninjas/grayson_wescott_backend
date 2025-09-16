@@ -25,13 +25,6 @@ export class WebRTCService {
         sdp: payload.sdp,
       },
     );
-
-    this.logger.log({
-      message: 'WebRTC offer sent',
-      from: client.data.userId,
-      to: payload.targetUserId,
-      callId: payload.callId,
-    });
   }
 
   @HandleError('Failed to send WebRTC answer', 'WebRTCService')
@@ -45,13 +38,6 @@ export class WebRTCService {
         sdp: payload.sdp,
       },
     );
-
-    this.logger.log({
-      message: 'WebRTC answer sent',
-      from: client.data.userId,
-      to: payload.targetUserId,
-      callId: payload.callId,
-    });
   }
 
   @HandleError('Failed to send WebRTC ice candidate', 'WebRTCService')
@@ -65,12 +51,5 @@ export class WebRTCService {
         candidate: payload.candidate,
       },
     );
-
-    this.logger.log({
-      message: 'WebRTC ice candidate sent',
-      from: client.data.userId,
-      to: payload.targetUserId,
-      callId: payload.callId,
-    });
   }
 }

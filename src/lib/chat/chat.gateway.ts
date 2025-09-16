@@ -17,6 +17,10 @@ import { JWTPayload } from '@project/common/jwt/jwt.interface';
 import { PrismaService } from '@project/lib/prisma/prisma.service';
 import { Server, Socket } from 'socket.io';
 import {
+  errorResponse,
+  successResponse,
+} from './../../common/utils/response.util';
+import {
   InitConversationWithClientDto,
   LoadConversationsDto,
   LoadSingleConversationDto,
@@ -193,9 +197,13 @@ export class ChatGateway
     );
   }
 
+   /** ---------------- CALL EVENTS & WEBRTC ---------------- **/
+   // * TODO: Add call events
+   //* TODO: Add webrtc events if needed
+
   /** ---------------- HELPER EMITS ---------------- */
   private disconnectWithError(client: Socket, message: string) {
-    client.emit(ChatEventsEnum.ERROR, { message });
+    client.emit(ChatEventsEnum.ERROR, errorResponse(null, message));
     client.disconnect(true);
     this.logger.warn(`Disconnect ${client.id}: ${message}`);
   }
@@ -212,7 +220,9 @@ export class ChatGateway
       });
 
     if (clientParticipant) {
-      this.server.to(clientParticipant.userId as string).emit(event, payload);
+      this.server
+        .to(clientParticipant.userId as string)
+        .emit(event, successResponse(payload));
     }
   }
 }

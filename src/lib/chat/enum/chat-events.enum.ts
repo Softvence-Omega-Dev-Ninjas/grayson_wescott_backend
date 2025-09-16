@@ -36,11 +36,4 @@ export enum ChatEventsEnum {
   WEBRTC_OFFER = 'private:webrtc_offer', // Client -> Server -> Other participant: SDP offer
   WEBRTC_ANSWER = 'private:webrtc_answer', // Client -> Server -> Other participant: SDP answer
   WEBRTC_ICE_CANDIDATE = 'private:webrtc_ice', // Client -> Server -> Other participant: ICE candidate
-
-  // === Call recording events ===
-  CALL_RECORDING_STARTED = 'private:call_recording_started', // Server -> participants: recording started
-  CALL_RECORDING_ENDED = 'private:call_recording_ended', // Server -> participants: recording ended
-
-  // === Notification events ===
-  NOTIFICATION_NEW_MESSAGE = 'private:notification_new_message', // Server -> Client: new message notification for offline users
 }

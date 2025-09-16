@@ -87,9 +87,12 @@ export class MessageService {
       admins,
       ChatEventsEnum.NEW_MESSAGE,
       message,
-      'New message',
+      'New message received from client',
     );
-    client.emit(ChatEventsEnum.NEW_MESSAGE, message);
+    client.emit(
+      ChatEventsEnum.NEW_MESSAGE,
+      successResponse(message, 'Message sent successfully'),
+    );
 
     return successResponse(
       { conversationId: conversation.id, message },
@@ -153,7 +156,10 @@ export class MessageService {
     // Notify client + admins
     this.chatGateway.server
       .to(clientId)
-      .emit(ChatEventsEnum.NEW_MESSAGE, { message, fromAdmin: true });
+      .emit(
+        ChatEventsEnum.NEW_MESSAGE,
+        successResponse(message, 'New message from admin'),
+      );
 
     const admins = await this.getAllAdminParticipants();
     this.emitToAdmins(
