@@ -1,7 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
-import { WebSocketGateway, WebSocketServer } from '@nestjs/websockets';
 import { ENVEnum } from '@project/common/enum/env.enum';
 import { Notification } from '@project/common/interface/events-payload';
 import { JWTPayload } from '@project/common/jwt/jwt.interface';
@@ -13,10 +12,6 @@ import { Server, Socket } from 'socket.io';
 import { ChatEventsEnum } from '../chat/enum/chat-events.enum';
 import { PrismaService } from '../prisma/prisma.service';
 
-@WebSocketGateway({
-  cors: { origin: '*' },
-  namespace: '/api/gateway',
-})
 @Injectable()
 export class AppGateway {
   private readonly logger = new Logger(AppGateway.name);
@@ -28,15 +23,12 @@ export class AppGateway {
     private readonly jwtService: JwtService,
   ) {}
 
-  @WebSocketServer()
-  server: Server;
-
-  afterInit(server: Server) {
+  /**--- INIT --- */
+  public init(server: Server) {
     this.logger.log('Socket.IO server initialized', server.adapter?.name ?? '');
   }
 
-  /** ---------------- AUTHENTICATION ---------------- */
-  async handleConnection(client: Socket) {
+  public async connection(client: Socket) {
     try {
       const token = this.extractTokenFromSocket(client);
       if (!token) {
@@ -77,7 +69,7 @@ export class AppGateway {
     }
   }
 
-  handleDisconnect(client: Socket) {
+  public disconnect(client: Socket) {
     const userId = client.data?.userId;
     if (userId) {
       this.unsubscribeClient(userId, client);

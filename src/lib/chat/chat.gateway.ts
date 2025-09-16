@@ -4,11 +4,15 @@ import { JwtService } from '@nestjs/jwt';
 import {
   ConnectedSocket,
   MessageBody,
+  OnGatewayConnection,
+  OnGatewayDisconnect,
+  OnGatewayInit,
   SubscribeMessage,
   WebSocketGateway,
+  WebSocketServer,
 } from '@nestjs/websockets';
 import { PaginationDto } from '@project/common/dto/pagination.dto';
-import { Socket } from 'socket.io';
+import { Server, Socket } from 'socket.io';
 import { AppGateway } from '../gateway/app.gateway';
 import { PrismaService } from '../prisma/prisma.service';
 import { CallActionDto, InitiateCallDto } from './dto/call.dto';
@@ -34,8 +38,15 @@ import { ConversationService } from './services/conversation.service';
 import { MessageService } from './services/message.service';
 import { WebRTCService } from './services/webrtc.service';
 
+@WebSocketGateway({
+  cors: { origin: '*' },
+  namespace: '/api/chat',
+})
 @Injectable()
-export class ChatGateway extends AppGateway {
+export class ChatGateway
+  extends AppGateway
+  implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect
+{
   constructor(
     private readonly messageService: MessageService,
     private readonly conversationService: ConversationService,
@@ -46,7 +57,21 @@ export class ChatGateway extends AppGateway {
     jwtService: JwtService,
   ) {
     super(configService, prisma, jwtService);
-    console.log('ChatGateway initialized');
+  }
+
+  @WebSocketServer()
+  server: Server;
+
+  afterInit(server: Server) {
+    this.init(server);
+  }
+
+  handleConnection(client: Socket) {
+    this.connection(client);
+  }
+
+  handleDisconnect(client: Socket) {
+    this.disconnect(client);
   }
 
   /** ---------------- MESSAGE EVENTS ---------------- */
@@ -55,7 +80,7 @@ export class ChatGateway extends AppGateway {
     @ConnectedSocket() client: Socket,
     @MessageBody() payload: ClientMessageDto,
   ) {
-    return this.messageService.sendMessageFromClient(client, payload);
+    await this.messageService.sendMessageFromClient(client, payload);
   }
 
   @SubscribeMessage(ChatEventsEnum.SEND_MESSAGE_ADMIN)
@@ -63,7 +88,7 @@ export class ChatGateway extends AppGateway {
     @ConnectedSocket() client: Socket,
     @MessageBody() payload: AdminMessageDto,
   ) {
-    return this.messageService.sendMessageFromAdmin(client, payload);
+    await this.messageService.sendMessageFromAdmin(client, payload);
   }
 
   @SubscribeMessage(ChatEventsEnum.UPDATE_MESSAGE_STATUS)
@@ -71,12 +96,12 @@ export class ChatGateway extends AppGateway {
     @ConnectedSocket() client: Socket,
     @MessageBody() payload: MessageDeliveryStatusDto,
   ) {
-    return this.messageService.messageStatusUpdate(client, payload);
+    await this.messageService.messageStatusUpdate(client, payload);
   }
 
   @SubscribeMessage(ChatEventsEnum.MARK_MESSAGE_READ)
   async onMarkMessagesAsRead(@MessageBody() payload: MarkReadDto) {
-    return this.messageService.markMessagesAsRead(payload);
+    await this.messageService.markMessagesAsRead(payload);
   }
 
   /** ---------------- CONVERSATION EVENTS ---------------- **/
@@ -85,7 +110,7 @@ export class ChatGateway extends AppGateway {
     @ConnectedSocket() client: Socket,
     @MessageBody() payload: LoadConversationsDto,
   ) {
-    return this.conversationService.handleLoadConversationsByAdmin(
+    await this.conversationService.handleLoadConversationsByAdmin(
       client,
       payload,
     );
@@ -96,7 +121,7 @@ export class ChatGateway extends AppGateway {
     @ConnectedSocket() client: Socket,
     @MessageBody() payload: LoadSingleConversationDto,
   ) {
-    return this.conversationService.handleLoadSingleConversationByAdmin(
+    await this.conversationService.handleLoadSingleConversationByAdmin(
       client,
       payload,
     );
@@ -107,7 +132,7 @@ export class ChatGateway extends AppGateway {
     @ConnectedSocket() client: Socket,
     @MessageBody() payload: PaginationDto,
   ) {
-    return this.conversationService.handleLoadClientConversation(
+    await this.conversationService.handleLoadClientConversation(
       client,
       payload,
     );
@@ -118,7 +143,7 @@ export class ChatGateway extends AppGateway {
     @ConnectedSocket() client: Socket,
     @MessageBody() payload: InitConversationWithClientDto,
   ) {
-    return this.conversationService.handleInitConversationWithClient(
+    await this.conversationService.handleInitConversationWithClient(
       client,
       payload,
     );
@@ -130,7 +155,7 @@ export class ChatGateway extends AppGateway {
     @ConnectedSocket() client: Socket,
     @MessageBody() data: InitiateCallDto,
   ) {
-    return await this.callService.initiateCall(client, data);
+    await this.callService.initiateCall(client, data);
   }
 
   @SubscribeMessage(ChatEventsEnum.CALL_ACCEPT)
@@ -138,7 +163,7 @@ export class ChatGateway extends AppGateway {
     @ConnectedSocket() client: Socket,
     @MessageBody() data: CallActionDto,
   ) {
-    return await this.callService.acceptCall(client, data.callId);
+    await this.callService.acceptCall(client, data.callId);
   }
 
   @SubscribeMessage(ChatEventsEnum.CALL_REJECT)
@@ -146,7 +171,7 @@ export class ChatGateway extends AppGateway {
     @ConnectedSocket() client: Socket,
     @MessageBody() data: CallActionDto,
   ) {
-    return await this.callService.rejectCall(client, data.callId);
+    await this.callService.rejectCall(client, data.callId);
   }
 
   @SubscribeMessage(ChatEventsEnum.CALL_JOIN)
@@ -154,7 +179,7 @@ export class ChatGateway extends AppGateway {
     @ConnectedSocket() client: Socket,
     @MessageBody() data: CallActionDto,
   ) {
-    return await this.callService.joinCall(client, data.callId);
+    await this.callService.joinCall(client, data.callId);
   }
 
   @SubscribeMessage(ChatEventsEnum.CALL_LEAVE)
@@ -162,7 +187,7 @@ export class ChatGateway extends AppGateway {
     @ConnectedSocket() client: Socket,
     @MessageBody() data: CallActionDto,
   ) {
-    return await this.callService.leaveCall(client, data.callId);
+    await this.callService.leaveCall(client, data.callId);
   }
 
   @SubscribeMessage(ChatEventsEnum.CALL_END)
@@ -170,7 +195,7 @@ export class ChatGateway extends AppGateway {
     @ConnectedSocket() client: Socket,
     @MessageBody() data: CallActionDto,
   ) {
-    return await this.callService.endCall(client, data.callId);
+    await this.callService.endCall(client, data.callId);
   }
 
   /** ---------------- WEBRTC EVENTS ---------------- */
@@ -179,7 +204,7 @@ export class ChatGateway extends AppGateway {
     @ConnectedSocket() client: Socket,
     @MessageBody() payload: RTCOfferDto,
   ) {
-    return this.webRTCService.handleOffer(client, payload);
+    await this.webRTCService.handleOffer(client, payload);
   }
 
   @SubscribeMessage(ChatEventsEnum.RTC_ANSWER)
@@ -187,7 +212,7 @@ export class ChatGateway extends AppGateway {
     @ConnectedSocket() client: Socket,
     @MessageBody() payload: RTCAnswerDto,
   ) {
-    return this.webRTCService.handleAnswer(client, payload);
+    await this.webRTCService.handleAnswer(client, payload);
   }
 
   @SubscribeMessage(ChatEventsEnum.RTC_ICE_CANDIDATE)
@@ -195,6 +220,6 @@ export class ChatGateway extends AppGateway {
     @ConnectedSocket() client: Socket,
     @MessageBody() payload: RTCIceCandidateDto,
   ) {
-    return this.webRTCService.handleCandidate(client, payload);
+    await this.webRTCService.handleCandidate(client, payload);
   }
 }
