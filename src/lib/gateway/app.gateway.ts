@@ -1,49 +1,38 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
-import {
-  OnGatewayConnection,
-  OnGatewayDisconnect,
-  OnGatewayInit,
-  WebSocketGateway,
-  WebSocketServer,
-} from '@nestjs/websockets';
 import { ENVEnum } from '@project/common/enum/env.enum';
 import { Notification } from '@project/common/interface/events-payload';
 import { JWTPayload } from '@project/common/jwt/jwt.interface';
+import {
+  errorResponse,
+  successResponse,
+} from '@project/common/utils/response.util';
 import { Server, Socket } from 'socket.io';
+import { ChatEventsEnum } from '../chat/enum/chat-events.enum';
 import { PrismaService } from '../prisma/prisma.service';
 
-@WebSocketGateway({
-  cors: { origin: '*' },
-  namespace: '/api/notification',
-})
 @Injectable()
-export class NotificationGateway
-  implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect
-{
-  private readonly logger = new Logger(NotificationGateway.name);
+export class AppGateway {
+  private readonly logger = new Logger(AppGateway.name);
   private readonly clients = new Map<string, Set<Socket>>();
 
   constructor(
-    private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
     private readonly prisma: PrismaService,
+    private readonly jwtService: JwtService,
   ) {}
 
-  @WebSocketServer()
-  server: Server;
-
-  afterInit(server: Server) {
-    this.logger.log('Socket.IO server initialized', server.adapter.name);
+  /**--- INIT --- */
+  public init(server: Server) {
+    this.logger.log('Socket.IO server initialized', server.adapter?.name ?? '');
   }
 
-  async handleConnection(client: Socket) {
+  public async connection(client: Socket) {
     try {
       const token = this.extractTokenFromSocket(client);
       if (!token) {
-        this.logger.warn('Missing token');
-        return client.disconnect(true);
+        return this.disconnectWithError(client, 'Missing token');
       }
 
       const payload = this.jwtService.verify<JWTPayload>(token, {
@@ -51,8 +40,7 @@ export class NotificationGateway
       });
 
       if (!payload.sub) {
-        this.logger.warn('Invalid token payload: missing sub');
-        return client.disconnect(true);
+        return this.disconnectWithError(client, 'Invalid token payload');
       }
 
       const user = await this.prisma.user.findUnique({
@@ -60,45 +48,41 @@ export class NotificationGateway
         select: {
           id: true,
           email: true,
+          role: true,
+          name: true,
+          avatarUrl: true,
         },
       });
 
-      if (!user) {
-        this.logger.warn(`User not found for ID: ${payload.sub}`);
-        return client.disconnect(true);
-      }
+      if (!user) return this.disconnectWithError(client, 'User not found');
 
-      client.data = { user: payload };
+      client.data.userId = user.id;
+      client.data.user = payload;
+      client.join(user.id);
+
       this.subscribeClient(user.id, client);
 
-      this.logger.log(`Client connected: ${user.id}`);
+      this.logger.log(`User connected: ${user.id} (socket ${client.id})`);
+      client.emit(ChatEventsEnum.SUCCESS, successResponse(user));
     } catch (err: any) {
-      this.logger.warn(`JWT verification failed: ${err.message || err}`);
-      client.disconnect(true);
+      this.disconnectWithError(client, err?.message ?? 'Auth failed');
     }
   }
 
-  handleDisconnect(client: Socket) {
-    const userId = client.data?.user?.sub;
+  public disconnect(client: Socket) {
+    const userId = client.data?.userId;
     if (userId) {
       this.unsubscribeClient(userId, client);
+      client.leave(userId);
       this.logger.log(`Client disconnected: ${userId}`);
     } else {
-      this.logger.log('Client disconnected: unknown user');
+      this.logger.log(
+        `Client disconnected: unknown user (socket ${client.id})`,
+      );
     }
   }
 
-  private extractTokenFromSocket(client: Socket): string | null {
-    const authHeader =
-      client.handshake.headers.authorization || client.handshake.auth?.token;
-
-    if (!authHeader) return null;
-
-    return authHeader.startsWith('Bearer ')
-      ? authHeader.split(' ')[1]
-      : authHeader;
-  }
-
+  /** ---------------- CLIENT HELPERS ---------------- */
   private subscribeClient(userId: string, client: Socket) {
     if (!this.clients.has(userId)) {
       this.clients.set(userId, new Set());
@@ -119,13 +103,32 @@ export class NotificationGateway
     }
   }
 
-  public getClientsForUser(userId: string): Set<Socket> {
-    return this.clients.get(userId) || new Set();
+  private extractTokenFromSocket(client: Socket): string | null {
+    const authHeader =
+      (client.handshake.headers.authorization as string) ||
+      (client.handshake.auth?.token as string);
+
+    if (!authHeader) return null;
+    return authHeader.startsWith('Bearer ')
+      ? authHeader.split(' ')[1]
+      : authHeader;
   }
 
-  public getDelay(publishAt: Date): number {
-    const delay = publishAt.getTime() - Date.now();
-    return delay > 0 ? delay : 0;
+  /** ---------------- ERROR HELPERS ---------------- */
+  public disconnectWithError(client: Socket, message: string) {
+    client.emit(ChatEventsEnum.ERROR, errorResponse(null, message));
+    client.disconnect(true);
+    this.logger.warn(`Disconnect ${client.id}: ${message}`);
+  }
+
+  public emitError(client: Socket, message: string) {
+    client.emit(ChatEventsEnum.ERROR, errorResponse(null, message));
+    return errorResponse(null, message);
+  }
+
+  /** ---------------- NOTIFICATION API ---------------- */
+  public getClientsForUser(userId: string): Set<Socket> {
+    return this.clients.get(userId) || new Set();
   }
 
   public async notifySingleUser(

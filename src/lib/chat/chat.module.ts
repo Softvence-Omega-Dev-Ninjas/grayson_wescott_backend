@@ -4,6 +4,8 @@ import { CallService } from './services/call.service';
 import { ConversationService } from './services/conversation.service';
 import { MessageService } from './services/message.service';
 import { WebRTCService } from './services/webrtc.service';
+import { SingleConversationService } from './services/single-conversation.service';
+import { ClientConversationService } from './services/client-conversation.service';
 
 @Global()
 @Module({
@@ -13,6 +15,8 @@ import { WebRTCService } from './services/webrtc.service';
     ConversationService,
     CallService,
     WebRTCService,
+    SingleConversationService,
+    ClientConversationService,
   ],
   exports: [ChatGateway],
 })

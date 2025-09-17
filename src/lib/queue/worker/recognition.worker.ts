@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { ENVEnum } from '@project/common/enum/env.enum';
 import { RecognitionEvent } from '@project/common/interface/events-payload';
 import { QueueName } from '@project/common/interface/queue-name';
-import { NotificationGateway } from '@project/lib/notification/notification.gateway';
+import { AppGateway } from '@project/lib/gateway/app.gateway';
 import { PrismaService } from '@project/lib/prisma/prisma.service';
 import { Worker } from 'bullmq';
 
@@ -12,7 +12,7 @@ export class RecognitionWorker implements OnModuleInit {
   private logger = new Logger(RecognitionWorker.name);
 
   constructor(
-    private readonly gateway: NotificationGateway,
+    private readonly gateway: AppGateway,
     private readonly config: ConfigService,
     private readonly prisma: PrismaService,
   ) {}

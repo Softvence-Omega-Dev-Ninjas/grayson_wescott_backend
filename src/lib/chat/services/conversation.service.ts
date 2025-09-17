@@ -1,22 +1,13 @@
 import { forwardRef, Inject, Injectable } from '@nestjs/common';
-import { ConversationParticipantType, MessageType } from '@prisma/client';
-import { PaginationDto } from '@project/common/dto/pagination.dto';
 import { HandleError } from '@project/common/error/handle-error.decorator';
 import {
-  errorResponse,
   successPaginatedResponse,
-  successResponse,
   TPaginatedResponse,
-  TResponse,
 } from '@project/common/utils/response.util';
 import { PrismaService } from '@project/lib/prisma/prisma.service';
 import { Socket } from 'socket.io';
 import { ChatGateway } from '../chat.gateway';
-import {
-  InitConversationWithClientDto,
-  LoadConversationsDto,
-  LoadSingleConversationDto,
-} from '../dto/conversation.dto';
+import { LoadConversationsDto } from '../dto/conversation.dto';
 import { ChatEventsEnum } from '../enum/chat-events.enum';
 
 @Injectable()
@@ -66,17 +57,18 @@ export class ConversationService {
     });
 
     // Emit
-    this.chatGateway.server
-      .to(client.data.userId)
-      .emit(ChatEventsEnum.CONVERSATION_LIST, {
-        data: outputData,
-        metadata: {
+    this.chatGateway.server.to(client.data.userId).emit(
+      ChatEventsEnum.CONVERSATION_LIST,
+      successPaginatedResponse(
+        outputData,
+        {
           limit,
           page,
           total: conversations.length,
-          totalPage: Math.ceil(conversations.length / limit),
         },
-      });
+        'Conversations loaded successfully',
+      ),
+    );
 
     // Response
     return successPaginatedResponse(
@@ -85,275 +77,6 @@ export class ConversationService {
         limit,
         page,
         total: conversations.length,
-      },
-      'Conversations loaded successfully',
-    );
-  }
-
-  @HandleError('Failed to load single conversation', 'ConversationService')
-  async handleLoadSingleConversationByAdmin(
-    client: Socket,
-    payload: LoadSingleConversationDto,
-  ): Promise<TResponse<any>> {
-    // Pagination
-    const limit = payload?.limit ?? 10;
-    const page = payload?.page && +payload.page > 0 ? +payload.page : 1;
-
-    // Check if conversation ID is provided
-    if (!payload.conversationId) {
-      this.chatGateway.server
-        .to(client.data.userId)
-        .emit(ChatEventsEnum.ERROR, { message: 'Conversation ID is required' });
-      return errorResponse(null, 'Conversation ID is required');
-    }
-
-    // RAW Conversation with participants + messages
-    const conversation = await this.prisma.privateConversation.findUnique({
-      where: { id: payload.conversationId },
-      include: {
-        participants: {
-          include: { user: true },
-        },
-        messages: {
-          orderBy: { createdAt: 'desc' },
-          take: limit,
-          skip: (page - 1) * limit,
-          include: { sender: true, file: true },
-        },
-        _count: {
-          select: { messages: true },
-        },
-      },
-    });
-
-    // Check if conversation exists
-    if (!conversation) {
-      this.chatGateway.server
-        .to(client.data.userId)
-        .emit(ChatEventsEnum.ERROR, { message: 'Conversation not found' });
-
-      return errorResponse(null, 'Conversation not found');
-    }
-
-    // Transform participants
-    const participants = conversation.participants.map((p) => ({
-      id: p.user?.id,
-      name: p.user?.name,
-      avatarUrl: p.user?.avatarUrl,
-      role: p.user?.role,
-      email: p.user?.email,
-    }));
-
-    const conversationsClientId = conversation.participants.find(
-      (p) => p.type === ConversationParticipantType.USER,
-    )?.userId;
-    if (!conversationsClientId) {
-      client.emit(ChatEventsEnum.ERROR, 'Client not found in conversation');
-      return errorResponse(null, 'Client not found in conversation');
-    }
-
-    // Transform messages
-    const messages = conversation.messages.map((m) => ({
-      id: m.id,
-      content: m.content,
-      type: m.type,
-      file: {
-        id: m.file?.id,
-        url: m.file?.url,
-        type: m.file?.fileType,
-        mimeType: m.file?.mimeType,
-      },
-      createdAt: m.createdAt,
-      isSentByAdmin: m.sender?.id === client.data.userId,
-      isSentByAdminGroup: m.sender?.id !== conversationsClientId,
-      sender: {
-        id: m.sender?.id,
-        name: m.sender?.name,
-        avatarUrl: m.sender?.avatarUrl,
-        role: m.sender?.role,
-        email: m.sender?.email,
-      },
-    }));
-
-    // Output
-    const output = {
-      conversationId: conversation.id,
-      data: messages,
-      metadata: {
-        limit,
-        page,
-        total: conversation._count.messages,
-        totalPage: Math.ceil(conversation._count.messages / limit),
-      },
-      participants,
-    };
-
-    // Emit event to requester only
-    this.chatGateway.server
-      .to(client.data.userId)
-      .emit(ChatEventsEnum.SINGLE_CONVERSATION, output);
-
-    return successResponse(output, 'Conversation loaded successfully');
-  }
-
-  @HandleError('Failed to init conversation with client', 'ConversationService')
-  async handleInitConversationWithClient(
-    client: Socket,
-    payload: InitConversationWithClientDto,
-  ): Promise<TResponse<any>> {
-    const adminId = client.data.userId;
-    const clientId = payload.clientId;
-
-    const [conversation] = await this.prisma.$transaction(async (tx) => {
-      // First, try to find an existing conversation with client as a user participant
-      const existingConversation = await tx.privateConversation.findFirst({
-        where: {
-          participants: {
-            some: {
-              userId: clientId,
-              type: ConversationParticipantType.USER,
-            },
-          },
-        },
-        include: {
-          participants: true,
-        },
-      });
-
-      let conversation;
-      if (existingConversation) {
-        conversation = existingConversation;
-        const adminParticipant = existingConversation.participants.find(
-          (p) => p.userId === adminId,
-        );
-        if (!adminParticipant) {
-          await tx.privateConversation.update({
-            where: { id: existingConversation.id },
-            data: {
-              participants: {
-                create: {
-                  userId: adminId,
-                  type: ConversationParticipantType.ADMIN_GROUP,
-                },
-              },
-            },
-          });
-        }
-      } else {
-        conversation = await tx.privateConversation.create({
-          data: {
-            participants: {
-              create: [
-                {
-                  userId: adminId,
-                  type: ConversationParticipantType.ADMIN_GROUP,
-                },
-                {
-                  userId: clientId,
-                  type: ConversationParticipantType.USER,
-                },
-              ],
-            },
-          },
-        });
-
-        // Add a starter message for new conversation
-        const firstMessage = await tx.privateMessage.create({
-          data: {
-            content: 'Conversation started',
-            type: MessageType.TEXT,
-            senderId: adminId,
-            conversationId: conversation.id,
-          },
-        });
-
-        await tx.privateConversation.update({
-          where: { id: conversation.id },
-          data: { lastMessageId: firstMessage.id },
-        });
-      }
-
-      return [conversation];
-    });
-
-    // Reuse loader to keep output in sync
-    return this.handleLoadSingleConversationByAdmin(client, {
-      conversationId: conversation.id,
-      page: 1,
-      limit: 10,
-    });
-  }
-
-  @HandleError('Failed to load conversation of a client', 'ConversationService')
-  async handleLoadClientConversation(
-    client: Socket,
-    payload: PaginationDto,
-  ): Promise<TResponse<any>> {
-    const limit = payload?.limit ?? 10;
-    const page = payload?.page && +payload.page > 0 ? +payload.page : 1;
-
-    // RAW Conversations
-    const conversations = await this.prisma.privateConversation.findFirst({
-      where: { participants: { some: { userId: client.data.userId } } },
-      include: {
-        lastMessage: true,
-        messages: {
-          include: { sender: true, file: true },
-          orderBy: { createdAt: 'desc' },
-          take: limit,
-          skip: (page - 1) * limit,
-        },
-        _count: {
-          select: { messages: true },
-        },
-      },
-      orderBy: { updatedAt: 'desc' },
-    });
-
-    const formattedMessages = conversations?.messages.map((m) => ({
-      id: m.id,
-      content: m.content,
-      type: m.type,
-      createdAt: m.createdAt,
-      isSendByClient: m.sender?.id === client.data.userId,
-      file: {
-        id: m.file?.id,
-        url: m.file?.url,
-        type: m.file?.fileType,
-        mimeType: m.file?.mimeType,
-      },
-      sender: {
-        id: m.sender?.id,
-        name: m.sender?.name,
-        avatarUrl: m.sender?.avatarUrl,
-        role: m.sender?.role,
-        email: m.sender?.email,
-      },
-    }));
-
-    // OUTPUT
-    const outputData = {
-      data: formattedMessages ?? [],
-      metadata: {
-        limit,
-        page,
-        total: conversations?.messages.length,
-        totalPage: Math.ceil(conversations?._count?.messages ?? 0 / limit),
-      },
-    };
-
-    // Emit
-    this.chatGateway.server
-      .to(client.data.userId)
-      .emit(ChatEventsEnum.CLIENT_CONVERSATION, outputData);
-
-    // Response
-    return successPaginatedResponse(
-      formattedMessages ?? [],
-      {
-        page,
-        limit,
-        total: conversations?._count?.messages ?? 0,
       },
       'Conversations loaded successfully',
     );
