@@ -5,7 +5,6 @@ import { HandleError } from '@project/common/error/handle-error.decorator';
 import {
   errorResponse,
   successPaginatedResponse,
-  successResponse,
   TPaginatedResponse,
   TResponse,
 } from '@project/common/utils/response.util';
@@ -96,46 +95,43 @@ export class ConversationService {
     client: Socket,
     payload: LoadSingleConversationDto,
   ): Promise<TResponse<any>> {
-    // Pagination
     const limit = payload?.limit ?? 10;
     const page = payload?.page && +payload.page > 0 ? +payload.page : 1;
 
-    // Check if conversation ID is provided
     if (!payload.conversationId) {
-      this.chatGateway.server
-        .to(client.data.userId)
-        .emit(ChatEventsEnum.ERROR, { message: 'Conversation ID is required' });
+      client.emit(
+        ChatEventsEnum.ERROR,
+        errorResponse(null, 'Conversation ID is required'),
+      );
       return errorResponse(null, 'Conversation ID is required');
     }
 
-    // RAW Conversation with participants + messages
+    // Load conversation with messages and calls
     const conversation = await this.prisma.privateConversation.findUnique({
       where: { id: payload.conversationId },
       include: {
-        participants: {
-          include: { user: true },
-        },
+        participants: { include: { user: true } },
         messages: {
           orderBy: { createdAt: 'desc' },
           take: limit,
           skip: (page - 1) * limit,
           include: { sender: true, file: true },
         },
+        calls: {
+          orderBy: { startedAt: 'desc' },
+          include: { participants: { include: { user: true } } },
+        },
         _count: {
-          select: { messages: true },
+          select: { messages: true, calls: true },
         },
       },
     });
 
-    // Check if conversation exists
     if (!conversation) {
-      this.chatGateway.server
-        .to(client.data.userId)
-        .emit(
-          ChatEventsEnum.ERROR,
-          errorResponse(null, 'Conversation not found'),
-        );
-
+      client.emit(
+        ChatEventsEnum.ERROR,
+        errorResponse(null, 'Conversation not found'),
+      );
       return errorResponse(null, 'Conversation not found');
     }
 
@@ -148,31 +144,13 @@ export class ConversationService {
       email: p.user?.email,
     }));
 
-    const conversationsClientId = conversation.participants.find(
-      (p) => p.type === ConversationParticipantType.USER,
-    )?.userId;
-    if (!conversationsClientId) {
-      client.emit(
-        ChatEventsEnum.ERROR,
-        errorResponse(null, 'Client not found in conversation'),
-      );
-      return errorResponse(null, 'Client not found in conversation');
-    }
-
-    // Transform messages
-    const messages = conversation.messages.map((m) => ({
+    // Normalize messages
+    const normalizedMessages = conversation.messages.map((m) => ({
       id: m.id,
-      content: m.content,
-      type: m.type,
-      file: {
-        id: m.file?.id,
-        url: m.file?.url,
-        type: m.file?.fileType,
-        mimeType: m.file?.mimeType,
-      },
+      type: 'MESSAGE',
       createdAt: m.createdAt,
-      isSentByAdmin: m.sender?.id === client.data.userId,
-      isSentByAdminGroup: m.sender?.id !== conversationsClientId,
+      content: m.content,
+      messageType: m.type,
       sender: {
         id: m.sender?.id,
         name: m.sender?.name,
@@ -180,30 +158,66 @@ export class ConversationService {
         role: m.sender?.role,
         email: m.sender?.email,
       },
+      file: m.file
+        ? {
+            id: m.file.id,
+            url: m.file.url,
+            type: m.file.fileType,
+            mimeType: m.file.mimeType,
+          }
+        : null,
     }));
 
-    // Output
-    const output = {
+    // Normalize calls
+    const normalizedCalls = conversation.calls.map((c) => ({
+      id: c.id,
+      type: 'CALL',
+      createdAt: c.startedAt,
+      callType: c.type,
+      status: c.status,
+      startedAt: c.startedAt,
+      endedAt: c.endedAt,
+      initiatorId: c.initiatorId,
+      participants: c.participants.map((p) => ({
+        id: p.user.id,
+        name: p.user.name,
+        status: p.status,
+        joinedAt: p.joinedAt,
+        leftAt: p.leftAt,
+      })),
+    }));
+
+    // Merge and sort by time descending
+    const conversationHistory = [
+      ...normalizedMessages,
+      ...normalizedCalls,
+    ].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+
+    // Pagination
+    const total = conversationHistory.length;
+    const paginatedData = conversationHistory.slice(
+      (page - 1) * limit,
+      page * limit,
+    );
+
+    const outputData = {
+      success: true,
       conversationId: conversation.id,
-      data: messages,
-      metadata: {
-        limit,
-        page,
-        total: conversation._count.messages,
-        totalPage: Math.ceil(conversation._count.messages / limit),
-      },
       participants,
+      data: paginatedData,
+      metadata: {
+        page,
+        limit,
+        total,
+        totalPage: Math.ceil(total / limit),
+      },
+      message: 'Conversation loaded successfully',
     };
 
-    // Emit event to requester only
-    this.chatGateway.server
-      .to(client.data.userId)
-      .emit(
-        ChatEventsEnum.SINGLE_CONVERSATION,
-        successResponse(output, 'Conversation loaded successfully'),
-      );
+    // Emit to requester
+    client.emit(ChatEventsEnum.SINGLE_CONVERSATION, outputData);
 
-    return successResponse(output, 'Conversation loaded successfully');
+    return outputData;
   }
 
   @HandleError('Failed to init conversation with client', 'ConversationService')
