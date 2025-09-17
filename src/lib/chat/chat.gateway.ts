@@ -34,8 +34,10 @@ import {
 } from './dto/webrtc.dto';
 import { ChatEventsEnum } from './enum/chat-events.enum';
 import { CallService } from './services/call.service';
+import { ClientConversationService } from './services/client-conversation.service';
 import { ConversationService } from './services/conversation.service';
 import { MessageService } from './services/message.service';
+import { SingleConversationService } from './services/single-conversation.service';
 import { WebRTCService } from './services/webrtc.service';
 
 @WebSocketGateway({
@@ -50,6 +52,8 @@ export class ChatGateway
   constructor(
     private readonly messageService: MessageService,
     private readonly conversationService: ConversationService,
+    private readonly singleConversationService: SingleConversationService,
+    private readonly clientConversationService: ClientConversationService,
     private readonly callService: CallService,
     private readonly webRTCService: WebRTCService,
     configService: ConfigService,
@@ -121,18 +125,7 @@ export class ChatGateway
     @ConnectedSocket() client: Socket,
     @MessageBody() payload: LoadSingleConversationDto,
   ) {
-    await this.conversationService.handleLoadSingleConversationByAdmin(
-      client,
-      payload,
-    );
-  }
-
-  @SubscribeMessage(ChatEventsEnum.LOAD_CLIENT_CONVERSATION)
-  async onLoadClientConversation(
-    @ConnectedSocket() client: Socket,
-    @MessageBody() payload: PaginationDto,
-  ) {
-    await this.conversationService.handleLoadClientConversation(
+    await this.singleConversationService.handleLoadSingleConversationByAdmin(
       client,
       payload,
     );
@@ -143,7 +136,18 @@ export class ChatGateway
     @ConnectedSocket() client: Socket,
     @MessageBody() payload: InitConversationWithClientDto,
   ) {
-    await this.conversationService.handleInitConversationWithClient(
+    await this.singleConversationService.handleInitConversationWithClient(
+      client,
+      payload,
+    );
+  }
+
+  @SubscribeMessage(ChatEventsEnum.LOAD_CLIENT_CONVERSATION)
+  async onLoadClientConversation(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() payload: PaginationDto,
+  ) {
+    await this.clientConversationService.handleLoadClientConversation(
       client,
       payload,
     );
