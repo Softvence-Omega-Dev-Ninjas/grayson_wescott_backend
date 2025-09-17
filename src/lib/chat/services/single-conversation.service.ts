@@ -37,16 +37,11 @@ export class SingleConversationService {
         participants: { include: { user: true } },
         messages: {
           orderBy: { createdAt: 'desc' },
-          take: limit,
-          skip: (page - 1) * limit,
           include: { sender: true, file: true },
         },
         calls: {
           orderBy: { startedAt: 'desc' },
           include: { participants: { include: { user: true } } },
-        },
-        _count: {
-          select: { messages: true, calls: true },
         },
       },
     });

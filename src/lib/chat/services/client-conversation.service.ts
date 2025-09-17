@@ -25,37 +25,48 @@ export class ClientConversationService {
   ): Promise<TResponse<any>> {
     const limit = payload?.limit ?? 10;
     const page = payload?.page && +payload.page > 0 ? +payload.page : 1;
+    const userId = client.data.userId;
 
-    // RAW Conversations
-    const conversations = await this.prisma.privateConversation.findFirst({
-      where: { participants: { some: { userId: client.data.userId } } },
+    // Load conversation with messages + calls
+    const conversation = await this.prisma.privateConversation.findFirst({
+      where: { participants: { some: { userId } } },
       include: {
-        lastMessage: true,
+        participants: { include: { user: true } },
         messages: {
           include: { sender: true, file: true },
           orderBy: { createdAt: 'desc' },
-          take: limit,
-          skip: (page - 1) * limit,
         },
-        _count: {
-          select: { messages: true },
+        calls: {
+          include: { participants: { include: { user: true } } },
+          orderBy: { startedAt: 'desc' },
         },
       },
       orderBy: { updatedAt: 'desc' },
     });
 
-    const formattedMessages = conversations?.messages.map((m) => ({
+    if (!conversation) {
+      client.emit(
+        ChatEventsEnum.CLIENT_CONVERSATION,
+        successPaginatedResponse(
+          [],
+          { page, limit, total: 0 },
+          'No conversation found',
+        ),
+      );
+      return successPaginatedResponse(
+        [],
+        { page, limit, total: 0 },
+        'No conversation found',
+      );
+    }
+
+    // Normalize messages
+    const normalizedMessages = conversation.messages.map((m) => ({
       id: m.id,
-      content: m.content,
-      type: m.type,
+      type: 'MESSAGE',
       createdAt: m.createdAt,
-      isSendByClient: m.sender?.id === client.data.userId,
-      file: {
-        id: m.file?.id,
-        url: m.file?.url,
-        type: m.file?.fileType,
-        mimeType: m.file?.mimeType,
-      },
+      content: m.content,
+      messageType: m.type,
       sender: {
         id: m.sender?.id,
         name: m.sender?.name,
@@ -63,31 +74,70 @@ export class ClientConversationService {
         role: m.sender?.role,
         email: m.sender?.email,
       },
+      file: m.file
+        ? {
+            id: m.file.id,
+            url: m.file.url,
+            type: m.file.fileType,
+            mimeType: m.file.mimeType,
+          }
+        : null,
+      isSentByClient: m.sender?.id === userId,
     }));
 
-    // Emit
-    this.chatGateway.server.to(client.data.userId).emit(
+    // Normalize calls
+    const normalizedCalls = conversation.calls.map((c) => ({
+      id: c.id,
+      type: 'CALL',
+      createdAt: c.startedAt,
+      callType: c.type,
+      status: c.status,
+      startedAt: c.startedAt,
+      endedAt: c.endedAt,
+      initiatorId: c.initiatorId,
+      participants: c.participants.map((p) => ({
+        id: p.user.id,
+        name: p.user.name,
+        status: p.status,
+        joinedAt: p.joinedAt,
+        leftAt: p.leftAt,
+      })),
+    }));
+
+    // Merge and sort by time descending
+    const conversationHistory = [
+      ...normalizedMessages,
+      ...normalizedCalls,
+    ].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+
+    const total = conversationHistory.length;
+    const paginatedData = conversationHistory.slice(
+      (page - 1) * limit,
+      page * limit,
+    );
+
+    // Emit to client
+    client.emit(
       ChatEventsEnum.CLIENT_CONVERSATION,
       successPaginatedResponse(
-        formattedMessages ?? [],
+        paginatedData,
         {
           page,
           limit,
-          total: conversations?._count?.messages ?? 0,
+          total,
         },
-        'Conversations loaded successfully',
+        'Conversation loaded successfully',
       ),
     );
 
-    // Response
     return successPaginatedResponse(
-      formattedMessages ?? [],
+      paginatedData,
       {
         page,
         limit,
-        total: conversations?._count?.messages ?? 0,
+        total,
       },
-      'Conversations loaded successfully',
+      'Conversation loaded successfully',
     );
   }
 }
