@@ -18,10 +18,10 @@ services:
       JWT_SECRET: asdfkamskfmasklfmaksmfaskfmaksfaopsfmpaomsfpaf
       JWT_EXPIRES_IN: 90d
 
-      MAIL_USER: arafatmannan2019@gmail.com
-      MAIL_PASS: eurp zvyi gnoy enag
+      MAIL_USER: grayson@carbonengines.com
+      MAIL_PASS: qqim vysy eyjf ilgv
 
-      SUPER_ADMIN_EMAIL: 'grayson@gmail.com'
+      SUPER_ADMIN_EMAIL: 'grayson@carbonengines.com'
       SUPER_ADMIN_PASS: 'superadmin'
 
       REDIS_URL: redis://redis:6379
