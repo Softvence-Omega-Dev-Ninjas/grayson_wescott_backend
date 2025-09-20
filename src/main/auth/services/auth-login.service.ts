@@ -96,10 +96,18 @@ export class AuthLoginService {
     });
 
     if (method === 'EMAIL') {
-      await this.mailService.sendVerificationCodeEmail(email, otp.toString(), {
-        subject: 'Verify your login',
-        message: 'Please verify your email to complete the login process.',
-      });
+      const response = await this.mailService.sendVerificationCodeEmail(
+        email,
+        otp.toString(),
+        {
+          subject: 'Verify your login',
+          message: 'Please verify your email to complete the login process.',
+        },
+      );
+
+      if (response.error) {
+        throw new AppError(500, 'Failed to send email');
+      }
     } else if (method === 'PHONE') {
       await this.twilio.sendTFACode(user.phone || '', otp.toString());
     }
