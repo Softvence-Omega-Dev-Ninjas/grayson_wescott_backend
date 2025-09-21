@@ -11,7 +11,7 @@ model Program {
   updatedAt DateTime @default(now()) @updatedAt
 
   // relations
-  exercises    Exercise[]
+  exercises    ProgramExercise[]
   userPrograms UserProgram[]
 
   @@map("programs")
