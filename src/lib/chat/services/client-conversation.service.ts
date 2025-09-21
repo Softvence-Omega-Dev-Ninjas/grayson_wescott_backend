@@ -82,6 +82,7 @@ export class ClientConversationService {
             mimeType: m.file.mimeType,
           }
         : null,
+      isMine: m.sender?.id === userId,
       isSentByClient: m.sender?.id === userId,
     }));
 
@@ -102,6 +103,8 @@ export class ClientConversationService {
         joinedAt: p.joinedAt,
         leftAt: p.leftAt,
       })),
+      isMine: c.initiatorId === userId,
+      isSentByClient: c.initiatorId === userId,
     }));
 
     // Merge and sort by time descending

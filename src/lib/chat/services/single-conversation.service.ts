@@ -63,6 +63,8 @@ export class SingleConversationService {
       email: p.user?.email,
     }));
 
+    const userInParticipants = participants.find((p) => p.role === 'USER');
+
     // Normalize messages
     const normalizedMessages = conversation.messages.map((m) => ({
       id: m.id,
@@ -85,6 +87,8 @@ export class SingleConversationService {
             mimeType: m.file.mimeType,
           }
         : null,
+      isMine: m.senderId === client.data.userId,
+      isSentByClient: m.senderId === userInParticipants?.id,
     }));
 
     // Normalize calls
@@ -104,6 +108,8 @@ export class SingleConversationService {
         joinedAt: p.joinedAt,
         leftAt: p.leftAt,
       })),
+      isMine: c.initiatorId === client.data.userId,
+      isSentByClient: c.initiatorId === userInParticipants?.id,
     }));
 
     // Merge and sort by time descending

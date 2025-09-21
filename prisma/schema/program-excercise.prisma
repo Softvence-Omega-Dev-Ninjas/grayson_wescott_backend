@@ -1,4 +1,4 @@
-model Exercise {
+model ProgramExercise {
   id    String @id @default(uuid())
   title String
 
@@ -14,13 +14,15 @@ model Exercise {
   sets  Int? // optional
   tempo String? // optional
 
+  videoUrl String? // optional
+
   program   Program @relation(fields: [programId], references: [id], onDelete: Cascade)
   programId String
 
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now()) @updatedAt
 
-  @@map("exercises")
+  @@map("program_exercises")
 }
 
 enum DayOfWeek {

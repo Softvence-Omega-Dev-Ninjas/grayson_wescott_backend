@@ -32,13 +32,13 @@ down:
 # Restart containers
 restart: down up
 
-# Show logs of the app
+# Show logs of the app container
 logs:
-	docker compose -f $(COMPOSE_FILE) logs -f book_store_app
+	docker compose -f $(COMPOSE_FILE) logs -f grayson-server-api
 
 # Cleanup everything
 clean: down
-	docker volume rm book_store_data || true
+	docker volume rm grayson_db files || true
 	docker rmi $(APP_IMAGE) || true
 
 # Push to Docker Hub
