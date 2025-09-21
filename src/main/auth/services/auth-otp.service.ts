@@ -59,7 +59,7 @@ export class AuthOtpService {
     // 5. Send OTP
     if (email) {
       try {
-        const emailSent = await this.mailService.sendVerificationCodeEmail(
+        await this.mailService.sendVerificationCodeEmail(
           email,
           otp.toString(),
           {
@@ -67,7 +67,6 @@ export class AuthOtpService {
             message: `Here is your OTP code. It will expire in 5 minutes.`,
           },
         );
-        console.log(emailSent, 'Email sent');
       } catch (error) {
         console.error(error);
         await this.prisma.user.update({
