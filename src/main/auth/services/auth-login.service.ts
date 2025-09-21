@@ -34,31 +34,31 @@ export class AuthLoginService {
     if (!isPasswordCorrect) throw new AppError(400, 'Invalid password');
 
     // 1. Email verification
-    if (!user.isVerified) {
-      await this.generateAndSendOtp(email, 'EMAIL', 'VERIFICATION');
-      return successResponse(
-        { email: user.email },
-        'Your email is not verified. A new OTP has been sent to your email.',
-      );
-    }
+    // if (!user.isVerified) {
+    //   await this.generateAndSendOtp(email, 'EMAIL', 'VERIFICATION');
+    //   return successResponse(
+    //     { email: user.email },
+    //     'Your email is not verified. A new OTP has been sent to your email.',
+    //   );
+    // }
 
     // 2. Two-factor authentication
-    if (user.isTwoFAEnabled) {
-      if (user.twoFAMethod === 'EMAIL' || user.twoFAMethod === 'PHONE') {
-        await this.generateAndSendOtp(email, user.twoFAMethod, 'TFA');
-        return successResponse(
-          user.twoFAMethod === 'EMAIL'
-            ? { email: user.email }
-            : { phone: user.phone },
-          `Two-factor authentication is enabled. A new OTP has been sent to your ${user.twoFAMethod.toLowerCase()}.`,
-        );
-      } else if (user.twoFAMethod === 'AUTH_APP') {
-        return successResponse(
-          { method: 'AUTH_APP' },
-          'Two-factor authentication via Authenticator App is enabled. Please submit your TOTP code.',
-        );
-      }
-    }
+    // if (user.isTwoFAEnabled) {
+    //   if (user.twoFAMethod === 'EMAIL' || user.twoFAMethod === 'PHONE') {
+    //     await this.generateAndSendOtp(email, user.twoFAMethod, 'TFA');
+    //     return successResponse(
+    //       user.twoFAMethod === 'EMAIL'
+    //         ? { email: user.email }
+    //         : { phone: user.phone },
+    //       `Two-factor authentication is enabled. A new OTP has been sent to your ${user.twoFAMethod.toLowerCase()}.`,
+    //     );
+    //   } else if (user.twoFAMethod === 'AUTH_APP') {
+    //     return successResponse(
+    //       { method: 'AUTH_APP' },
+    //       'Two-factor authentication via Authenticator App is enabled. Please submit your TOTP code.',
+    //     );
+    //   }
+    // }
 
     // 3. Regular login
     const updatedUser = await this.prisma.user.update({
@@ -96,10 +96,18 @@ export class AuthLoginService {
     });
 
     if (method === 'EMAIL') {
-      await this.mailService.sendVerificationCodeEmail(email, otp.toString(), {
-        subject: 'Verify your login',
-        message: 'Please verify your email to complete the login process.',
-      });
+      const response = await this.mailService.sendVerificationCodeEmail(
+        email,
+        otp.toString(),
+        {
+          subject: 'Verify your login',
+          message: 'Please verify your email to complete the login process.',
+        },
+      );
+
+      if (response.error) {
+        throw new AppError(500, 'Failed to send email');
+      }
     } else if (method === 'PHONE') {
       await this.twilio.sendTFACode(user.phone || '', otp.toString());
     }

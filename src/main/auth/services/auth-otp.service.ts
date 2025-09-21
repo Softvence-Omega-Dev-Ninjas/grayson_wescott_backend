@@ -58,16 +58,17 @@ export class AuthOtpService {
 
     // 5. Send OTP
     if (email) {
-      const emailSent = await this.mailService.sendVerificationCodeEmail(
-        email,
-        otp.toString(),
-        {
-          subject: 'Your OTP Code',
-          message: `Here is your OTP code. It will expire in 5 minutes.`,
-        },
-      );
-
-      if (!emailSent) {
+      try {
+        await this.mailService.sendVerificationCodeEmail(
+          email,
+          otp.toString(),
+          {
+            subject: 'Your OTP Code',
+            message: `Here is your OTP code. It will expire in 5 minutes.`,
+          },
+        );
+      } catch (error) {
+        console.error(error);
         await this.prisma.user.update({
           where: { id: user.id },
           data: { otp: null, otpExpiresAt: null, otpType: null },

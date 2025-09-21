@@ -1,0 +1,60 @@
+model Program {
+  id String @id @default(uuid())
+
+  name        String
+  description String?
+
+  categories ExerciseCategory[]
+  status     ProgramStatus
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  // relations
+  exercises    Exercise[]
+  userPrograms UserProgram[]
+
+  @@map("programs")
+}
+
+enum ExerciseCategory {
+  UPERBODY
+  LOWERBODY
+  CORE
+  CARDIO
+  STRENGTH
+  YOGA
+  MEDITATION
+}
+
+enum ProgramStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+model UserProgram {
+  id String @id @default(uuid())
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId String
+
+  program   Program @relation(fields: [programId], references: [id], onDelete: Cascade)
+  programId String
+
+  startDate DateTime  @default(now())
+  endDate   DateTime?
+
+  status ProgramProgress @default(ACTIVE)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  @@map("user_programs")
+}
+
+enum ProgramProgress {
+  ACTIVE
+  PAUSED
+  COMPLETED
+}

@@ -57,7 +57,6 @@ export class MailService {
   </div>
     `,
     };
-
     return this.transporter.sendMail(mailOptions);
   }
 
