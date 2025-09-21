@@ -48,11 +48,10 @@ export class S3Service {
       throw new AppError(400, 'You can upload a maximum of 5 files');
     }
 
-    const results = [];
-
-    for (const file of files) {
-      results.push(await this.uploadFile(file));
-    }
+    // Parallelize uploads
+    const results = await Promise.all(
+      files.map((file) => this.uploadFile(file)),
+    );
 
     return successResponse(
       {
