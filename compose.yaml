@@ -1,76 +1,206 @@
 services:
-  server:
-    image: sajibsv/grayson-server:latest
+  app:
+    profiles:
+      - prod
     platform: linux/amd64
-    container_name: grayson-server-api
-    restart: always
     build:
       context: .
       dockerfile: Dockerfile
-    environment:
-      BASE_URL: https://lgcglobalcontractingltd.com/js
-
-      PORT: 5010
-      NODE_ENV: production
-
-      DATABASE_URL: postgresql://postgres:postgres@db:5432/grayson_db
-
-      JWT_SECRET: asdfkamskfmasklfmaksmfaskfmaksfaopsfmpaomsfpaf
-      JWT_EXPIRES_IN: 90d
-
-      MAIL_USER: grayson@carbonengines.com
-      MAIL_PASS: qqim vysy eyjf ilgv
-
-      SUPER_ADMIN_EMAIL: 'grayson@carbonengines.com'
-      SUPER_ADMIN_PASS: 'superadmin'
-
-      REDIS_URL: redis://redis:6379
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
-
-      OAUTH_CLIENT_ID: '1074646902032-5ab3gkkggb7mrejjfnvr7ra65qos4o8s.apps.googleusercontent.com'
-      OAUTH_CLIENT_SECRET: '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'
-
-      FRONTEND_VERIFICATION_URL: 'https://grayson-wescott-frontend.vercel.app/twostepverification'
-      FRONTEND_RESET_PASSWORD_URL: 'https://grayson-wescott-frontend.vercel.app/resetpassword'
-      FRONTEND_SOCIAL_EMAIL_URL: 'https://grayson-wescott-frontend.vercel.app/socialemail'
-
-      TWILIO_ACCOUNT_SID: ACd694ffdbf32281b95c8cbf5adc844719
-      TWILIO_AUTH_TOKEN: efa5b0c1c86f9784b255ffe07497c618
-      TWILIO_PHONE_NUMBER: +12543554726
+    image: ${DOCKER_USERNAME}/${PACKAGE_NAME}:${PACKAGE_VERSION}
+    container_name: ${PACKAGE_NAME}_api
     ports:
-      - 5010:5010
+      - "${PORT}:${PORT}"
+    environment:
+      # app
+      - EMAIL=${EMAIL}
+      - BASE_URL=${BASE_URL}
+      - NODE_ENV=${NODE_ENV}
+      - DATABASE_URL=${DATABASE_URL}
+      # jwt
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_EXPIRES_IN=${JWT_EXPIRES_IN}
+      # redis
+      - REDIS_URL=${REDIS_URL}
+      - REDIS_HOST=${REDIS_HOST}
+      - REDIS_PORT=${REDIS_PORT}
+      # mail
+      - MAIL_USER=${MAIL_USER}
+      - MAIL_PASS=${MAIL_PASS}
+      # super admin
+      - SUPER_ADMIN_EMAIL=${SUPER_ADMIN_EMAIL}
+      - SUPER_ADMIN_PASS=${SUPER_ADMIN_PASS}
+      # twilio
+      - TWILIO_ACCOUNT_SID=${TWILIO_ACCOUNT_SID}
+      - TWILIO_AUTH_TOKEN=${TWILIO_AUTH_TOKEN}
+      - TWILIO_PHONE_NUMBER=${TWILIO_PHONE_NUMBER}
+      # oauth
+      - OAUTH_CLIENT_ID=${OAUTH_CLIENT_ID}
+      - OAUTH_CLIENT_SECRET=${OAUTH_CLIENT_SECRET}
+      # frontend
+      - FRONTEND_VERIFICATION_URL=${FRONTEND_VERIFICATION_URL}
+      - FRONTEND_PASSWORD_RESET_URL=${FRONTEND_PASSWORD_RESET_URL}
+      - FRONTEND_SOCIAL_EMAIL_URL=${FRONTEND_SOCIAL_EMAIL_URL}
+      # aws
+      - AWS_REGION=${AWS_REGION}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - AWS_S3_BUCKET_NAME=${AWS_S3_BUCKET_NAME}
+
     depends_on:
-      - db
-      - redis
-    command: >
-      sh -c "
-        npx prisma migrate deploy &&
-        npm run start
-      "
+      local:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    # Enhanced health check for better zero-downtime deployment
+    healthcheck:
+      disable: true
 
-  db:
-    image: postgres
-    container_name: grayson_db
+    # Add logging configuration
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    # Add labels for better container management
+    labels:
+      - "app.name=${PACKAGE_NAME}"
+      - "app.version=${PACKAGE_VERSION}"
+      - "deployment.type=zero-downtime"
+
+  local:
+    image: postgres:15
+    container_name: ${PG_DATABASE}
     restart: always
-    # user: postgres
+    profiles:
+      - prod
+      - dev
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: grayson_db
+      POSTGRES_USER: ${PG_USERNAME}
+      POSTGRES_PASSWORD: ${PG_PASSWORD}
+      POSTGRES_DB: ${PG_DATABASE}
+      POSTGRES_SHARED_PRELOAD_LIBRARIES: pg_stat_statements
     volumes:
-      - grayson_db:/var/lib/postgresql/data
-      - files:/app/api/files
+      - postgres_data:/var/lib/postgresql/data
     ports:
-      - '5404:5432'
-
+      - "${PG_PORT}:${PG_PORT}"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test:
+        ["CMD", "pg_isready", "-U", "${PG_USERNAME}", "-d", "${PG_DATABASE}"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 15s
   redis:
-    image: redis
-    container_name: grayson_redis
+    image: redis:7-alpine # Use Alpine version for smaller size
+    container_name: ${REDIS_CONTAINER}
     restart: always
+    profiles:
+      - dev
+      - prod
     ports:
-      - '6384:6379'
+      - "${REDIS_PORT}:${REDIS_PORT}"
+    volumes:
+      - redis_data:/data
+    # Add Redis configuration for better performance
+    command: redis-server --appendonly yes --maxmemory 1000mb --maxmemory-policy allkeys-lru
+    # Add health check for Redis
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    # Add resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 1000M
+        reservations:
+          cpus: "0.1"
+          memory: 1000M
+    # Add logging
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "3"
+
+  nginx:
+    profiles:
+      - prod
+    image: nginx:alpine
+    container_name: ${PACKAGE_NAME}_nginx
+    depends_on:
+      - app
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d
+      - ./nginx/certbot/www:/var/www/certbot
+      - ./nginx/certbot/conf:/etc/letsencrypt
+      - ./nginx/selfsigned:/etc/nginx/selfsigned
+
+    ports:
+      - "80:80"
+      - "443:443"
+    networks:
+      - default
+    restart: always
+
+  certbot:
+    profiles:
+      - prod
+    image: certbot/certbot
+    container_name: ${PACKAGE_NAME}_certbot
+    volumes:
+      - ./nginx/certbot/www:/var/www/certbot
+      - ./nginx/certbot/conf:/etc/letsencrypt
+    environment:
+      - EMAIL=${EMAIL}
+      - BASE_URL=${BASE_URL}
+    entrypoint: >
+      certbot certonly --webroot --webroot-path=/var/www/certbot 
+      --email ${EMAIL} --agree-tos --no-eff-email 
+      -d ${BASE_URL}
+    depends_on:
+      - nginx
+    networks:
+      - default
+    restart: "no"
+
+  certbot-renew:
+    profiles:
+      - prod
+    image: certbot/certbot
+    container_name: ${PACKAGE_NAME}_certbot_renew
+    volumes:
+      - ./nginx/certbot/www:/var/www/certbot
+      - ./nginx/certbot/conf:/etc/letsencrypt
+    entrypoint: >
+      sh -c "trap exit TERM; 
+             while :; do 
+               echo '🔄 Checking for SSL renewal...'; 
+               certbot renew --webroot --webroot-path=/var/www/certbot --quiet --deploy-hook 'nginx -s reload'; 
+               sleep 12h; 
+             done"
+    depends_on:
+      - nginx
+    networks:
+      - default
+    restart: unless-stopped
 
 volumes:
-  grayson_db:
-  files:
+  postgres_data:
+  redis_data:
+
+# Add networks for better isolation (optional)
+networks:
+  default:
+    name: ${PACKAGE_NAME}_network
+    labels:
+      - "project=${PACKAGE_NAME}"
