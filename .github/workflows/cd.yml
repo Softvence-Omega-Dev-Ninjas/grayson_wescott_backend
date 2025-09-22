@@ -3,7 +3,7 @@ name: CD Pipeline with Zero Downtime
 on:
   push:
   workflow_run:
-    workflows: ["CI Check"]
+    workflows: ['CI Check']
     types:
       - completed
 
@@ -125,14 +125,13 @@ jobs:
           ssh deploy-server "chmod -R +x ~/${PACKAGE_NAME}/scripts/*.sh || true"
 
       - name: Deploy Application 🚀
-        shell: bash
         run: |
-          ssh deploy-server bash <<'DEPLOY_EOF'
+          ssh deploy-server bash << 'DEPLOY_EOF'
           set -euo pipefail
 
-          cd ~/${{ secrets.PACKAGE_NAME }}
+          cd ~/${{secrets.PACKAGE_NAME}}
 
-          # Install Docker Compose plugin if needed
+          # Install Docker Compose if needed
           if [ ! -f ~/.docker/cli-plugins/docker-compose ]; then
             echo "Installing Docker Compose..."
             mkdir -p ~/.docker/cli-plugins/
@@ -140,25 +139,54 @@ jobs:
             chmod +x ~/.docker/cli-plugins/docker-compose
           fi
 
-          # Login to Docker Hub (runner will expand secrets into these lines)
-          echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
+          # Login to Docker Hub
+          echo "${{secrets.DOCKER_PASSWORD}}" | docker login -u "${{secrets.DOCKER_USERNAME}}" --password-stdin
 
-          # Export chosen envs on the remote via the .env that was copied (docker-compose will read it)
-          export PACKAGE_NAME="${{ secrets.PACKAGE_NAME }}"
-          export PACKAGE_VERSION="${{ secrets.PACKAGE_VERSION }}"
-          export IMAGE_TAG="${{ secrets.IMAGE_TAG }}"
-          export VPS_HOST_IP="${{ secrets.VPS_HOST_IP }}"
+          # Explicitly export required variables
+          export PACKAGE_NAME="${{secrets.PACKAGE_NAME}}"
+          export DOCKER_USERNAME="${{secrets.DOCKER_USERNAME}}"
+          export PACKAGE_VERSION="${{secrets.PACKAGE_VERSION}}"
+          export PORT="${{secrets.PORT}}"
+          export BASE_URL="${{secrets.BASE_URL}}"
+          export EMAIL="${{secrets.EMAIL}}"
+          export NODE_ENV="${{secrets.NODE_ENV}}"
+          export PG_USERNAME="${{secrets.PG_USERNAME}}"
+          export PG_PASSWORD="${{secrets.PG_PASSWORD}}"
+          export PG_DATABASE="${{secrets.PG_DATABASE}}"
+          export PG_PORT="${{secrets.PG_PORT}}"
+          export PG_HOST="${{secrets.PG_HOST}}"
+          export DATABASE_URL="postgres://${PG_USERNAME}:${PG_PASSWORD}@${PG_HOST}:${PG_PORT}/${PG_DATABASE}"
+          export JWT_SECRET="${{secrets.JWT_SECRET}}"
+          export JWT_EXPIRES_IN="${{secrets.JWT_EXPIRES_IN}}"
+          export MAIL_USER="${{secrets.MAIL_USER}}"
+          export MAIL_PASS="${{secrets.MAIL_PASS}}"
+          export SUPER_ADMIN_EMAIL="${{secrets.SUPER_ADMIN_EMAIL}}"
+          export SUPER_ADMIN_PASS="${{secrets.SUPER_ADMIN_PASS}}"
+          export REDIS_HOST="${{secrets.REDIS_HOST}}"
+          export REDIS_PORT="${{secrets.REDupdIS_PORT}}"
+          export REDIS_CONTAINER="${{secrets.REDIS_CONTAINER}}"
+          export REDIS_URL="redis://${REDIS_HOST}:${REDIS_PORT}"
+          export TWILIO_ACCOUNT_SID="${{secrets.TWILIO_ACCOUNT_SID}}"
+          export TWILIO_AUTH_TOKEN="${{secrets.TWILIO_AUTH_TOKEN}}"
+          export TWILIO_PHONE_NUMBER="${{secrets.TWILIO_PHONE_NUMBER}}"
+          export AWS_REGION="${{secrets.AWS_REGION}}"
+          export AWS_ACCESS_KEY_ID="${{secrets.AWS_ACCESS_KEY_ID}}"
+          export AWS_SECRET_ACCESS_KEY="${{secrets.AWS_SECRET_ACCESS_KEY}}"
+          export AWS_S3_BUCKET_NAME="${{secrets.AWS_S3_BUCKET_NAME}}"
+          export IMAGE_TAG="${{secrets.IMAGE_TAG}}"
+          export VPS_HOST_IP="${{secrets.VPS_HOST_IP}}"
 
-          echo "Starting zero-downtime deployment (script must exist at scripts/deploy.sh)..."
-          ./scripts/deploy.sh --version "${{ secrets.PACKAGE_VERSION }}"
 
-          docker logout || true
-          docker image prune -f || true
+          # Run the deployment script
+          echo "Starting zero-downtime deployment..."
+          ./scripts/deploy.sh --version "$PACKAGE_VERSION"
+
+          docker logout
+          docker image prune -f
           DEPLOY_EOF
 
       - name: Cleanup 🧹
         if: always()
         run: |
-          rm -rf ~/.ssh/deploy_key ~/.ssh/config
-          rm -f "$GITHUB_WORKSPACE/deploy_key.pem" || true
-          rm -f .env || true
+          rm -rf ~/.ssh/deploy_key* ~/.ssh/config
+          rm -f .env
