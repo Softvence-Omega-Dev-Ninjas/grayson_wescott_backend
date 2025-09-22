@@ -57,11 +57,11 @@ export class AuthRegisterService {
     });
 
     // Send verification email
-    // await this.mailService.sendVerificationCodeEmail(email, otp.toString(), {
-    //   subject: 'Verify your email',
-    //   message:
-    //     'Welcome to our platform! Your account has been successfully created.',
-    // });
+    await this.mailService.sendVerificationCodeEmail(email, otp.toString(), {
+      subject: 'Verify your email',
+      message:
+        'Welcome to our platform! Your account has been successfully created.',
+    });
 
     // Return sanitized response
     return successResponse(
