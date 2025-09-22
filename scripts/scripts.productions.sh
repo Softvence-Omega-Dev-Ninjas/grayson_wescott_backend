@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # File to read/write environment variables
-ENV_FILE=".env.production"
+ENV_FILE=".env.production.local"
 
 # Static values
 DOCKER_USERNAME="sajibsv"
