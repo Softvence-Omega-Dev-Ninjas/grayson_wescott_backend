@@ -1,121 +1,152 @@
-name: "Setup and Load Environment"
-description: "Generates .env from inputs and exports to GITHUB_ENV"
+name: 'Setup and Load Environment'
+description: 'Generates .env from inputs and exports to GITHUB_ENV'
 
 inputs:
-  DOCKER_USERNAME:
-    description: "Docker username"
+  NODE_ENV:
+    description: 'Node environment'
     required: true
+  
   PACKAGE_NAME:
-    description: "Package name"
+    description: 'Package name'
     required: true
   PACKAGE_VERSION:
-    description: "Package version"
+    description: 'Package version'
     required: true
-  EMAIL:
-    description: "Email"
-    required: true
+  
   PG_USERNAME:
-    description: "Postgres username"
+    description: 'Postgres username'
     required: true
   PG_PASSWORD:
-    description: "Postgres password"
+    description: 'Postgres password'
     required: true
   PG_DATABASE:
-    description: "Postgres database"
+    description: 'Postgres database'
     required: true
   PG_PORT:
-    description: "Postgres port"
+    description: 'Postgres port'
     required: true
   PG_HOST:
-    description: "Postgres host"
+    description: 'Postgres host'
     required: true
+  
   DATABASE_URL:
-    description: "Database URL"
+    description: 'Database URL'
     required: true
+  
   JWT_SECRET:
-    description: "JWT secret"
+    description: 'JWT secret'
     required: true
   JWT_EXPIRES_IN:
-    description: "JWT expiration"
+    description: 'JWT expiration'
     required: true
+  
   BASE_URL:
-    description: "Base URL"
+    description: 'Base URL'
     required: true
   PORT:
-    description: "Port"
+    description: 'Port'
     required: true
+  EMAIL:
+    description: 'Email'
+    required: true
+  
   MAIL_USER:
-    description: "Mail user"
+    description: 'Mail user'
     required: true
   MAIL_PASS:
-    description: "Mail password"
+    description: 'Mail password'
     required: true
+  
   SUPER_ADMIN_EMAIL:
-    description: "Super admin email"
+    description: 'Super admin email'
     required: true
   SUPER_ADMIN_PASS:
-    description: "Super admin password"
+    description: 'Super admin password'
     required: true
+  
   REDIS_HOST:
-    description: "Redis host"
-    required: true
-  REDIS_USER:
-    description: "Redis user"
-    required: true
-  REDIS_PASS:
-    description: "Redis password"
+    description: 'Redis host'
     required: true
   REDIS_PORT:
-    description: "Redis port"
+    description: 'Redis port'
     required: true
   REDIS_CONTAINER:
-    description: "Redis container"
+    description: 'Redis container'
     required: true
   REDIS_URL:
-    description: "Redis URL"
+    description: 'Redis URL'
     required: true
+  
   TWILIO_ACCOUNT_SID:
-    description: "Twilio account SID"
+    description: 'Twilio account SID'
     required: true
   TWILIO_AUTH_TOKEN:
-    description: "Twilio auth token"
+    description: 'Twilio auth token'
     required: true
   TWILIO_PHONE_NUMBER:
-    description: "Twilio phone number"
+    description: 'Twilio phone number'
     required: true
+
+  OAUTH_CLIENT_ID:
+    description: 'OAuth client ID'
+    required: true
+  OAUTH_CLIENT_SECRET:
+    description: 'OAuth client secret'
+    required: true
+
+  FRONTEND_VERIFICATION_URL:
+    description: 'Frontend verification URL'
+    required: true
+  FRONTEND_RESET_PASSWORD_URL:
+    description: 'Frontend reset password URL'
+    required: true
+  FRONTEND_SOCIAL_EMAIL_URL:
+    description: 'Frontend social email URL'
+    required: true
+  
   AWS_REGION:
-    description: "AWS region"
+    description: 'AWS region'
     required: true
   AWS_ACCESS_KEY_ID:
-    description: "AWS access key ID"
+    description: 'AWS access key ID'
     required: true
   AWS_SECRET_ACCESS_KEY:
-    description: "AWS secret access key"
+    description: 'AWS secret access key'
     required: true
   AWS_S3_BUCKET_NAME:
-    description: "AWS S3 bucket name"
+    description: 'AWS S3 bucket name'
     required: true
+  
   IMAGE_TAG:
-    description: "Image tag"
+    description: 'Image tag'
+    required: true
+
+  DOCKER_USERNAME:
+    description: 'Docker username'
     required: true
   DOCKER_PASSWORD:
-    description: "Docker password"
+    description: 'Docker password'
     required: true
+  
   GIT_TOKEN:
-    description: "Git token"
+    description: 'Git token'
+    required: true
+  
+  VPS_USER:
+    description: 'VPS user'
     required: true
   VPS_HOST:
-    description: "VPS host"
+    description: 'VPS host'
     required: true
-  VPS_USER:
-    description: "VPS user"
+  VPS_HOST_IP:
+    description: 'VPS host IP'
     required: true
   VPS_SSH_PRIVATE_KEY:
-    description: "VPS SSH private key"
+    description: 'VPS SSH private key'
     required: true
 
 runs:
-  using: "composite"
+  using: 'composite'
   steps:
     - name: 🔧 Generate .env file
       shell: bash
