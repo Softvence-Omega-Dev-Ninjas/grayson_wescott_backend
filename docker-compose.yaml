@@ -52,24 +52,27 @@ services:
       redis:
         condition: service_healthy
     restart: unless-stopped
-    # Enhanced health check for better zero-downtime deployment
     healthcheck:
       disable: true
+    command: >
+      sh -c "
+        npx prisma migrate deploy &&
+        npm run start
+      "
 
-    # Add logging configuration
     logging:
       driver: 'json-file'
       options:
         max-size: '10m'
         max-file: '3'
-    # Add labels for better container management
+
     labels:
       - 'app.name=${PACKAGE_NAME}'
       - 'app.version=${PACKAGE_VERSION}'
       - 'deployment.type=zero-downtime'
 
   local:
-    image: postgres:15
+    image: postgres
     container_name: ${PG_DATABASE}
     restart: always
     profiles:
@@ -97,7 +100,7 @@ services:
       retries: 5
       start_period: 15s
   redis:
-    image: redis:7-alpine # Use Alpine version for smaller size
+    image: redis
     container_name: ${REDIS_CONTAINER}
     restart: always
     profiles:
@@ -198,7 +201,6 @@ volumes:
   postgres_data:
   redis_data:
 
-# Add networks for better isolation (optional)
 networks:
   default:
     name: ${PACKAGE_NAME}_network
