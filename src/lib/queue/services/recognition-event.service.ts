@@ -4,8 +4,8 @@ import { OnEvent } from '@nestjs/event-emitter';
 import {
   EVENT_TYPES,
   EventPayloadMap,
-} from '@project/common/interface/events-name';
-import { QueueName } from '@project/common/interface/queue-name';
+} from '@project/lib/queue/interface/events-name';
+import { QueueName } from '@project/lib/queue/interface/queue-name';
 import { Queue } from 'bullmq';
 
 @Injectable()

@@ -13,6 +13,7 @@ import {
   ForgotPasswordDto,
   ResetPasswordDto,
 } from '../dto/password.dto';
+import { VerifySocialProviderOtpDto } from '../dto/provider.dto';
 import { RegisterDto } from '../dto/register.dto';
 import { RequestTFA } from '../dto/tfa.dto';
 import { VerifyTfaDto } from '../dto/verify-tfa.dto';
@@ -25,7 +26,6 @@ import { AuthPasswordService } from '../services/auth-password.service';
 import { AuthRegisterService } from '../services/auth-register.service';
 import { AuthTfaService } from '../services/auth-tfa.service';
 import { AuthLogoutService } from './../services/auth-logout.service';
-import { VerifySocialProviderOtpDto } from '../dto/provider.dto';
 
 @ApiTags('Auth')
 @Controller('auth')
@@ -58,7 +58,7 @@ export class AuthController {
   @ApiBearerAuth()
   @Post('logout')
   @ValidateAuth()
-  async logOut(@GetUser('userId') userId: string) {
+  async logOut(@GetUser('sub') userId: string) {
     return this.authLogoutService.logout(userId);
   }
 
@@ -78,10 +78,7 @@ export class AuthController {
   @ApiBearerAuth()
   @Post('request-tfa')
   @ValidateAuth()
-  async requestTFA(
-    @GetUser('userId') userId: string,
-    @Body() body: RequestTFA,
-  ) {
+  async requestTFA(@GetUser('sub') userId: string, @Body() body: RequestTFA) {
     return this.authTfaService.requestToEnableTfa(userId, body.method);
   }
 
@@ -90,7 +87,7 @@ export class AuthController {
   @Post('verify-tfa')
   @ValidateAuth()
   async verifyTfaSetup(
-    @GetUser('userId') userId: string,
+    @GetUser('sub') userId: string,
     @Body() body: VerifyTfaDto,
   ) {
     return this.authTfaService.verifyTfaSetup(userId, body);
@@ -100,7 +97,7 @@ export class AuthController {
   @ApiBearerAuth()
   @Post('disable-tfa')
   @ValidateAuth()
-  async disableTfa(@GetUser('userId') userId: string) {
+  async disableTfa(@GetUser('sub') userId: string) {
     return this.authTfaService.disableTfa(userId);
   }
 
@@ -109,7 +106,7 @@ export class AuthController {
   @Post('change-password')
   @ValidateAuth()
   async changePassword(
-    @GetUser('userId') userId: string,
+    @GetUser('sub') userId: string,
     @Body() body: ChangePasswordDto,
   ) {
     return this.authPasswordService.changePassword(userId, body);
@@ -155,7 +152,7 @@ export class AuthController {
   @ApiBearerAuth()
   @Get('profile')
   @ValidateAuth()
-  async getProfile(@GetUser('userId') userId: string) {
+  async getProfile(@GetUser('sub') userId: string) {
     return this.authGetProfileService.getProfile(userId);
   }
 }

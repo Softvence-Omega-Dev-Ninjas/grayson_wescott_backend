@@ -1,12 +1,19 @@
-import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import {
+  DeleteObjectCommand,
+  PutObjectCommand,
+  S3Client,
+} from '@aws-sdk/client-s3';
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { FileType } from '@prisma/client';
+import { PaginationDto } from '@project/common/dto/pagination.dto';
 import { ENVEnum } from '@project/common/enum/env.enum';
 import { AppError } from '@project/common/error/handle-error.app';
 import { HandleError } from '@project/common/error/handle-error.decorator';
 import {
+  successPaginatedResponse,
   successResponse,
+  TPaginatedResponse,
   TResponse,
 } from '@project/common/utils/response.util';
 import { PrismaService } from '@project/lib/prisma/prisma.service';
@@ -62,6 +69,87 @@ export class S3Service {
     );
   }
 
+  @HandleError('Failed to delete file(s)', 'File')
+  async deleteFiles(fileIds: string[]): Promise<TResponse<any>> {
+    if (!fileIds || fileIds.length === 0) {
+      throw new AppError(400, 'No file IDs provided');
+    }
+
+    // Fetch files from DB
+    const files = await this.prisma.fileInstance.findMany({
+      where: { id: { in: fileIds } },
+    });
+
+    if (!files || files.length === 0) {
+      throw new AppError(400, 'No files found for provided IDs');
+    }
+
+    // Delete from S3
+    await Promise.all(
+      files.map((file) =>
+        this.s3.send(
+          new DeleteObjectCommand({
+            Bucket: this.AWS_S3_BUCKET_NAME,
+            Key: file.path,
+          }),
+        ),
+      ),
+    );
+
+    // Delete from DB
+    await this.prisma.fileInstance.deleteMany({
+      where: { id: { in: fileIds } },
+    });
+
+    return successResponse(
+      {
+        files,
+        count: files.length,
+      },
+      'Files deleted successfully',
+    );
+  }
+
+  @HandleError('Failed to get files', 'File')
+  async getFiles(pg: PaginationDto): Promise<TPaginatedResponse<any>> {
+    const page = pg.page && +pg.page > 0 ? +pg.page : 1;
+    const limit = pg.limit && +pg.limit > 0 ? +pg.limit : 10;
+    const skip = (page - 1) * limit;
+
+    const [files, total] = await this.prisma.$transaction([
+      this.prisma.fileInstance.findMany({
+        take: limit,
+        skip,
+        orderBy: { createdAt: 'desc' },
+      }),
+      this.prisma.fileInstance.count(),
+    ]);
+
+    return successPaginatedResponse(
+      files,
+      {
+        page,
+        limit,
+        total,
+      },
+      'Files found successfully',
+    );
+  }
+
+  @HandleError('Failed to get file', 'File')
+  async getFileById(id: string): Promise<TResponse<any>> {
+    const file = await this.prisma.fileInstance.findUnique({
+      where: { id },
+    });
+
+    if (!file) {
+      throw new AppError(404, 'File not found');
+    }
+
+    return successResponse(file, 'File found successfully');
+  }
+
+  // Private Helpers
   private async uploadFile(file: Express.Multer.File) {
     const fileExt = file.originalname.split('.').pop();
     const folder = this.getFolderByMimeType(file.mimetype);

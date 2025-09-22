@@ -1,7 +1,12 @@
 import {
   BadRequestException,
+  Body,
   Controller,
+  Delete,
+  Get,
+  Param,
   Post,
+  Query,
   UploadedFiles,
   UseInterceptors,
 } from '@nestjs/common';
@@ -14,16 +19,18 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import { PaginationDto } from '@project/common/dto/pagination.dto';
 import { ValidateAuth } from '@project/common/jwt/jwt.decorator';
 import * as multer from 'multer';
+import { DeleteFilesRequestDto } from './dto/delete-file.dto';
 import { UploadFilesRequestDto } from './dto/upload-file-request.dto';
 import { UploadFilesResponseDto } from './dto/upload-file-response.dto';
 import { S3Service } from './s3.service';
 
 @ApiBearerAuth()
 @ValidateAuth()
-@ApiTags('File Uploads (S3)')
-@Controller('uploads')
+@ApiTags('Files (S3) & DB')
+@Controller('files')
 export class S3Controller {
   constructor(private readonly s3Service: S3Service) {}
 
@@ -52,5 +59,23 @@ export class S3Controller {
     }
 
     return this.s3Service.uploadFiles(files);
+  }
+
+  @Delete()
+  @ApiOperation({ summary: 'Delete multiple files from S3' })
+  async deleteFiles(@Body() body: DeleteFilesRequestDto) {
+    return this.s3Service.deleteFiles(body.fileIds);
+  }
+
+  @Get()
+  @ApiOperation({ summary: 'Get all files from S3' })
+  async getFiles(@Query() pg: PaginationDto) {
+    return this.s3Service.getFiles(pg);
+  }
+
+  @Get(':id')
+  @ApiOperation({ summary: 'Get a specific file from S3' })
+  async getFileById(@Param('id') id: string) {
+    return this.s3Service.getFileById(id);
   }
 }
