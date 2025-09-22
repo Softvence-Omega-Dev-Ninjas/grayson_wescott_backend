@@ -139,45 +139,99 @@ jobs:
             chmod +x ~/.docker/cli-plugins/docker-compose
           fi
 
-          # Login to Docker Hub
+          # Login to Docker Hub (use secrets embedded by Actions)
           echo "${{secrets.DOCKER_PASSWORD}}" | docker login -u "${{secrets.DOCKER_USERNAME}}" --password-stdin
 
-          # Explicitly export required variables
-          export PACKAGE_NAME="${{secrets.PACKAGE_NAME}}"
-          export DOCKER_USERNAME="${{secrets.DOCKER_USERNAME}}"
-          export PACKAGE_VERSION="${{secrets.PACKAGE_VERSION}}"
-          export PORT="${{secrets.PORT}}"
-          export BASE_URL="${{secrets.BASE_URL}}"
-          export EMAIL="${{secrets.EMAIL}}"
-          export NODE_ENV="${{secrets.NODE_ENV}}"
-          export PG_USERNAME="${{secrets.PG_USERNAME}}"
-          export PG_PASSWORD="${{secrets.PG_PASSWORD}}"
-          export PG_DATABASE="${{secrets.PG_DATABASE}}"
-          export PG_PORT="${{secrets.PG_PORT}}"
-          export PG_HOST="${{secrets.PG_HOST}}"
-          export DATABASE_URL="postgres://${PG_USERNAME}:${PG_PASSWORD}@${PG_HOST}:${PG_PORT}/${PG_DATABASE}"
-          export JWT_SECRET="${{secrets.JWT_SECRET}}"
-          export JWT_EXPIRES_IN="${{secrets.JWT_EXPIRES_IN}}"
-          export MAIL_USER="${{secrets.MAIL_USER}}"
-          export MAIL_PASS="${{secrets.MAIL_PASS}}"
-          export SUPER_ADMIN_EMAIL="${{secrets.SUPER_ADMIN_EMAIL}}"
-          export SUPER_ADMIN_PASS="${{secrets.SUPER_ADMIN_PASS}}"
-          export REDIS_HOST="${{secrets.REDIS_HOST}}"
-          export REDIS_PORT="${{secrets.REDIS_PORT}}"
-          export REDIS_CONTAINER="${{secrets.REDIS_CONTAINER}}"
-          export REDIS_URL="redis://${REDIS_HOST}:${REDIS_PORT}"
-          export TWILIO_ACCOUNT_SID="${{secrets.TWILIO_ACCOUNT_SID}}"
-          export TWILIO_AUTH_TOKEN="${{secrets.TWILIO_AUTH_TOKEN}}"
-          export TWILIO_PHONE_NUMBER="${{secrets.TWILIO_PHONE_NUMBER}}"
-          export AWS_REGION="${{secrets.AWS_REGION}}"
-          export AWS_ACCESS_KEY_ID="${{secrets.AWS_ACCESS_KEY_ID}}"
-          export AWS_SECRET_ACCESS_KEY="${{secrets.AWS_SECRET_ACCESS_KEY}}"
-          export AWS_S3_BUCKET_NAME="${{secrets.AWS_S3_BUCKET_NAME}}"
-          export IMAGE_TAG="${{secrets.IMAGE_TAG}}"
-          export VPS_HOST_IP="${{secrets.VPS_HOST_IP}}"
+          # --- Load .env if present on server (this has priority) ---
+          if [ -f .env ]; then
+            echo "Found .env on server — loading it (these values take precedence)..."
+            # export all variables sourced from .env
+            set -o allexport
+            # shellcheck disable=SC1091
+            source .env
+            set +o allexport
+          else
+            echo "No .env file on server — will export from embedded secrets where necessary."
+          fi
 
+          # --- For any variable not set by .env, use the corresponding GitHub secret as default ---
+          # Note: this pattern sets the variable to the secret only if it isn't already set.
+          : "${NODE_ENV:=${{secrets.NODE_ENV}}}"
+          : "${DOCKER_USERNAME:=${{secrets.DOCKER_USERNAME}}}"
+          : "${PACKAGE_NAME:=${{secrets.PACKAGE_NAME}}}"
+          : "${PACKAGE_VERSION:=${{secrets.PACKAGE_VERSION}}}"
+          : "${EMAIL:=${{secrets.EMAIL}}}"
+          : "${PG_USERNAME:=${{secrets.PG_USERNAME}}}"
+          : "${PG_PASSWORD:=${{secrets.PG_PASSWORD}}}"
+          : "${PG_DATABASE:=${{secrets.PG_DATABASE}}}"
+          : "${PG_PORT:=${{secrets.PG_PORT}}}"
+          : "${PG_HOST:=${{secrets.PG_HOST}}}"
+          : "${DATABASE_URL:=${{secrets.DATABASE_URL}}}"
+          : "${JWT_SECRET:=${{secrets.JWT_SECRET}}}"
+          : "${JWT_EXPIRES_IN:=${{secrets.JWT_EXPIRES_IN}}}"
+          : "${BASE_URL:=${{secrets.BASE_URL}}}"
+          : "${PORT:=${{secrets.PORT}}}"
+          : "${MAIL_USER:=${{secrets.MAIL_USER}}}"
+          : "${MAIL_PASS:=${{secrets.MAIL_PASS}}}"
+          : "${SUPER_ADMIN_EMAIL:=${{secrets.SUPER_ADMIN_EMAIL}}}"
+          : "${SUPER_ADMIN_PASS:=${{secrets.SUPER_ADMIN_PASS}}}"
+          : "${REDIS_HOST:=${{secrets.REDIS_HOST}}}"
+          : "${REDIS_PORT:=${{secrets.REDIS_PORT}}}"
+          : "${REDIS_CONTAINER:=${{secrets.REDIS_CONTAINER}}}"
+          : "${REDIS_URL:=${{secrets.REDIS_URL}}}"
+          : "${TWILIO_ACCOUNT_SID:=${{secrets.TWILIO_ACCOUNT_SID}}}"
+          : "${TWILIO_AUTH_TOKEN:=${{secrets.TWILIO_AUTH_TOKEN}}}"
+          : "${TWILIO_PHONE_NUMBER:=${{secrets.TWILIO_PHONE_NUMBER}}}"
+          : "${AWS_REGION:=${{secrets.AWS_REGION}}}"
+          : "${AWS_ACCESS_KEY_ID:=${{secrets.AWS_ACCESS_KEY_ID}}}"
+          : "${AWS_SECRET_ACCESS_KEY:=${{secrets.AWS_SECRET_ACCESS_KEY}}}"
+          : "${AWS_S3_BUCKET_NAME:=${{secrets.AWS_S3_BUCKET_NAME}}}"
+          : "${IMAGE_TAG:=${{secrets.IMAGE_TAG}}}"
+          : "${DOCKER_PASSWORD:=${{secrets.DOCKER_PASSWORD}}}"
+          : "${GIT_TOKEN:=${{secrets.GIT_TOKEN}}}"
+          : "${VPS_HOST:=${{secrets.VPS_HOST}}}"
+          : "${VPS_HOST_IP:=${{secrets.VPS_HOST_IP}}}"
+          : "${VPS_USER:=${{secrets.VPS_USER}}}"
 
-          # Run the deployment script
+          # Export them so child processes (deploy script, docker, etc.) see them
+          export NODE_ENV DOCKER_USERNAME PACKAGE_NAME PACKAGE_VERSION EMAIL \
+                 PG_USERNAME PG_PASSWORD PG_DATABASE PG_PORT PG_HOST DATABASE_URL \
+                 JWT_SECRET JWT_EXPIRES_IN BASE_URL PORT MAIL_USER MAIL_PASS \
+                 SUPER_ADMIN_EMAIL SUPER_ADMIN_PASS REDIS_HOST REDIS_PORT REDIS_CONTAINER REDIS_URL \
+                 TWILIO_ACCOUNT_SID TWILIO_AUTH_TOKEN TWILIO_PHONE_NUMBER \
+                 AWS_REGION AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_S3_BUCKET_NAME \
+                 IMAGE_TAG DOCKER_PASSWORD GIT_TOKEN VPS_HOST VPS_HOST_IP VPS_USER
+
+          # Compute DATABASE_URL if still not set but PG_* are available
+          if [ -z "${DATABASE_URL:-}" ] && [ -n "${PG_USERNAME:-}" ] && [ -n "${PG_PASSWORD:-}" ] && [ -n "${PG_HOST:-}" ] && [ -n "${PG_PORT:-}" ] && [ -n "${PG_DATABASE:-}" ]; then
+            DATABASE_URL="postgres://${PG_USERNAME}:${PG_PASSWORD}@${PG_HOST}:${PG_PORT}/${PG_DATABASE}"
+            export DATABASE_URL
+            echo "Derived DATABASE_URL from PG_* variables."
+          fi
+
+          # Compute REDIS_URL if not set
+          if [ -z "${REDIS_URL:-}" ] && [ -n "${REDIS_HOST:-}" ] && [ -n "${REDIS_PORT:-}" ]; then
+            REDIS_URL="redis://${REDIS_HOST}:${REDIS_PORT}"
+            export REDIS_URL
+            echo "Derived REDIS_URL from REDIS_HOST/REDIS_PORT."
+          fi
+
+          # Fallback IMAGE_TAG to PACKAGE_VERSION if not set
+          if [ -z "${IMAGE_TAG:-}" ] && [ -n "${PACKAGE_VERSION:-}" ]; then
+            IMAGE_TAG="${DOCKER_USERNAME}/${PACKAGE_NAME}:${PACKAGE_VERSION}"
+            export IMAGE_TAG
+            echo "Set IMAGE_TAG from PACKAGE_VERSION: ${IMAGE_TAG}"
+          fi
+
+          # Show brief verification (do NOT print secrets)
+          echo "Package name: ${PACKAGE_NAME:-'NOT_SET'}"
+          echo "Package version: ${PACKAGE_VERSION:-'NOT_SET'}"
+          echo "Docker image tag: ${IMAGE_TAG:-'NOT_SET'}"
+          echo "NODE_ENV: ${NODE_ENV:-'NOT_SET'}"
+          echo "VPS host: ${VPS_HOST:-'NOT_SET'}"
+          echo "✅ Environment variables ready on remote"
+
+          # Run the deployment script (zero-downtime)
           echo "Starting zero-downtime deployment..."
           ./scripts/deploy.sh --version "$PACKAGE_VERSION"
 
