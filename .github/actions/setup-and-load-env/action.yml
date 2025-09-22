@@ -1,0 +1,354 @@
+name: 'Setup and Load Environment'
+description: 'Generates .env from inputs and exports to GITHUB_ENV'
+
+inputs:
+  NODE_ENV:
+    description: 'Node environment'
+    required: true
+
+  PACKAGE_NAME:
+    description: 'Package name'
+    required: true
+  PACKAGE_VERSION:
+    description: 'Package version'
+    required: true
+
+  PG_USERNAME:
+    description: 'Postgres username'
+    required: true
+  PG_PASSWORD:
+    description: 'Postgres password'
+    required: true
+  PG_DATABASE:
+    description: 'Postgres database'
+    required: true
+  PG_PORT:
+    description: 'Postgres port'
+    required: true
+  PG_HOST:
+    description: 'Postgres host'
+    required: true
+
+  DATABASE_URL:
+    description: 'Database URL'
+    required: true
+
+  JWT_SECRET:
+    description: 'JWT secret'
+    required: true
+  JWT_EXPIRES_IN:
+    description: 'JWT expiration'
+    required: true
+
+  BASE_URL:
+    description: 'Base URL'
+    required: true
+  PORT:
+    description: 'Port'
+    required: true
+  EMAIL:
+    description: 'Email'
+    required: true
+
+  MAIL_USER:
+    description: 'Mail user'
+    required: true
+  MAIL_PASS:
+    description: 'Mail password'
+    required: true
+
+  SUPER_ADMIN_EMAIL:
+    description: 'Super admin email'
+    required: true
+  SUPER_ADMIN_PASS:
+    description: 'Super admin password'
+    required: true
+
+  REDIS_HOST:
+    description: 'Redis host'
+    required: true
+  REDIS_PORT:
+    description: 'Redis port'
+    required: true
+  REDIS_CONTAINER:
+    description: 'Redis container'
+    required: true
+  REDIS_URL:
+    description: 'Redis URL'
+    required: true
+
+  TWILIO_ACCOUNT_SID:
+    description: 'Twilio account SID'
+    required: true
+  TWILIO_AUTH_TOKEN:
+    description: 'Twilio auth token'
+    required: true
+  TWILIO_PHONE_NUMBER:
+    description: 'Twilio phone number'
+    required: true
+
+  OAUTH_CLIENT_ID:
+    description: 'OAuth client ID'
+    required: true
+  OAUTH_CLIENT_SECRET:
+    description: 'OAuth client secret'
+    required: true
+
+  FRONTEND_VERIFICATION_URL:
+    description: 'Frontend verification URL'
+    required: true
+  FRONTEND_RESET_PASSWORD_URL:
+    description: 'Frontend reset password URL'
+    required: true
+  FRONTEND_SOCIAL_EMAIL_URL:
+    description: 'Frontend social email URL'
+    required: true
+
+  AWS_REGION:
+    description: 'AWS region'
+    required: true
+  AWS_ACCESS_KEY_ID:
+    description: 'AWS access key ID'
+    required: true
+  AWS_SECRET_ACCESS_KEY:
+    description: 'AWS secret access key'
+    required: true
+  AWS_S3_BUCKET_NAME:
+    description: 'AWS S3 bucket name'
+    required: true
+
+  IMAGE_TAG:
+    description: 'Image tag'
+    required: true
+
+  DOCKER_USERNAME:
+    description: 'Docker username'
+    required: true
+  DOCKER_PASSWORD:
+    description: 'Docker password'
+    required: true
+
+  GIT_TOKEN:
+    description: 'Git token'
+    required: true
+
+  VPS_USER:
+    description: 'VPS user'
+    required: true
+  VPS_HOST:
+    description: 'VPS host'
+    required: true
+  VPS_HOST_IP:
+    description: 'VPS host IP'
+    required: true
+  VPS_SSH_PRIVATE_KEY:
+    description: 'VPS SSH private key'
+    required: true
+
+runs:
+  using: 'composite'
+  steps:
+    - name: 🔧 Generate .env file
+      shell: bash
+      run: |
+        ENV_FILE="$GITHUB_WORKSPACE/.env"
+        echo "🔧 Creating .env file at $ENV_FILE..."
+
+        # Create the .env file with all variables
+        cat <<'EOF' > "$ENV_FILE"
+        DOCKER_USERNAME=${{ inputs.DOCKER_USERNAME }}
+        PACKAGE_NAME=${{ inputs.PACKAGE_NAME }}
+        PACKAGE_VERSION=${{ inputs.PACKAGE_VERSION }}
+        EMAIL=${{ inputs.EMAIL }}
+
+        NODE_ENV=${{ inputs.NODE_ENV }}
+
+        PG_USERNAME=${{ inputs.PG_USERNAME }}
+        PG_PASSWORD=${{ inputs.PG_PASSWORD }}
+        PG_DATABASE=${{ inputs.PG_DATABASE }}
+        PG_PORT=${{ inputs.PG_PORT }}
+        PG_HOST=${{ inputs.PG_HOST }}
+        DATABASE_URL=${{ inputs.DATABASE_URL }}
+
+        JWT_SECRET=${{ inputs.JWT_SECRET }}
+        JWT_EXPIRES_IN=${{ inputs.JWT_EXPIRES_IN }}
+        BASE_URL=${{ inputs.BASE_URL }}
+
+        PORT=${{ inputs.PORT }}
+
+        MAIL_USER=${{ inputs.MAIL_USER }}
+        MAIL_PASS=${{ inputs.MAIL_PASS }}
+
+        SUPER_ADMIN_EMAIL=${{ inputs.SUPER_ADMIN_EMAIL }}
+        SUPER_ADMIN_PASS=${{ inputs.SUPER_ADMIN_PASS }}
+
+        REDIS_HOST=${{ inputs.REDIS_HOST }}
+        REDIS_PORT=${{ inputs.REDIS_PORT }}
+        REDIS_CONTAINER=${{ inputs.REDIS_CONTAINER }}
+        REDIS_URL=${{ inputs.REDIS_URL }}
+
+        TWILIO_ACCOUNT_SID=${{ inputs.TWILIO_ACCOUNT_SID }}
+        TWILIO_AUTH_TOKEN=${{ inputs.TWILIO_AUTH_TOKEN }}
+        TWILIO_PHONE_NUMBER=${{ inputs.TWILIO_PHONE_NUMBER }}
+
+        OAUTH_CLIENT_ID=${{ inputs.OAUTH_CLIENT_ID }}
+        OAUTH_CLIENT_SECRET=${{ inputs.OAUTH_CLIENT_SECRET }}
+
+        FRONTEND_VERIFICATION_URL=${{ inputs.FRONTEND_VERIFICATION_URL }}
+        FRONTEND_RESET_PASSWORD_URL=${{ inputs.FRONTEND_RESET_PASSWORD_URL }}
+        FRONTEND_SOCIAL_EMAIL_URL=${{ inputs.FRONTEND_SOCIAL_EMAIL_URL }}
+
+        AWS_REGION=${{ inputs.AWS_REGION }}
+        AWS_ACCESS_KEY_ID=${{ inputs.AWS_ACCESS_KEY_ID }}
+        AWS_SECRET_ACCESS_KEY=${{ inputs.AWS_SECRET_ACCESS_KEY }}
+        AWS_S3_BUCKET_NAME=${{ inputs.AWS_S3_BUCKET_NAME }}
+
+        IMAGE_TAG=${{ inputs.IMAGE_TAG }}
+        DOCKER_PASSWORD=${{ inputs.DOCKER_PASSWORD }}
+        GIT_TOKEN=${{ inputs.GIT_TOKEN }}
+        VPS_HOST=${{ inputs.VPS_HOST }}
+        VPS_USER=${{ inputs.VPS_USER }}
+        EOF
+
+        # Handle SSH private key separately (write to file for Docker usage)
+        echo '${{ inputs.VPS_SSH_PRIVATE_KEY }}' > "$GITHUB_WORKSPACE/deploy_key.pem"
+        chmod 600 "$GITHUB_WORKSPACE/deploy_key.pem"
+        echo "VPS_SSH_PRIVATE_KEY_FILE=$GITHUB_WORKSPACE/deploy_key.pem" >> "$ENV_FILE"
+
+        # Verify file creation
+        if [ -f "$ENV_FILE" ] && [ -s "$ENV_FILE" ]; then
+          FILE_SIZE=$(wc -c < "$ENV_FILE")
+          echo "✅ .env file created successfully (size: ${FILE_SIZE} bytes)"
+          echo "📁 Location: $ENV_FILE"
+          echo "🔑 SSH key written to: $GITHUB_WORKSPACE/deploy_key.pem"
+        else
+          echo "❌ Error: .env file creation failed"
+          exit 1
+        fi
+
+    - name: 📤 Export variables to GITHUB_ENV (simple method)
+      shell: bash
+      env:
+        DOCKER_USERNAME: ${{ inputs.DOCKER_USERNAME }}
+        PACKAGE_NAME: ${{ inputs.PACKAGE_NAME }}
+        PACKAGE_VERSION: ${{ inputs.PACKAGE_VERSION }}
+        EMAIL: ${{ inputs.EMAIL }}
+        NODE_ENV: ${{ inputs.NODE_ENV }}
+        PG_USERNAME: ${{ inputs.PG_USERNAME }}
+        PG_PASSWORD: ${{ inputs.PG_PASSWORD }}
+        PG_DATABASE: ${{ inputs.PG_DATABASE }}
+        PG_PORT: ${{ inputs.PG_PORT }}
+        PG_HOST: ${{ inputs.PG_HOST }}
+        DATABASE_URL: ${{ inputs.DATABASE_URL }}
+        JWT_SECRET: ${{ inputs.JWT_SECRET }}
+        JWT_EXPIRES_IN: ${{ inputs.JWT_EXPIRES_IN }}
+        BASE_URL: ${{ inputs.BASE_URL }}
+        PORT: ${{ inputs.PORT }}
+        MAIL_USER: ${{ inputs.MAIL_USER }}
+        MAIL_PASS: ${{ inputs.MAIL_PASS }}
+        SUPER_ADMIN_EMAIL: ${{ inputs.SUPER_ADMIN_EMAIL }}
+        SUPER_ADMIN_PASS: ${{ inputs.SUPER_ADMIN_PASS }}
+        REDIS_HOST: ${{ inputs.REDIS_HOST }}
+        REDIS_PORT: ${{ inputs.REDIS_PORT }}
+        REDIS_CONTAINER: ${{ inputs.REDIS_CONTAINER }}
+        REDIS_URL: ${{ inputs.REDIS_URL }}
+        TWILIO_ACCOUNT_SID: ${{ inputs.TWILIO_ACCOUNT_SID }}
+        TWILIO_AUTH_TOKEN: ${{ inputs.TWILIO_AUTH_TOKEN }}
+        TWILIO_PHONE_NUMBER: ${{ inputs.TWILIO_PHONE_NUMBER }}
+        OAUTH_CLIENT_ID: ${{ inputs.OAUTH_CLIENT_ID }}
+        OAUTH_CLIENT_SECRET: ${{ inputs.OAUTH_CLIENT_SECRET }}
+        FRONTEND_VERIFICATION_URL: ${{ inputs.FRONTEND_VERIFICATION_URL }}
+        FRONTEND_RESET_PASSWORD_URL: ${{ inputs.FRONTEND_RESET_PASSWORD_URL }}
+        FRONTEND_SOCIAL_EMAIL_URL: ${{ inputs.FRONTEND_SOCIAL_EMAIL_URL }}
+        AWS_REGION: ${{ inputs.AWS_REGION }}
+        AWS_ACCESS_KEY_ID: ${{ inputs.AWS_ACCESS_KEY_ID }}
+        AWS_SECRET_ACCESS_KEY: ${{ inputs.AWS_SECRET_ACCESS_KEY }}
+        AWS_S3_BUCKET_NAME: ${{ inputs.AWS_S3_BUCKET_NAME }}
+        IMAGE_TAG: ${{ inputs.IMAGE_TAG }}
+        DOCKER_PASSWORD: ${{ inputs.DOCKER_PASSWORD }}
+        GIT_TOKEN: ${{ inputs.GIT_TOKEN }}
+        VPS_HOST: ${{ inputs.VPS_HOST }}
+        VPS_USER: ${{ inputs.VPS_USER }}
+        VPS_SSH_PRIVATE_KEY_FILE: ${{ github.workspace }}/deploy_key.pem
+      run: |
+        echo "📤 Exporting environment variables to GITHUB_ENV..."
+
+        echo "PACKAGE_NAME=$PACKAGE_NAME" >> $GITHUB_ENV
+        echo "PACKAGE_VERSION=$PACKAGE_VERSION" >> $GITHUB_ENV
+        echo "DOCKER_USERNAME=$DOCKER_USERNAME" >> $GITHUB_ENV
+        echo "EMAIL=$EMAIL" >> $GITHUB_ENV
+        echo "NODE_ENV=$NODE_ENV" >> $GITHUB_ENV
+
+        echo "PG_USERNAME=$PG_USERNAME" >> $GITHUB_ENV
+        echo "PG_PASSWORD=$PG_PASSWORD" >> $GITHUB_ENV
+        echo "PG_DATABASE=$PG_DATABASE" >> $GITHUB_ENV
+        echo "PG_PORT=$PG_PORT" >> $GITHUB_ENV
+        echo "PG_HOST=$PG_HOST" >> $GITHUB_ENV
+        echo "DATABASE_URL=$DATABASE_URL" >> $GITHUB_ENV
+
+        echo "JWT_SECRET=$JWT_SECRET" >> $GITHUB_ENV
+        echo "JWT_EXPIRES_IN=$JWT_EXPIRES_IN" >> $GITHUB_ENV
+        echo "BASE_URL=$BASE_URL" >> $GITHUB_ENV
+        echo "PORT=$PORT" >> $GITHUB_ENV
+
+        # Wrap potentially space-containing secrets in quotes
+        echo "MAIL_USER=$MAIL_USER" >> $GITHUB_ENV
+        echo "MAIL_PASS=\"$MAIL_PASS\"" >> $GITHUB_ENV
+
+        echo "SUPER_ADMIN_EMAIL=$SUPER_ADMIN_EMAIL" >> $GITHUB_ENV
+        echo "SUPER_ADMIN_PASS=$SUPER_ADMIN_PASS" >> $GITHUB_ENV
+
+        echo "REDIS_HOST=$REDIS_HOST" >> $GITHUB_ENV
+        echo "REDIS_PORT=$REDIS_PORT" >> $GITHUB_ENV
+        echo "REDIS_CONTAINER=$REDIS_CONTAINER" >> $GITHUB_ENV
+        echo "REDIS_URL=$REDIS_URL" >> $GITHUB_ENV
+
+        echo "TWILIO_ACCOUNT_SID=$TWILIO_ACCOUNT_SID" >> $GITHUB_ENV
+        echo "TWILIO_AUTH_TOKEN=$TWILIO_AUTH_TOKEN" >> $GITHUB_ENV
+        echo "TWILIO_PHONE_NUMBER=$TWILIO_PHONE_NUMBER" >> $GITHUB_ENV
+
+        echo "OAUTH_CLIENT_ID=$OAUTH_CLIENT_ID" >> $GITHUB_ENV
+        echo "OAUTH_CLIENT_SECRET=\"$OAUTH_CLIENT_SECRET\"" >> $GITHUB_ENV
+
+        echo "FRONTEND_VERIFICATION_URL=$FRONTEND_VERIFICATION_URL" >> $GITHUB_ENV
+        echo "FRONTEND_RESET_PASSWORD_URL=$FRONTEND_RESET_PASSWORD_URL" >> $GITHUB_ENV
+        echo "FRONTEND_SOCIAL_EMAIL_URL=$FRONTEND_SOCIAL_EMAIL_URL" >> $GITHUB_ENV
+
+        echo "AWS_REGION=$AWS_REGION" >> $GITHUB_ENV
+        echo "AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID" >> $GITHUB_ENV
+        echo "AWS_SECRET_ACCESS_KEY=\"$AWS_SECRET_ACCESS_KEY\"" >> $GITHUB_ENV
+        echo "AWS_S3_BUCKET_NAME=$AWS_S3_BUCKET_NAME" >> $GITHUB_ENV
+
+        echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_ENV
+        echo "DOCKER_PASSWORD=\"$DOCKER_PASSWORD\"" >> $GITHUB_ENV
+        echo "GIT_TOKEN=\"$GIT_TOKEN\"" >> $GITHUB_ENV
+        echo "VPS_HOST=$VPS_HOST" >> $GITHUB_ENV
+        echo "VPS_USER=$VPS_USER" >> $GITHUB_ENV
+        echo "VPS_SSH_PRIVATE_KEY_FILE=$VPS_SSH_PRIVATE_KEY_FILE" >> $GITHUB_ENV
+
+        echo "✅ All environment variables exported successfully"
+
+    - name: 🔍 Verify setup
+      shell: bash
+      run: |
+        ENV_FILE="$GITHUB_WORKSPACE/.env"
+
+        if [ -f "$ENV_FILE" ]; then
+          VAR_COUNT=$(grep -c '^[A-Z]' "$ENV_FILE" 2>/dev/null || echo "0")
+          FILE_SIZE=$(wc -c < "$ENV_FILE")
+          echo "🎉 Environment setup complete!"
+          echo "📁 .env file: $ENV_FILE"
+          echo "🔢 Variables count: $VAR_COUNT"
+          echo "📊 File size: ${FILE_SIZE} bytes"
+          echo "✅ Ready to use in subsequent steps"
+
+          # Test a few key variables to ensure they're available
+          echo "🧪 Testing variable availability:"
+          echo "   PACKAGE_NAME: ${PACKAGE_NAME:-'NOT_SET'}"
+          echo "   PACKAGE_VERSION: ${PACKAGE_VERSION:-'NOT_SET'}"
+          echo "   DOCKER_USERNAME: ${DOCKER_USERNAME:-'NOT_SET'}"
+          echo "   SSH Key file: ${VPS_SSH_PRIVATE_KEY_FILE:-'NOT_SET'}"
+        else
+          echo "❌ Error: .env file missing after generation"
+          exit 1
+        fi

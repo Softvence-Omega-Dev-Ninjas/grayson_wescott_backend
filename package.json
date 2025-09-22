@@ -1,5 +1,6 @@
 {
-  "name": "grayson_wescott_backend",
+  "name": "grayson_wescott",
+  "displayName": "Grayson Wescott",
   "version": "0.0.1",
   "description": "This is backend for Grayson Wescott",
   "author": "Team Grayson Wescott",
@@ -101,6 +102,8 @@
     "@types/passport-jwt": "^4.0.1",
     "@types/qrcode": "^1.5.5",
     "@types/ws": "^8.18.1",
+    "dotenv": "^17.2.2",
+    "dotenv-expand": "^12.0.3",
     "eslint": "^9.35.0",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-prettier": "^5.5.4",

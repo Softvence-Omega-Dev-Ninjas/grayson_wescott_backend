@@ -1,0 +1,164 @@
+name: CD Pipeline with Zero Downtime
+
+on:
+  push:
+  workflow_run:
+    workflows: ["CI Check"]
+    types:
+      - completed
+
+jobs:
+  deploy:
+    name: Deploy to VPS with Zero Downtime 🔄
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main' }}
+    steps:
+      - name: Checkout Code 📥
+        uses: actions/checkout@v4
+
+      - name: 🔧 Setup and load environment
+        uses: ./.github/actions/setup-and-load-env
+        with:
+          NODE_ENV: production
+          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+          PACKAGE_NAME: ${{ secrets.PACKAGE_NAME }}
+          PACKAGE_VERSION: ${{ secrets.PACKAGE_VERSION }}
+          EMAIL: ${{ secrets.EMAIL }}
+          PG_USERNAME: ${{ secrets.PG_USERNAME }}
+          PG_PASSWORD: ${{ secrets.PG_PASSWORD }}
+          PG_DATABASE: ${{ secrets.PG_DATABASE }}
+          PG_PORT: ${{ secrets.PG_PORT }}
+          PG_HOST: ${{ secrets.PG_HOST }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          JWT_EXPIRES_IN: ${{ secrets.JWT_EXPIRES_IN }}
+          BASE_URL: ${{ secrets.BASE_URL }}
+          PORT: ${{ secrets.PORT }}
+          MAIL_USER: ${{ secrets.MAIL_USER }}
+          MAIL_PASS: ${{ secrets.MAIL_PASS }}
+          SUPER_ADMIN_EMAIL: ${{ secrets.SUPER_ADMIN_EMAIL }}
+          SUPER_ADMIN_PASS: ${{ secrets.SUPER_ADMIN_PASS }}
+          REDIS_HOST: ${{ secrets.REDIS_HOST }}
+          REDIS_PORT: ${{ secrets.REDIS_PORT }}
+          REDIS_CONTAINER: ${{ secrets.REDIS_CONTAINER }}
+          REDIS_URL: ${{ secrets.REDIS_URL }}
+          TWILIO_ACCOUNT_SID: ${{ secrets.TWILIO_ACCOUNT_SID }}
+          TWILIO_AUTH_TOKEN: ${{ secrets.TWILIO_AUTH_TOKEN }}
+          TWILIO_PHONE_NUMBER: ${{ secrets.TWILIO_PHONE_NUMBER }}
+          OAUTH_CLIENT_ID: ${{ secrets.OAUTH_CLIENT_ID }}
+          OAUTH_CLIENT_SECRET: ${{ secrets.OAUTH_CLIENT_SECRET }}
+          FRONTEND_VERIFICATION_URL: ${{ secrets.FRONTEND_VERIFICATION_URL }}
+          FRONTEND_RESET_PASSWORD_URL: ${{ secrets.FRONTEND_RESET_PASSWORD_URL }}
+          FRONTEND_SOCIAL_EMAIL_URL: ${{ secrets.FRONTEND_SOCIAL_EMAIL_URL }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_S3_BUCKET_NAME: ${{ secrets.AWS_S3_BUCKET_NAME }}
+          IMAGE_TAG: ${{ secrets.IMAGE_TAG }}
+          DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+          GIT_TOKEN: ${{ secrets.GIT_TOKEN }}
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_HOST_IP: ${{ secrets.VPS_HOST_IP }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_SSH_PRIVATE_KEY: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
+
+      - name: 📋 Verify environment variables
+        run: |
+          echo "Package name: ${PACKAGE_NAME:-'NOT_SET'}"
+          echo "Package version: ${PACKAGE_VERSION:-'NOT_SET'}"
+          echo "Docker image: ${IMAGE_TAG:-'NOT_SET'}"
+          echo "VPS host: ${VPS_HOST:-'NOT_SET'}"
+          echo "VPS ssh key file: ${VPS_SSH_PRIVATE_KEY_FILE:-'NOT_SET'}"
+          echo "✅ Environment variables are accessible"
+
+      - name: Setup SSH 🔐
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+
+          # Prefer using the key file created by the setup action; fallback to secret
+          if [ -n "${VPS_SSH_PRIVATE_KEY_FILE:-}" ] && [ -f "${VPS_SSH_PRIVATE_KEY_FILE}" ]; then
+            echo "Using deploy key from VPS_SSH_PRIVATE_KEY_FILE: $VPS_SSH_PRIVATE_KEY_FILE"
+            cp "$VPS_SSH_PRIVATE_KEY_FILE" ~/.ssh/deploy_key
+          else
+            echo "No VPS_SSH_PRIVATE_KEY_FILE found, falling back to secret"
+            echo "${{ secrets.VPS_SSH_PRIVATE_KEY }}" | tr -d '\r' > ~/.ssh/deploy_key
+          fi
+
+          chmod 600 ~/.ssh/deploy_key
+
+          # Add server host key (use VPS_HOST from env)
+          if [ -n "${VPS_HOST:-}" ]; then
+            ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
+          fi
+          chmod 644 ~/.ssh/known_hosts
+
+          # Create SSH config for the deploy host
+          cat > ~/.ssh/config <<EOF
+          Host deploy-server
+            HostName ${VPS_HOST}
+            User ${VPS_USER}
+            IdentityFile ~/.ssh/deploy_key
+            StrictHostKeyChecking no
+          EOF
+          chmod 600 ~/.ssh/config
+
+      - name: Test SSH Connection ✅
+        run: |
+          ssh -o StrictHostKeyChecking=no deploy-server "echo '🎉 SSH Connected Successfully!'"
+
+      - name: Copy Files to Server 📦
+        run: |
+          echo "Creating directories on remote..."
+          ssh deploy-server "mkdir -p ~/${PACKAGE_NAME}/scripts"
+          echo "Copying docker-compose.yaml, .env, Dockerfile, scripts/ to remote..."
+          scp docker-compose.yaml deploy-server:~/${PACKAGE_NAME}/
+          scp .env deploy-server:~/${PACKAGE_NAME}/
+          scp Dockerfile deploy-server:~/${PACKAGE_NAME}/
+          scp -r scripts deploy-server:~/${PACKAGE_NAME}/
+          echo "✅ Files copied successfully"
+
+      - name: Fix permissions on server 🌋
+        run: |
+          ssh deploy-server "chmod -R +x ~/${PACKAGE_NAME}/scripts/*.sh || true"
+
+      - name: Deploy Application 🚀
+        shell: bash
+        run: |
+          ssh deploy-server bash <<'DEPLOY_EOF'
+          set -euo pipefail
+
+          cd ~/${{ secrets.PACKAGE_NAME }}
+
+          # Install Docker Compose plugin if needed
+          if [ ! -f ~/.docker/cli-plugins/docker-compose ]; then
+            echo "Installing Docker Compose..."
+            mkdir -p ~/.docker/cli-plugins/
+            curl -SL https://github.com/docker/compose/releases/latest/download/docker-compose-linux-x86_64 -o ~/.docker/cli-plugins/docker-compose
+            chmod +x ~/.docker/cli-plugins/docker-compose
+          fi
+
+          # Login to Docker Hub (runner will expand secrets into these lines)
+          echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
+
+          # Export chosen envs on the remote via the .env that was copied (docker-compose will read it)
+          export PACKAGE_NAME="${{ secrets.PACKAGE_NAME }}"
+          export PACKAGE_VERSION="${{ secrets.PACKAGE_VERSION }}"
+          export IMAGE_TAG="${{ secrets.IMAGE_TAG }}"
+          export VPS_HOST_IP="${{ secrets.VPS_HOST_IP }}"
+
+          echo "Starting zero-downtime deployment (script must exist at scripts/deploy.sh)..."
+          ./scripts/deploy.sh --version "${{ secrets.PACKAGE_VERSION }}"
+
+          docker logout || true
+          docker image prune -f || true
+          DEPLOY_EOF
+
+      - name: Cleanup 🧹
+        if: always()
+        run: |
+          rm -rf ~/.ssh/deploy_key ~/.ssh/config
+          rm -f "$GITHUB_WORKSPACE/deploy_key.pem" || true
+          rm -f .env || true
