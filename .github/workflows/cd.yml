@@ -163,7 +163,7 @@ jobs:
           export SUPER_ADMIN_EMAIL="${{secrets.SUPER_ADMIN_EMAIL}}"
           export SUPER_ADMIN_PASS="${{secrets.SUPER_ADMIN_PASS}}"
           export REDIS_HOST="${{secrets.REDIS_HOST}}"
-          export REDIS_PORT="${{secrets.REDupdIS_PORT}}"
+          export REDIS_PORT="${{secrets.REDIS_PORT}}"
           export REDIS_CONTAINER="${{secrets.REDIS_CONTAINER}}"
           export REDIS_URL="redis://${REDIS_HOST}:${REDIS_PORT}"
           export TWILIO_ACCOUNT_SID="${{secrets.TWILIO_ACCOUNT_SID}}"
