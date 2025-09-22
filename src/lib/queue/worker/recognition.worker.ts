@@ -1,10 +1,10 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ENVEnum } from '@project/common/enum/env.enum';
-import { RecognitionEvent } from '@project/common/interface/events-payload';
-import { QueueName } from '@project/common/interface/queue-name';
 import { AppGateway } from '@project/lib/gateway/app.gateway';
 import { PrismaService } from '@project/lib/prisma/prisma.service';
+import { RecognitionEvent } from '@project/lib/queue/interface/events-payload';
+import { QueueName } from '@project/lib/queue/interface/queue-name';
 import { Worker } from 'bullmq';
 
 @Injectable()

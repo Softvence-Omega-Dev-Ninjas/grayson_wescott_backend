@@ -1,13 +1,13 @@
 model FileInstance {
   id String @id @default(uuid())
 
-  filename         String
-  originalFilename String
-  path             String
-  url              String
+  filename         String         // Stored filename (can be S3 key or generated UUID name)
+  originalFilename String         // Original filename uploaded by user
+  path             String         // S3 object key, e.g., "videos/uuid.mp4"
+  url              String         // Public or pre-signed S3 URL
   fileType         FileType @default(ANY)
   mimeType         String
-  size             Int
+  size             Int            // File size in bytes
 
   privateMessage PrivateMessage[]
 

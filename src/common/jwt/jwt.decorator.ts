@@ -7,13 +7,13 @@ import {
 } from '@nestjs/common';
 import { UserEnum } from '../enum/user.enum';
 import { JwtAuthGuard, RolesGuard } from './jwt.guard';
-import { RequestWithUser } from './jwt.interface';
+import { JWTPayload, RequestWithUser } from './jwt.interface';
 
 export const ROLES_KEY = 'roles';
 export const Roles = (...roles: UserEnum[]) => SetMetadata(ROLES_KEY, roles);
 
 export const GetUser = createParamDecorator(
-  (key: string | undefined, ctx: ExecutionContext) => {
+  (key: keyof JWTPayload | undefined, ctx: ExecutionContext) => {
     const request = ctx.switchToHttp().getRequest<RequestWithUser>();
     const user = request.user;
 

@@ -2,12 +2,12 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { ENVEnum } from '@project/common/enum/env.enum';
-import { Notification } from '@project/common/interface/events-payload';
 import { JWTPayload } from '@project/common/jwt/jwt.interface';
 import {
   errorResponse,
   successResponse,
 } from '@project/common/utils/response.util';
+import { Notification } from '@project/lib/queue/interface/events-payload';
 import { Server, Socket } from 'socket.io';
 import { ChatEventsEnum } from '../chat/enum/chat-events.enum';
 import { PrismaService } from '../prisma/prisma.service';
