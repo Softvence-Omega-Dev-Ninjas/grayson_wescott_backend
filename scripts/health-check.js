@@ -5,32 +5,32 @@
  * Performs comprehensive health checks on the application
  */
 
-const http = require("http");
-const { exec } = require("child_process");
-const util = require("util");
+const http = require('http');
+const { exec } = require('child_process');
+const util = require('util');
 
 const execAsync = util.promisify(exec);
 
 // Configuration
 const CONFIG = {
-  host: process.env.HEALTH_HOST || "localhost",
+  host: process.env.HEALTH_HOST || 'localhost',
   port: process.env.HEALTH_PORT || 5056,
-  path: process.env.HEALTH_PATH || "/",
+  path: process.env.HEALTH_PATH || '/',
   timeout: parseInt(process.env.HEALTH_TIMEOUT) || 10000,
   retries: parseInt(process.env.HEALTH_RETRIES) || 3,
   retryDelay: parseInt(process.env.HEALTH_RETRY_DELAY) || 2000,
-  containerName: process.env.PACKAGE_NAME || "jdadzok_server",
+  containerName: process.env.PACKAGE_NAME || 'jdadzok_server',
 };
 
 // Colors for console output
 const colors = {
-  reset: "\x1b[0m",
-  red: "\x1b[31m",
-  green: "\x1b[32m",
-  yellow: "\x1b[33m",
-  blue: "\x1b[34m",
-  magenta: "\x1b[35m",
-  cyan: "\x1b[36m",
+  reset: '\x1b[0m',
+  red: '\x1b[31m',
+  green: '\x1b[32m',
+  yellow: '\x1b[33m',
+  blue: '\x1b[34m',
+  magenta: '\x1b[35m',
+  cyan: '\x1b[36m',
 };
 
 class HealthChecker {
@@ -43,7 +43,7 @@ class HealthChecker {
     };
   }
 
-  log(message, color = "reset") {
+  log(message, color = 'reset') {
     const timestamp = new Date().toISOString();
     console.log(`${colors[color]}[${timestamp}] ${message}${colors.reset}`);
   }
@@ -53,31 +53,31 @@ class HealthChecker {
   }
 
   async checkHttpEndpoint(retries = CONFIG.retries) {
-    this.log("🔍 Checking HTTP endpoint...", "blue");
+    this.log('🔍 Checking HTTP endpoint...', 'blue');
 
     for (let attempt = 1; attempt <= retries; attempt++) {
       try {
         const result = await this.makeHttpRequest();
         this.results.checks.http = {
-          status: "healthy",
+          status: 'healthy',
           responseTime: result.responseTime,
           statusCode: result.statusCode,
           attempt: attempt,
         };
         this.log(
           `✅ HTTP endpoint healthy (${result.responseTime}ms, status: ${result.statusCode})`,
-          "green",
+          'green',
         );
         return true;
       } catch (error) {
         this.log(
           `❌ HTTP check failed (attempt ${attempt}/${retries}): ${error.message}`,
-          "red",
+          'red',
         );
 
         if (attempt === retries) {
           this.results.checks.http = {
-            status: "unhealthy",
+            status: 'unhealthy',
             error: error.message,
             attempts: retries,
           };
@@ -99,13 +99,13 @@ class HealthChecker {
 
       const request = http.get(url, { timeout: CONFIG.timeout }, (response) => {
         const responseTime = Date.now() - startTime;
-        let data = "";
+        let data = '';
 
-        response.on("data", (chunk) => {
+        response.on('data', (chunk) => {
           data += chunk;
         });
 
-        response.on("end", () => {
+        response.on('end', () => {
           if (response.statusCode >= 200 && response.statusCode < 400) {
             resolve({
               statusCode: response.statusCode,
@@ -118,11 +118,11 @@ class HealthChecker {
         });
       });
 
-      request.on("error", (error) => {
+      request.on('error', (error) => {
         reject(new Error(`Request failed: ${error.message}`));
       });
 
-      request.on("timeout", () => {
+      request.on('timeout', () => {
         request.destroy();
         reject(new Error(`Request timeout after ${CONFIG.timeout}ms`));
       });
@@ -130,7 +130,7 @@ class HealthChecker {
   }
 
   async checkContainerStatus() {
-    this.log("🐳 Checking container status...", "blue");
+    this.log('🐳 Checking container status...', 'blue');
 
     try {
       const { stdout } = await execAsync(
@@ -138,11 +138,11 @@ class HealthChecker {
       );
 
       if (stdout.trim()) {
-        const lines = stdout.trim().split("\n");
-        const containerInfo = lines[0].split("\t");
+        const lines = stdout.trim().split('\n');
+        const containerInfo = lines[0].split('\t');
 
         this.results.checks.container = {
-          status: "running",
+          status: 'running',
           name: containerInfo[0],
           containerStatus: containerInfo[1],
           image: containerInfo[2],
@@ -150,31 +150,31 @@ class HealthChecker {
 
         this.log(
           `✅ Container running: ${containerInfo[0]} (${containerInfo[1]})`,
-          "green",
+          'green',
         );
         return true;
       } else {
         this.results.checks.container = {
-          status: "not_running",
-          error: "No containers found",
+          status: 'not_running',
+          error: 'No containers found',
         };
-        this.results.errors.push("Container is not running");
-        this.log("❌ Container is not running", "red");
+        this.results.errors.push('Container is not running');
+        this.log('❌ Container is not running', 'red');
         return false;
       }
     } catch (error) {
       this.results.checks.container = {
-        status: "error",
+        status: 'error',
         error: error.message,
       };
       this.results.errors.push(`Container check failed: ${error.message}`);
-      this.log(`❌ Container check failed: ${error.message}`, "red");
+      this.log(`❌ Container check failed: ${error.message}`, 'red');
       return false;
     }
   }
 
   async checkDockerHealth() {
-    this.log("🏥 Checking Docker health status...", "blue");
+    this.log('🏥 Checking Docker health status...', 'blue');
 
     try {
       const { stdout } = await execAsync(
@@ -182,43 +182,43 @@ class HealthChecker {
       );
       const healthStatus = stdout.trim();
 
-      if (healthStatus === "healthy") {
+      if (healthStatus === 'healthy') {
         this.results.checks.dockerHealth = {
-          status: "healthy",
+          status: 'healthy',
         };
-        this.log("✅ Docker health check: healthy", "green");
+        this.log('✅ Docker health check: healthy', 'green');
         return true;
-      } else if (healthStatus === "unhealthy") {
+      } else if (healthStatus === 'unhealthy') {
         this.results.checks.dockerHealth = {
-          status: "unhealthy",
+          status: 'unhealthy',
         };
-        this.results.errors.push("Docker health check reports unhealthy");
-        this.log("❌ Docker health check: unhealthy", "red");
+        this.results.errors.push('Docker health check reports unhealthy');
+        this.log('❌ Docker health check: unhealthy', 'red');
         return false;
       } else {
         this.results.checks.dockerHealth = {
-          status: "no_healthcheck",
-          note: "No health check configured",
+          status: 'no_healthcheck',
+          note: 'No health check configured',
         };
-        this.log("⚠️  No Docker health check configured", "yellow");
+        this.log('⚠️  No Docker health check configured', 'yellow');
         return true; // Don't fail if no health check is configured
       }
     } catch (error) {
       this.results.checks.dockerHealth = {
-        status: "error",
+        status: 'error',
         error: error.message,
       };
-      this.log(`⚠️  Docker health check error: ${error.message}`, "yellow");
+      this.log(`⚠️  Docker health check error: ${error.message}`, 'yellow');
       return true; // Don't fail the overall check for this
     }
   }
 
   async checkDependencies() {
-    this.log("🔗 Checking service dependencies...", "blue");
+    this.log('🔗 Checking service dependencies...', 'blue');
 
     const dependencies = [
-      { name: "postgres", container: "jdadzok_db", port: 5431 },
-      { name: "redis", container: "jdadzok_redis", port: 6378 },
+      { name: 'postgres', container: 'jdadzok_db', port: 5431 },
+      { name: 'redis', container: 'jdadzok_redis', port: 6378 },
     ];
 
     let allDepsHealthy = true;
@@ -230,30 +230,30 @@ class HealthChecker {
           `docker ps --filter "name=${dep.container}" --format "{{.Status}}"`,
         );
 
-        if (stdout.trim() && stdout.includes("Up")) {
+        if (stdout.trim() && stdout.includes('Up')) {
           this.results.checks.dependencies[dep.name] = {
-            status: "running",
+            status: 'running',
             container: dep.container,
           };
-          this.log(`✅ ${dep.name} dependency: running`, "green");
+          this.log(`✅ ${dep.name} dependency: running`, 'green');
         } else {
           this.results.checks.dependencies[dep.name] = {
-            status: "not_running",
+            status: 'not_running',
             container: dep.container,
           };
           this.results.errors.push(`${dep.name} dependency is not running`);
-          this.log(`❌ ${dep.name} dependency: not running`, "red");
+          this.log(`❌ ${dep.name} dependency: not running`, 'red');
           allDepsHealthy = false;
         }
       } catch (error) {
         this.results.checks.dependencies[dep.name] = {
-          status: "error",
+          status: 'error',
           error: error.message,
           container: dep.container,
         };
         this.log(
           `❌ ${dep.name} dependency check failed: ${error.message}`,
-          "red",
+          'red',
         );
         allDepsHealthy = false;
       }
@@ -263,7 +263,7 @@ class HealthChecker {
   }
 
   async performAllChecks() {
-    this.log("🚀 Starting comprehensive health check...", "cyan");
+    this.log('🚀 Starting comprehensive health check...', 'cyan');
 
     const checks = [
       this.checkContainerStatus(),
@@ -275,20 +275,20 @@ class HealthChecker {
     const results = await Promise.all(checks);
     this.results.overall = results.every((result) => result);
 
-    this.log("📊 Health check summary:", "cyan");
+    this.log('📊 Health check summary:', 'cyan');
     this.log(
-      `   Container Status: ${this.results.checks.container?.status || "unknown"}`,
-      this.results.checks.container?.status === "running" ? "green" : "red",
+      `   Container Status: ${this.results.checks.container?.status || 'unknown'}`,
+      this.results.checks.container?.status === 'running' ? 'green' : 'red',
     );
     this.log(
-      `   Docker Health: ${this.results.checks.dockerHealth?.status || "unknown"}`,
-      this.results.checks.dockerHealth?.status === "healthy"
-        ? "green"
-        : "yellow",
+      `   Docker Health: ${this.results.checks.dockerHealth?.status || 'unknown'}`,
+      this.results.checks.dockerHealth?.status === 'healthy'
+        ? 'green'
+        : 'yellow',
     );
     this.log(
-      `   HTTP Endpoint: ${this.results.checks.http?.status || "unknown"}`,
-      this.results.checks.http?.status === "healthy" ? "green" : "red",
+      `   HTTP Endpoint: ${this.results.checks.http?.status || 'unknown'}`,
+      this.results.checks.http?.status === 'healthy' ? 'green' : 'red',
     );
 
     // Log dependency status
@@ -298,19 +298,19 @@ class HealthChecker {
       )) {
         this.log(
           `   ${name}: ${dep.status}`,
-          dep.status === "running" ? "green" : "red",
+          dep.status === 'running' ? 'green' : 'red',
         );
       }
     }
 
     if (this.results.overall) {
-      this.log("🎉 Overall health status: HEALTHY", "green");
+      this.log('🎉 Overall health status: HEALTHY', 'green');
     } else {
-      this.log("💥 Overall health status: UNHEALTHY", "red");
+      this.log('💥 Overall health status: UNHEALTHY', 'red');
       if (this.results.errors.length > 0) {
-        this.log("Errors found:", "red");
+        this.log('Errors found:', 'red');
         this.results.errors.forEach((error) => {
-          this.log(`  - ${error}`, "red");
+          this.log(`  - ${error}`, 'red');
         });
       }
     }
@@ -331,7 +331,7 @@ async function main() {
     const results = await checker.performAllChecks();
 
     // Output JSON if requested
-    if (process.argv.includes("--json")) {
+    if (process.argv.includes('--json')) {
       console.log(JSON.stringify(results, null, 2));
     }
 
@@ -345,7 +345,7 @@ async function main() {
 }
 
 // Handle CLI arguments
-if (process.argv.includes("--help")) {
+if (process.argv.includes('--help')) {
   console.log(`
 Health Check Script
 
