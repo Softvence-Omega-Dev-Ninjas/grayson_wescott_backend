@@ -52,6 +52,68 @@ jobs:
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
+        
+      - name: Generate .env from GitHub Secrets
+        run: |
+          cat <<EOF > .env
+          NODE_ENV=${{ secrets.NODE_ENV }}
+          IMAGE_TAG=${{ secrets.IMAGE_TAG }}
+          PACKAGE_NAME=${{ secrets.PACKAGE_NAME }}
+          PACKAGE_VERSION=${{ secrets.PACKAGE_VERSION }}
+
+          PG_USERNAME=${{ secrets.PG_USERNAME }}
+          PG_PASSWORD=${{ secrets.PG_PASSWORD }}
+          PG_DATABASE=${{ secrets.PG_DATABASE }}
+          PG_PORT=${{ secrets.PG_PORT }}
+          PG_HOST=${{ secrets.PG_HOST }}
+
+          DATABASE_URL=${{ secrets.DATABASE_URL }}
+
+          JWT_SECRET=${{ secrets.JWT_SECRET }}
+          JWT_EXPIRES_IN=${{ secrets.JWT_EXPIRES_IN }}
+
+          PORT=${{ secrets.PORT }}
+          EMAIL=${{ secrets.EMAIL }}
+          BASE_URL=${{ secrets.BASE_URL }}
+          HEALTH_ENDPOINT=${{ secrets.HEALTH_ENDPOINT }}
+
+          MAIL_USER=${{ secrets.MAIL_USER }}
+          MAIL_PASS=${{ secrets.MAIL_PASS }}
+
+          SUPER_ADMIN_EMAIL=${{ secrets.SUPER_ADMIN_EMAIL }}
+          SUPER_ADMIN_PASS=${{ secrets.SUPER_ADMIN_PASS }}
+
+          REDIS_HOST=${{ secrets.REDIS_HOST }}
+          REDIS_PORT=${{ secrets.REDIS_PORT }}
+          REDIS_CONTAINER=${{ secrets.REDIS_CONTAINER }}
+          REDIS_URL=redis://${{ secrets.REDIS_HOST }}:${{ secrets.REDIS_PORT }}
+
+          TWILIO_ACCOUNT_SID=${{ secrets.TWILIO_ACCOUNT_SID }}
+          TWILIO_AUTH_TOKEN=${{ secrets.TWILIO_AUTH_TOKEN }}
+          TWILIO_PHONE_NUMBER=${{ secrets.TWILIO_PHONE_NUMBER }}
+
+          OAUTH_CLIENT_ID=${{ secrets.OAUTH_CLIENT_ID }}
+          OAUTH_CLIENT_SECRET=${{ secrets.OAUTH_CLIENT_SECRET }}
+
+          FRONTEND_VERIFICATION_URL=${{ secrets.FRONTEND_VERIFICATION_URL }}
+          FRONTEND_RESET_PASSWORD_URL=${{ secrets.FRONTEND_RESET_PASSWORD_URL }}
+          FRONTEND_SOCIAL_EMAIL_URL=${{ secrets.FRONTEND_SOCIAL_EMAIL_URL }}
+
+          AWS_REGION=${{ secrets.AWS_REGION }}
+          AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_S3_BUCKET_NAME=${{ secrets.AWS_S3_BUCKET_NAME }}
+
+          DOCKER_USERNAME=${{ secrets.DOCKER_USERNAME }}
+          DOCKER_PASSWORD=${{ secrets.DOCKER_PASSWORD }}
+
+          GIT_TOKEN=${{ secrets.GIT_TOKEN }}
+
+          VPS_USER=${{ secrets.VPS_USER }}
+          VPS_HOST=${{ secrets.VPS_HOST }}
+          VPS_HOST_IP=${{ secrets.VPS_HOST_IP }}
+          EOF
+
 
       - name: Build Docker Image 🔨
         run: docker compose build

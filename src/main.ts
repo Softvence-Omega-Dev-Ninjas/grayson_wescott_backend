@@ -46,6 +46,7 @@ async function bootstrap() {
     .setTitle('Grayson Wescott')
     .setDescription('Grayson Wescott API description')
     .addBearerAuth()
+    .setVersion('1.0')
     .build();
 
   const document = SwaggerModule.createDocument(app, config);
