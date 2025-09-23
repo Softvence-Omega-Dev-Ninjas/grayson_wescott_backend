@@ -56,11 +56,15 @@ export class AuthRegisterService {
     });
 
     // Send verification email
-    const response = await this.mailService.sendVerificationCodeEmail(email, otp.toString(), {
-      subject: 'Verify your email',
-      message:
-        'Welcome to our platform! Your account has been successfully created.',
-    });
+    const response = await this.mailService.sendVerificationCodeEmail(
+      email,
+      otp.toString(),
+      {
+        subject: 'Verify your email',
+        message:
+          'Welcome to our platform! Your account has been successfully created.',
+      },
+    );
     console.info('Email sent successfully', response);
 
     if (response.error) {
