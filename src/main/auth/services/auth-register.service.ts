@@ -1,5 +1,4 @@
 import { Injectable } from '@nestjs/common';
-import { UserResponseDto } from '@project/common/dto/user-response.dto';
 import { AppError } from '@project/common/error/handle-error.app';
 import { HandleError } from '@project/common/error/handle-error.decorator';
 import {
@@ -57,16 +56,23 @@ export class AuthRegisterService {
     });
 
     // Send verification email
-    await this.mailService.sendVerificationCodeEmail(email, otp.toString(), {
+    const response = await this.mailService.sendVerificationCodeEmail(email, otp.toString(), {
       subject: 'Verify your email',
       message:
         'Welcome to our platform! Your account has been successfully created.',
     });
+    console.info('Email sent successfully', response);
+
+    if (response.error) {
+      throw new AppError(500, 'Failed to send email');
+    }
 
     // Return sanitized response
     return successResponse(
-      this.utils.sanitizedResponse(UserResponseDto, newUser),
-      'Registration successful. Please verify your email.',
+      {
+        email: newUser.email,
+      },
+      `Registration successful. A verification email has been sent to ${newUser.email}.`,
     );
   }
 }

@@ -293,7 +293,7 @@ runs:
 
         # Wrap potentially space-containing secrets in quotes
         echo "MAIL_USER=$MAIL_USER" >> $GITHUB_ENV
-        echo "MAIL_PASS=\"$MAIL_PASS\"" >> $GITHUB_ENV
+        echo "MAIL_PASS=$MAIL_PASS" >> $GITHUB_ENV
 
         echo "SUPER_ADMIN_EMAIL=$SUPER_ADMIN_EMAIL" >> $GITHUB_ENV
         echo "SUPER_ADMIN_PASS=$SUPER_ADMIN_PASS" >> $GITHUB_ENV

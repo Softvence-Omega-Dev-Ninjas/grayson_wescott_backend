@@ -104,6 +104,7 @@ export class AuthLoginService {
           message: 'Please verify your email to complete the login process.',
         },
       );
+      console.info('Email sent successfully');
 
       if (response.error) {
         throw new AppError(500, 'Failed to send email');
