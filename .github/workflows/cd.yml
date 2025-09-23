@@ -41,21 +41,27 @@ jobs:
 
       # 3️⃣ Setup SSH
       - name: Setup SSH 🔐
-        shell: bash
         run: |
           mkdir -p ~/.ssh
           chmod 700 ~/.ssh
-          echo "${VPS_SSH_PRIVATE_KEY}" | tr -d '\r' > ~/.ssh/deploy_key
+
+          # Write private key
+          echo "${{ secrets.VPS_SSH_PRIVATE_KEY }}" | tr -d '\r' > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -H "${VPS_HOST}" >> ~/.ssh/known_hosts
+
+          # Add server host key
+          ssh-keyscan -H ${{ secrets.VPS_HOST }} >> ~/.ssh/known_hosts
           chmod 644 ~/.ssh/known_hosts
+
+          # Clean SSH config
           cat > ~/.ssh/config <<EOF
           Host deploy-server
-            HostName ${VPS_HOST}
-            User ${VPS_USER}
+            HostName ${{ secrets.VPS_HOST }}
+            User ${{ secrets.VPS_USER }}
             IdentityFile ~/.ssh/deploy_key
             StrictHostKeyChecking no
           EOF
+
           chmod 600 ~/.ssh/config
 
       # 4️⃣ Test SSH connection
