@@ -2,7 +2,7 @@ name: CD Pipeline with Zero Downtime
 
 on:
   workflow_run:
-    workflows: ['CI Check']
+    workflows: ['CI Pipeline']
     types:
       - completed
 
@@ -10,64 +10,32 @@ jobs:
   deploy:
     name: Deploy to VPS with Zero Downtime 🔄
     runs-on: ubuntu-latest
-    if: ${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main' }}
+    if: |
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_branch == 'main'
+
     steps:
       - name: Checkout Code 📥
         uses: actions/checkout@v4
 
-      - name: 🔧 Setup and load environment
-        uses: ./.github/actions/setup-and-load-env
-        with:
+      - name: 📋 Verify environment variables
+        env:
           NODE_ENV: production
           DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
           PACKAGE_NAME: ${{ secrets.PACKAGE_NAME }}
           PACKAGE_VERSION: ${{ secrets.PACKAGE_VERSION }}
-          EMAIL: ${{ secrets.EMAIL }}
-          PG_USERNAME: ${{ secrets.PG_USERNAME }}
-          PG_PASSWORD: ${{ secrets.PG_PASSWORD }}
-          PG_DATABASE: ${{ secrets.PG_DATABASE }}
-          PG_PORT: ${{ secrets.PG_PORT }}
-          PG_HOST: ${{ secrets.PG_HOST }}
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          JWT_SECRET: ${{ secrets.JWT_SECRET }}
-          JWT_EXPIRES_IN: ${{ secrets.JWT_EXPIRES_IN }}
-          BASE_URL: ${{ secrets.BASE_URL }}
-          PORT: ${{ secrets.PORT }}
-          MAIL_USER: ${{ secrets.MAIL_USER }}
-          MAIL_PASS: ${{ secrets.MAIL_PASS }}
-          SUPER_ADMIN_EMAIL: ${{ secrets.SUPER_ADMIN_EMAIL }}
-          SUPER_ADMIN_PASS: ${{ secrets.SUPER_ADMIN_PASS }}
-          REDIS_HOST: ${{ secrets.REDIS_HOST }}
-          REDIS_PORT: ${{ secrets.REDIS_PORT }}
-          REDIS_CONTAINER: ${{ secrets.REDIS_CONTAINER }}
-          REDIS_URL: ${{ secrets.REDIS_URL }}
-          TWILIO_ACCOUNT_SID: ${{ secrets.TWILIO_ACCOUNT_SID }}
-          TWILIO_AUTH_TOKEN: ${{ secrets.TWILIO_AUTH_TOKEN }}
-          TWILIO_PHONE_NUMBER: ${{ secrets.TWILIO_PHONE_NUMBER }}
-          OAUTH_CLIENT_ID: ${{ secrets.OAUTH_CLIENT_ID }}
-          OAUTH_CLIENT_SECRET: ${{ secrets.OAUTH_CLIENT_SECRET }}
-          FRONTEND_VERIFICATION_URL: ${{ secrets.FRONTEND_VERIFICATION_URL }}
-          FRONTEND_RESET_PASSWORD_URL: ${{ secrets.FRONTEND_RESET_PASSWORD_URL }}
-          FRONTEND_SOCIAL_EMAIL_URL: ${{ secrets.FRONTEND_SOCIAL_EMAIL_URL }}
-          AWS_REGION: ${{ secrets.AWS_REGION }}
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_S3_BUCKET_NAME: ${{ secrets.AWS_S3_BUCKET_NAME }}
           IMAGE_TAG: ${{ secrets.IMAGE_TAG }}
-          DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
-          GIT_TOKEN: ${{ secrets.GIT_TOKEN }}
           VPS_HOST: ${{ secrets.VPS_HOST }}
-          VPS_HOST_IP: ${{ secrets.VPS_HOST_IP }}
           VPS_USER: ${{ secrets.VPS_USER }}
-          VPS_SSH_PRIVATE_KEY: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
-
-      - name: 📋 Verify environment variables
+          VPS_SSH_PRIVATE_KEY_FILE: ${{ github.workspace }}/deploy_key.pem
         run: |
+          echo "🧪 Testing variable availability:"
+          echo "Node environment: ${NODE_ENV:-'NOT_SET'}"
+          echo "Docker username: ${DOCKER_USERNAME:-'NOT_SET'}"
           echo "Package name: ${PACKAGE_NAME:-'NOT_SET'}"
           echo "Package version: ${PACKAGE_VERSION:-'NOT_SET'}"
           echo "Docker image: ${IMAGE_TAG:-'NOT_SET'}"
           echo "VPS host: ${VPS_HOST:-'NOT_SET'}"
-          echo "VPS ssh key file: ${VPS_SSH_PRIVATE_KEY_FILE:-'NOT_SET'}"
           echo "✅ Environment variables are accessible"
 
       - name: Setup SSH 🔐
@@ -112,10 +80,8 @@ jobs:
         run: |
           echo "Creating directories on remote..."
           ssh deploy-server "mkdir -p ~/${PACKAGE_NAME}/scripts"
-          echo "Copying docker-compose.yaml, .env, Dockerfile, scripts/ to remote..."
-          scp docker-compose.yaml deploy-server:~/${PACKAGE_NAME}/
-          scp .env deploy-server:~/${PACKAGE_NAME}/
-          scp Dockerfile deploy-server:~/${PACKAGE_NAME}/
+          echo "Copying compose.yaml, scripts/ to remote..."
+          scp compose.yaml deploy-server:~/${PACKAGE_NAME}/
           scp -r scripts deploy-server:~/${PACKAGE_NAME}/
           echo "✅ Files copied successfully"
 
@@ -130,99 +96,23 @@ jobs:
 
           cd ~/${{secrets.PACKAGE_NAME}}
 
-          # Install Docker Compose if needed
-          if [ ! -f ~/.docker/cli-plugins/docker-compose ]; then
-            echo "Installing Docker Compose..."
-            mkdir -p ~/.docker/cli-plugins/
-            curl -SL https://github.com/docker/compose/releases/latest/download/docker-compose-linux-x86_64 -o ~/.docker/cli-plugins/docker-compose
-            chmod +x ~/.docker/cli-plugins/docker-compose
-          fi
-
           # Login to Docker Hub (use secrets embedded by Actions)
           echo "${{secrets.DOCKER_PASSWORD}}" | docker login -u "${{secrets.DOCKER_USERNAME}}" --password-stdin
 
-          # --- Load .env if present on server (this has priority) ---
+          # Update Package tag, version and name & docker username inside .env
+          # if env not found fail the deployment
           if [ -f .env ]; then
-            echo "Found .env on server — loading it (these values take precedence)..."
-            # export all variables sourced from .env
-            set -o allexport
-            # shellcheck disable=SC1091
-            source .env
-            set +o allexport
+            echo "Updating .env file..."
+            sed -i "s/IMAGE_TAG=.*/IMAGE_TAG=${IMAGE_TAG}/" .env
+            sed -i "s/PACKAGE_NAME=.*/PACKAGE_NAME=${PACKAGE_NAME}/" .env
+            sed -i "s/PACKAGE_VERSION=.*/PACKAGE_VERSION=${PACKAGE_VERSION}/" .env
+            sed -i "s/DOCKER_USERNAME=.*/DOCKER_USERNAME=${DOCKER_USERNAME}/" .env
           else
-            echo "No .env file on server — will export from embedded secrets where necessary."
+            echo "❌ Error: .env file not found"
+            exit 1
           fi
 
-          # --- For any variable not set by .env, use the corresponding GitHub secret as default ---
-          # Note: this pattern sets the variable to the secret only if it isn't already set.
-          : "${NODE_ENV:=${{secrets.NODE_ENV}}}"
-          : "${DOCKER_USERNAME:=${{secrets.DOCKER_USERNAME}}}"
-          : "${PACKAGE_NAME:=${{secrets.PACKAGE_NAME}}}"
-          : "${PACKAGE_VERSION:=${{secrets.PACKAGE_VERSION}}}"
-          : "${EMAIL:=${{secrets.EMAIL}}}"
-          : "${PG_USERNAME:=${{secrets.PG_USERNAME}}}"
-          : "${PG_PASSWORD:=${{secrets.PG_PASSWORD}}}"
-          : "${PG_DATABASE:=${{secrets.PG_DATABASE}}}"
-          : "${PG_PORT:=${{secrets.PG_PORT}}}"
-          : "${PG_HOST:=${{secrets.PG_HOST}}}"
-          : "${DATABASE_URL:=${{secrets.DATABASE_URL}}}"
-          : "${JWT_SECRET:=${{secrets.JWT_SECRET}}}"
-          : "${JWT_EXPIRES_IN:=${{secrets.JWT_EXPIRES_IN}}}"
-          : "${BASE_URL:=${{secrets.BASE_URL}}}"
-          : "${PORT:=${{secrets.PORT}}}"
-          : "${MAIL_USER:=${{secrets.MAIL_USER}}}"
-          : "${MAIL_PASS:=${{secrets.MAIL_PASS}}}"
-          : "${SUPER_ADMIN_EMAIL:=${{secrets.SUPER_ADMIN_EMAIL}}}"
-          : "${SUPER_ADMIN_PASS:=${{secrets.SUPER_ADMIN_PASS}}}"
-          : "${REDIS_HOST:=${{secrets.REDIS_HOST}}}"
-          : "${REDIS_PORT:=${{secrets.REDIS_PORT}}}"
-          : "${REDIS_CONTAINER:=${{secrets.REDIS_CONTAINER}}}"
-          : "${REDIS_URL:=${{secrets.REDIS_URL}}}"
-          : "${TWILIO_ACCOUNT_SID:=${{secrets.TWILIO_ACCOUNT_SID}}}"
-          : "${TWILIO_AUTH_TOKEN:=${{secrets.TWILIO_AUTH_TOKEN}}}"
-          : "${TWILIO_PHONE_NUMBER:=${{secrets.TWILIO_PHONE_NUMBER}}}"
-          : "${AWS_REGION:=${{secrets.AWS_REGION}}}"
-          : "${AWS_ACCESS_KEY_ID:=${{secrets.AWS_ACCESS_KEY_ID}}}"
-          : "${AWS_SECRET_ACCESS_KEY:=${{secrets.AWS_SECRET_ACCESS_KEY}}}"
-          : "${AWS_S3_BUCKET_NAME:=${{secrets.AWS_S3_BUCKET_NAME}}}"
-          : "${IMAGE_TAG:=${{secrets.IMAGE_TAG}}}"
-          : "${DOCKER_PASSWORD:=${{secrets.DOCKER_PASSWORD}}}"
-          : "${GIT_TOKEN:=${{secrets.GIT_TOKEN}}}"
-          : "${VPS_HOST:=${{secrets.VPS_HOST}}}"
-          : "${VPS_HOST_IP:=${{secrets.VPS_HOST_IP}}}"
-          : "${VPS_USER:=${{secrets.VPS_USER}}}"
-
-          # Export them so child processes (deploy script, docker, etc.) see them
-          export NODE_ENV DOCKER_USERNAME PACKAGE_NAME PACKAGE_VERSION EMAIL \
-                 PG_USERNAME PG_PASSWORD PG_DATABASE PG_PORT PG_HOST DATABASE_URL \
-                 JWT_SECRET JWT_EXPIRES_IN BASE_URL PORT MAIL_USER MAIL_PASS \
-                 SUPER_ADMIN_EMAIL SUPER_ADMIN_PASS REDIS_HOST REDIS_PORT REDIS_CONTAINER REDIS_URL \
-                 TWILIO_ACCOUNT_SID TWILIO_AUTH_TOKEN TWILIO_PHONE_NUMBER \
-                 AWS_REGION AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_S3_BUCKET_NAME \
-                 IMAGE_TAG DOCKER_PASSWORD GIT_TOKEN VPS_HOST VPS_HOST_IP VPS_USER
-
-          # Compute DATABASE_URL if still not set but PG_* are available
-          if [ -z "${DATABASE_URL:-}" ] && [ -n "${PG_USERNAME:-}" ] && [ -n "${PG_PASSWORD:-}" ] && [ -n "${PG_HOST:-}" ] && [ -n "${PG_PORT:-}" ] && [ -n "${PG_DATABASE:-}" ]; then
-            DATABASE_URL="postgres://${PG_USERNAME}:${PG_PASSWORD}@${PG_HOST}:${PG_PORT}/${PG_DATABASE}"
-            export DATABASE_URL
-            echo "Derived DATABASE_URL from PG_* variables."
-          fi
-
-          # Compute REDIS_URL if not set
-          if [ -z "${REDIS_URL:-}" ] && [ -n "${REDIS_HOST:-}" ] && [ -n "${REDIS_PORT:-}" ]; then
-            REDIS_URL="redis://${REDIS_HOST}:${REDIS_PORT}"
-            export REDIS_URL
-            echo "Derived REDIS_URL from REDIS_HOST/REDIS_PORT."
-          fi
-
-          # Fallback IMAGE_TAG to PACKAGE_VERSION if not set
-          if [ -z "${IMAGE_TAG:-}" ] && [ -n "${PACKAGE_VERSION:-}" ]; then
-            IMAGE_TAG="${DOCKER_USERNAME}/${PACKAGE_NAME}:${PACKAGE_VERSION}"
-            export IMAGE_TAG
-            echo "Set IMAGE_TAG from PACKAGE_VERSION: ${IMAGE_TAG}"
-          fi
-
-          # Show brief verification (do NOT print secrets)
+          # Show brief verification
           echo "Package name: ${PACKAGE_NAME:-'NOT_SET'}"
           echo "Package version: ${PACKAGE_VERSION:-'NOT_SET'}"
           echo "Docker image tag: ${IMAGE_TAG:-'NOT_SET'}"

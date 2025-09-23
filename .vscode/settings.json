@@ -29,5 +29,12 @@
   // 🔧 Prettier Config Sync
   "prettier.useEditorConfig": true,
   "prettier.resolveGlobalModules": false,
-  "cSpell.words": ["LOWERBODY", "qrcode", "TOTP", "UPERBODY", "WEBRTC"]
+  "cSpell.words": [
+    "certbot",
+    "LOWERBODY",
+    "qrcode",
+    "TOTP",
+    "UPERBODY",
+    "WEBRTC"
+  ]
 }
