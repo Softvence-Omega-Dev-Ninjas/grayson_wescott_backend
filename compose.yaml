@@ -1,7 +1,5 @@
 services:
   app:
-    profiles:
-      - prod
     platform: linux/amd64
     build:
       context: .
@@ -10,74 +8,35 @@ services:
     container_name: ${PACKAGE_NAME}_api
     ports:
       - '${PORT}:${PORT}'
-    environment:
-      # app
-      - EMAIL=${EMAIL}
-      - BASE_URL=${BASE_URL}
-      - NODE_ENV=${NODE_ENV}
-      - DATABASE_URL=${DATABASE_URL}
-      # jwt
-      - JWT_SECRET=${JWT_SECRET}
-      - JWT_EXPIRES_IN=${JWT_EXPIRES_IN}
-      # redis
-      - REDIS_URL=${REDIS_URL}
-      - REDIS_HOST=${REDIS_HOST}
-      - REDIS_PORT=${REDIS_PORT}
-      # mail
-      - MAIL_USER=${MAIL_USER}
-      - MAIL_PASS=${MAIL_PASS}
-      # super admin
-      - SUPER_ADMIN_EMAIL=${SUPER_ADMIN_EMAIL}
-      - SUPER_ADMIN_PASS=${SUPER_ADMIN_PASS}
-      # twilio
-      - TWILIO_ACCOUNT_SID=${TWILIO_ACCOUNT_SID}
-      - TWILIO_AUTH_TOKEN=${TWILIO_AUTH_TOKEN}
-      - TWILIO_PHONE_NUMBER=${TWILIO_PHONE_NUMBER}
-      # oauth
-      - OAUTH_CLIENT_ID=${OAUTH_CLIENT_ID}
-      - OAUTH_CLIENT_SECRET=${OAUTH_CLIENT_SECRET}
-      # frontend
-      - FRONTEND_VERIFICATION_URL=${FRONTEND_VERIFICATION_URL}
-      - FRONTEND_RESET_PASSWORD_URL=${FRONTEND_RESET_PASSWORD_URL}
-      - FRONTEND_SOCIAL_EMAIL_URL=${FRONTEND_SOCIAL_EMAIL_URL}
-      # aws
-      - AWS_REGION=${AWS_REGION}
-      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
-      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
-      - AWS_S3_BUCKET_NAME=${AWS_S3_BUCKET_NAME}
-
+    env_file:
+      - .env
     depends_on:
-      local:
+      db:
         condition: service_healthy
       redis:
         condition: service_healthy
-    restart: unless-stopped
+    restart: always
     healthcheck:
       disable: true
     command: >
       sh -c "
         npx prisma migrate deploy &&
-        npm run start
+        pnpm start
       "
-
     logging:
       driver: 'json-file'
       options:
         max-size: '10m'
         max-file: '3'
-
     labels:
       - 'app.name=${PACKAGE_NAME}'
       - 'app.version=${PACKAGE_VERSION}'
       - 'deployment.type=zero-downtime'
 
-  local:
+  db:
     image: postgres
     container_name: ${PG_DATABASE}
     restart: always
-    profiles:
-      - prod
-      - dev
     environment:
       POSTGRES_USER: ${PG_USERNAME}
       POSTGRES_PASSWORD: ${PG_PASSWORD}
@@ -99,27 +58,22 @@ services:
       timeout: 10s
       retries: 5
       start_period: 15s
+
   redis:
     image: redis
     container_name: ${REDIS_CONTAINER}
     restart: always
-    profiles:
-      - dev
-      - prod
     ports:
       - '${REDIS_PORT}:${REDIS_PORT}'
     volumes:
       - redis_data:/data
-    # Add Redis configuration for better performance
     command: redis-server --appendonly yes --maxmemory 1000mb --maxmemory-policy allkeys-lru
-    # Add health check for Redis
     healthcheck:
       test: ['CMD', 'redis-cli', 'ping']
       interval: 10s
       timeout: 3s
       retries: 5
       start_period: 5s
-    # Add resource limits
     deploy:
       resources:
         limits:
@@ -128,7 +82,6 @@ services:
         reservations:
           cpus: '0.1'
           memory: 1000M
-    # Add logging
     logging:
       driver: 'json-file'
       options:
@@ -136,8 +89,6 @@ services:
         max-file: '3'
 
   nginx:
-    profiles:
-      - prod
     image: nginx:alpine
     container_name: ${PACKAGE_NAME}_nginx
     depends_on:
@@ -147,7 +98,6 @@ services:
       - ./nginx/certbot/www:/var/www/certbot
       - ./nginx/certbot/conf:/etc/letsencrypt
       - ./nginx/selfsigned:/etc/nginx/selfsigned
-
     ports:
       - '80:80'
       - '443:443'
@@ -156,16 +106,13 @@ services:
     restart: always
 
   certbot:
-    profiles:
-      - prod
     image: certbot/certbot
     container_name: ${PACKAGE_NAME}_certbot
     volumes:
       - ./nginx/certbot/www:/var/www/certbot
       - ./nginx/certbot/conf:/etc/letsencrypt
-    environment:
-      - EMAIL=${EMAIL}
-      - BASE_URL=${BASE_URL}
+    env_file:
+      - .env
     entrypoint: >
       certbot certonly --webroot --webroot-path=/var/www/certbot 
       --email ${EMAIL} --agree-tos --no-eff-email 
@@ -177,8 +124,6 @@ services:
     restart: 'no'
 
   certbot-renew:
-    profiles:
-      - prod
     image: certbot/certbot
     container_name: ${PACKAGE_NAME}_certbot_renew
     volumes:

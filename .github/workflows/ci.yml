@@ -1,23 +1,22 @@
-name: CI Check
+name: CI Pipeline
 
 on:
   push:
     branches: [main]
   pull_request:
-    branches:
-      - '**'
+    branches: ['**']
 
 jobs:
   ci-check:
-    name: CI - Lint, Format, Build
+    name: Lint, Format, Build
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: 24
 
@@ -42,98 +41,20 @@ jobs:
     name: Build & Push Docker Image 🏗️
     needs: ci-check
     runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
 
     steps:
-      - name: Checkout Code 📥
+      - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Set up NodeJs
-        uses: actions/setup-node@v3
-        with:
-          node-version: "20"
-
-      - name: 🔧 Setup and load environment
-        uses: ./.github/actions/setup-and-load-env
-        with:
-          NODE_ENV: production
-          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
-          PACKAGE_NAME: ${{ secrets.PACKAGE_NAME }}
-          PACKAGE_VERSION: ${{ secrets.PACKAGE_VERSION }}
-          EMAIL: ${{ secrets.EMAIL }}
-          PG_USERNAME: ${{ secrets.PG_USERNAME }}
-          PG_PASSWORD: ${{ secrets.PG_PASSWORD }}
-          PG_DATABASE: ${{ secrets.PG_DATABASE }}
-          PG_PORT: ${{ secrets.PG_PORT }}
-          PG_HOST: ${{ secrets.PG_HOST }}
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          JWT_SECRET: ${{ secrets.JWT_SECRET }}
-          JWT_EXPIRES_IN: ${{ secrets.JWT_EXPIRES_IN }}
-          BASE_URL: ${{ secrets.BASE_URL }}
-          PORT: ${{ secrets.PORT }}
-          MAIL_USER: ${{ secrets.MAIL_USER }}
-          MAIL_PASS: ${{ secrets.MAIL_PASS }}
-          SUPER_ADMIN_EMAIL: ${{ secrets.SUPER_ADMIN_EMAIL }}
-          SUPER_ADMIN_PASS: ${{ secrets.SUPER_ADMIN_PASS }}
-          REDIS_HOST: ${{ secrets.REDIS_HOST }}
-          REDIS_PORT: ${{ secrets.REDIS_PORT }}
-          REDIS_CONTAINER: ${{ secrets.REDIS_CONTAINER }}
-          REDIS_URL: ${{ secrets.REDIS_URL }}
-          TWILIO_ACCOUNT_SID: ${{ secrets.TWILIO_ACCOUNT_SID }}
-          TWILIO_AUTH_TOKEN: ${{ secrets.TWILIO_AUTH_TOKEN }}
-          TWILIO_PHONE_NUMBER: ${{ secrets.TWILIO_PHONE_NUMBER }}
-          OAUTH_CLIENT_ID: ${{ secrets.OAUTH_CLIENT_ID }}
-          OAUTH_CLIENT_SECRET: ${{ secrets.OAUTH_CLIENT_SECRET }}
-          FRONTEND_VERIFICATION_URL: ${{ secrets.FRONTEND_VERIFICATION_URL }}
-          FRONTEND_RESET_PASSWORD_URL: ${{ secrets.FRONTEND_RESET_PASSWORD_URL }}
-          FRONTEND_SOCIAL_EMAIL_URL: ${{ secrets.FRONTEND_SOCIAL_EMAIL_URL }}
-          AWS_REGION: ${{ secrets.AWS_REGION }}
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_S3_BUCKET_NAME: ${{ secrets.AWS_S3_BUCKET_NAME }}
-          IMAGE_TAG: ${{ secrets.IMAGE_TAG }}
-          DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
-          GIT_TOKEN: ${{ secrets.GIT_TOKEN }}
-          VPS_HOST: ${{ secrets.VPS_HOST }}
-          VPS_HOST_IP: ${{ secrets.VPS_HOST_IP }}
-          VPS_USER: ${{ secrets.VPS_USER }}
-          VPS_SSH_PRIVATE_KEY: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
-
-      - name: 📋 Verify environment variables
-        run: |
-          echo "Package name: ${PACKAGE_NAME:-'NOT_SET'}"
-          echo "Package version: ${PACKAGE_VERSION:-'NOT_SET'}"
-          echo "Docker image: ${IMAGE_TAG:-'NOT_SET'}"
-          echo "VPS host: ${VPS_HOST:-'NOT_SET'}"
-          echo "VPS ssh key file: ${VPS_SSH_PRIVATE_KEY_FILE:-'NOT_SET'}"
-          echo "✅ Environment variables are accessible"
-
       - name: Log in to Docker Hub 🔑
-        env:
-          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
-          DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
-        run: |
-          echo "🔑 Logging into Docker Hub..."
-          echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
-          echo "✅ Successfully logged into Docker Hub"
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
 
       - name: Build Docker Image 🔨
-        run: |
-          echo "Building Docker image: $IMAGE_TAG"
-          docker compose --profile prod build
-          if [ $? -eq 0 ]; then
-            echo "✅ Docker image built successfully"
-          else
-            echo "❌ Failed to build Docker image"
-            exit 1
-          fi
+        run: docker compose build
 
       - name: Push Docker Image 🚀
-        run: |
-          echo "Pushing Docker image: $IMAGE_TAG"
-          docker compose --profile prod push
-          if [ $? -eq 0 ]; then
-            echo "✅ Docker image $IMAGE_TAG pushed successfully!"
-          else
-            echo "❌ Failed to push Docker image"
-            exit 1
-          fi
+        run: docker compose push

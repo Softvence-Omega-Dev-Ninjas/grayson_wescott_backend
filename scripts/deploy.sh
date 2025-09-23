@@ -87,7 +87,7 @@ deploy() {
   [ -f .env ] && sed -i "s/^PACKAGE_VERSION=.*/PACKAGE_VERSION=$v/" .env
 
   # Recreate service with compose (ensures networks/volumes are correct)
-  docker compose --profile prod up -d app
+   docker compose up -d --remove-orphans
 
   sleep 5
   if health_check; then
