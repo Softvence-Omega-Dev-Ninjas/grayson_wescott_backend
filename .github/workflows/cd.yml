@@ -20,7 +20,7 @@ jobs:
         uses: actions/checkout@v4
 
       # 2️⃣ Verify basic env variables
-      - name: 📋 Verify environment variables
+      - name: Verify environment variables 📋
         env:
           NODE_ENV: production
           IMAGE_TAG: ${{ secrets.IMAGE_TAG }}
@@ -71,26 +71,24 @@ jobs:
       # 5️⃣ Create server folder & copy compose + scripts
       - name: Copy Compose & Scripts 📦
         run: |
-          ssh deploy-server "mkdir -p ~/${PACKAGE_NAME}/scripts"
-          scp compose.yaml deploy-server:~/${PACKAGE_NAME}/
-          scp -r scripts deploy-server:~/${PACKAGE_NAME}/
-          echo "✅ Compose file and scripts copied"
+          echo "Creating directories..."
+          ssh deploy-server "mkdir -p ~/$PACKAGE_NAME/scripts"
+          echo "Copying files..."
+          scp compose.yaml deploy-server:~/$PACKAGE_NAME/
+          scp .env deploy-server:~/$PACKAGE_NAME/
+          scp Dockerfile deploy-server:~/$PACKAGE_NAME/
+          scp -r scripts deploy-server:~/$PACKAGE_NAME/
+          echo "✅ Files copied successfully"
 
       # 6️⃣ Generate .env from secrets
       - name: Generate .env on server 🌐
-        env:
-          NODE_ENV: production
-          IMAGE_TAG: ${{ secrets.IMAGE_TAG }}
-          PACKAGE_NAME: ${{ secrets.PACKAGE_NAME }}
-          PACKAGE_VERSION: ${{ secrets.PACKAGE_VERSION }}
-          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
         run: |
           ssh deploy-server "cat > ~/${PACKAGE_NAME}/.env <<EOF
-          NODE_ENV=${NODE_ENV}
-          IMAGE_TAG=${IMAGE_TAG}
-          PACKAGE_NAME=${PACKAGE_NAME}
-          PACKAGE_VERSION=${PACKAGE_VERSION}
-          DOCKER_USERNAME=${DOCKER_USERNAME}
+          NODE_ENV=${{ secrets.NODE_ENV }}
+          IMAGE_TAG=${{ secrets.IMAGE_TAG }}
+          PACKAGE_NAME=${{ secrets.PACKAGE_NAME }}
+          PACKAGE_VERSION=${{ secrets.PACKAGE_VERSION }}
+          DOCKER_USERNAME=${{ secrets.DOCKER_USERNAME }}
 
           PG_USERNAME=${{ secrets.PG_USERNAME }}
           PG_PASSWORD=${{ secrets.PG_PASSWORD }}
@@ -147,7 +145,7 @@ jobs:
           cd ~/${{secrets.PACKAGE_NAME}}
 
           # Login to Docker Hub
-          echo "${DOCKER_PASSWORD}" | docker login -u "${DOCKER_USERNAME}" --password-stdin
+          echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
 
           # Start zero-downtime deployment script
           ./scripts/deploy.sh --version "${{ secrets.PACKAGE_VERSION }}"
