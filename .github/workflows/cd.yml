@@ -15,9 +15,11 @@ jobs:
       github.event.workflow_run.head_branch == 'main'
 
     steps:
+      # 1️⃣ Checkout the repository
       - name: Checkout Code 📥
         uses: actions/checkout@v4
 
+      # 2️⃣ Verify basic env variables
       - name: 📋 Verify environment variables
         env:
           NODE_ENV: production
@@ -29,40 +31,24 @@ jobs:
           VPS_USER: ${{ secrets.VPS_USER }}
           VPS_SSH_PRIVATE_KEY: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
         run: |
-          echo "🧪 Testing variable availability:"
-          echo "Node environment: ${NODE_ENV:-'NOT_SET'}"
-          echo "Docker username: ${DOCKER_USERNAME:-'NOT_SET'}"
-          echo "Package name: ${PACKAGE_NAME:-'NOT_SET'}"
-          echo "Package version: ${PACKAGE_VERSION:-'NOT_SET'}"
-          echo "Docker image: ${IMAGE_TAG:-'NOT_SET'}"
-          echo "VPS host: ${VPS_HOST:-'NOT_SET'}"
-          echo "✅ Environment variables are accessible"
+          echo "🧪 Checking variables:"
+          echo "Node env: ${NODE_ENV}"
+          echo "Docker image: ${IMAGE_TAG}"
+          echo "Package name: ${PACKAGE_NAME}"
+          echo "Package version: ${PACKAGE_VERSION}"
+          echo "VPS host: ${VPS_HOST}"
+          echo "✅ Variables ready"
 
+      # 3️⃣ Setup SSH
       - name: Setup SSH 🔐
         shell: bash
         run: |
-          set -euo pipefail
           mkdir -p ~/.ssh
           chmod 700 ~/.ssh
-
-          # Prefer using the key file created by the setup action; fallback to secret
-          if [ -n "${VPS_SSH_PRIVATE_KEY:-}" ] && [ -f "${VPS_SSH_PRIVATE_KEY}" ]; then
-            echo "Using deploy key from VPS_SSH_PRIVATE_KEY: $VPS_SSH_PRIVATE_KEY"
-            cp "$VPS_SSH_PRIVATE_KEY" ~/.ssh/deploy_key
-          else
-            echo "No VPS_SSH_PRIVATE_KEY found, falling back to secret"
-            echo "${{ secrets.VPS_SSH_PRIVATE_KEY }}" | tr -d '\r' > ~/.ssh/deploy_key
-          fi
-
+          echo "${VPS_SSH_PRIVATE_KEY}" | tr -d '\r' > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-
-          # Add server host key (use VPS_HOST from env)
-          if [ -n "${VPS_HOST:-}" ]; then
-            ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
-          fi
+          ssh-keyscan -H "${VPS_HOST}" >> ~/.ssh/known_hosts
           chmod 644 ~/.ssh/known_hosts
-
-          # Create SSH config for the deploy host
           cat > ~/.ssh/config <<EOF
           Host deploy-server
             HostName ${VPS_HOST}
@@ -72,64 +58,104 @@ jobs:
           EOF
           chmod 600 ~/.ssh/config
 
+      # 4️⃣ Test SSH connection
       - name: Test SSH Connection ✅
-        run: |
-          ssh -o StrictHostKeyChecking=no deploy-server "echo '🎉 SSH Connected Successfully!'"
+        run: ssh deploy-server "echo '🎉 SSH Connected Successfully!'"
 
-      - name: Copy Files to Server 📦
+      # 5️⃣ Create server folder & copy compose + scripts
+      - name: Copy Compose & Scripts 📦
         run: |
-          echo "Creating directories on remote..."
           ssh deploy-server "mkdir -p ~/${PACKAGE_NAME}/scripts"
-          echo "Copying compose.yaml, scripts/ to remote..."
           scp compose.yaml deploy-server:~/${PACKAGE_NAME}/
           scp -r scripts deploy-server:~/${PACKAGE_NAME}/
-          echo "✅ Files copied successfully"
+          echo "✅ Compose file and scripts copied"
 
-      - name: Fix permissions on server 🌋
+      # 6️⃣ Generate .env from secrets
+      - name: Generate .env on server 🌐
+        env:
+          NODE_ENV: production
+          IMAGE_TAG: ${{ secrets.IMAGE_TAG }}
+          PACKAGE_NAME: ${{ secrets.PACKAGE_NAME }}
+          PACKAGE_VERSION: ${{ secrets.PACKAGE_VERSION }}
+          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
         run: |
-          ssh deploy-server "chmod -R +x ~/${PACKAGE_NAME}/scripts/*.sh || true"
+          ssh deploy-server "cat > ~/${PACKAGE_NAME}/.env <<EOF
+          NODE_ENV=${NODE_ENV}
+          IMAGE_TAG=${IMAGE_TAG}
+          PACKAGE_NAME=${PACKAGE_NAME}
+          PACKAGE_VERSION=${PACKAGE_VERSION}
+          DOCKER_USERNAME=${DOCKER_USERNAME}
 
+          PG_USERNAME=${{ secrets.PG_USERNAME }}
+          PG_PASSWORD=${{ secrets.PG_PASSWORD }}
+          PG_DATABASE=${{ secrets.PG_DATABASE }}
+          PG_PORT=${{ secrets.PG_PORT }}
+          PG_HOST=${{ secrets.PG_HOST }}
+          DATABASE_URL=${{ secrets.DATABASE_URL }}
+
+          JWT_SECRET=${{ secrets.JWT_SECRET }}
+          JWT_EXPIRES_IN=${{ secrets.JWT_EXPIRES_IN }}
+
+          PORT=${{ secrets.PORT }}
+          EMAIL=${{ secrets.EMAIL }}
+          BASE_URL=${{ secrets.BASE_URL }}
+
+          MAIL_USER=${{ secrets.MAIL_USER }}
+          MAIL_PASS=${{ secrets.MAIL_PASS }}
+
+          SUPER_ADMIN_EMAIL=${{ secrets.SUPER_ADMIN_EMAIL }}
+          SUPER_ADMIN_PASS=${{ secrets.SUPER_ADMIN_PASS }}
+
+          REDIS_HOST=${{ secrets.REDIS_HOST }}
+          REDIS_PORT=${{ secrets.REDIS_PORT }}
+          REDIS_CONTAINER=${{ secrets.REDIS_CONTAINER }}
+          REDIS_URL=${{ secrets.REDIS_URL }}
+
+          TWILIO_ACCOUNT_SID=${{ secrets.TWILIO_ACCOUNT_SID }}
+          TWILIO_AUTH_TOKEN=${{ secrets.TWILIO_AUTH_TOKEN }}
+          TWILIO_PHONE_NUMBER=${{ secrets.TWILIO_PHONE_NUMBER }}
+
+          OAUTH_CLIENT_ID=${{ secrets.OAUTH_CLIENT_ID }}
+          OAUTH_CLIENT_SECRET=${{ secrets.OAUTH_CLIENT_SECRET }}
+
+          FRONTEND_VERIFICATION_URL=${{ secrets.FRONTEND_VERIFICATION_URL }}
+          FRONTEND_RESET_PASSWORD_URL=${{ secrets.FRONTEND_RESET_PASSWORD_URL }}
+          FRONTEND_SOCIAL_EMAIL_URL=${{ secrets.FRONTEND_SOCIAL_EMAIL_URL }}
+
+          AWS_REGION=${{ secrets.AWS_REGION }}
+          AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_S3_BUCKET_NAME=${{ secrets.AWS_S3_BUCKET_NAME }}
+          EOF"
+
+      # 7️⃣ Set permissions on scripts
+      - name: Fix permissions on server 🌋
+        run: ssh deploy-server "chmod -R +x ~/${PACKAGE_NAME}/scripts/*.sh || true"
+
+      # 8️⃣ Deploy application
       - name: Deploy Application 🚀
+        env:
+          IMAGE_TAG: ${{ secrets.IMAGE_TAG }}
+          PACKAGE_NAME: ${{ secrets.PACKAGE_NAME }}
+          PACKAGE_VERSION: ${{ secrets.PACKAGE_VERSION }}
+          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+          DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
         run: |
           ssh deploy-server bash << 'DEPLOY_EOF'
           set -euo pipefail
+          cd ~/${PACKAGE_NAME}
 
-          cd ~/${{secrets.PACKAGE_NAME}}
+          # Login to Docker Hub
+          echo "${DOCKER_PASSWORD}" | docker login -u "${DOCKER_USERNAME}" --password-stdin
 
-          # Login to Docker Hub (use secrets embedded by Actions)
-          echo "${{secrets.DOCKER_PASSWORD}}" | docker login -u "${{secrets.DOCKER_USERNAME}}" --password-stdin
-
-          # Update Package tag, version and name & docker username inside .env
-          # if env not found fail the deployment
-          if [ -f .env ]; then
-            echo "Updating .env file..."
-            sed -i "s/IMAGE_TAG=.*/IMAGE_TAG=${IMAGE_TAG}/" .env
-            sed -i "s/PACKAGE_NAME=.*/PACKAGE_NAME=${PACKAGE_NAME}/" .env
-            sed -i "s/PACKAGE_VERSION=.*/PACKAGE_VERSION=${PACKAGE_VERSION}/" .env
-            sed -i "s/DOCKER_USERNAME=.*/DOCKER_USERNAME=${DOCKER_USERNAME}/" .env
-          else
-            echo "❌ Error: .env file not found"
-            exit 1
-          fi
-
-          # Show brief verification
-          echo "Package name: ${PACKAGE_NAME:-'NOT_SET'}"
-          echo "Package version: ${PACKAGE_VERSION:-'NOT_SET'}"
-          echo "Docker image tag: ${IMAGE_TAG:-'NOT_SET'}"
-          echo "NODE_ENV: ${NODE_ENV:-'NOT_SET'}"
-          echo "VPS host: ${VPS_HOST:-'NOT_SET'}"
-          echo "✅ Environment variables ready on remote"
-
-          # Run the deployment script (zero-downtime)
-          echo "Starting zero-downtime deployment..."
-          ./scripts/deploy.sh --version "$PACKAGE_VERSION"
+          # Start zero-downtime deployment script
+          ./scripts/deploy.sh --version "${PACKAGE_VERSION}"
 
           docker logout
           docker image prune -f
           DEPLOY_EOF
 
+      # 9️⃣ Cleanup
       - name: Cleanup 🧹
         if: always()
-        run: |
-          rm -rf ~/.ssh/deploy_key* ~/.ssh/config
-          rm -f .env
+        run: rm -rf ~/.ssh/deploy_key* ~/.ssh/config
