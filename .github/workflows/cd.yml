@@ -140,22 +140,17 @@ jobs:
 
       # 8️⃣ Deploy application
       - name: Deploy Application 🚀
-        env:
-          IMAGE_TAG: ${{ secrets.IMAGE_TAG }}
-          PACKAGE_NAME: ${{ secrets.PACKAGE_NAME }}
-          PACKAGE_VERSION: ${{ secrets.PACKAGE_VERSION }}
-          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
-          DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
         run: |
           ssh deploy-server bash << "DEPLOY_EOF"
           set -euo pipefail
-          cd ~/${PACKAGE_NAME}
+
+          cd ~/${{secrets.PACKAGE_NAME}}
 
           # Login to Docker Hub
           echo "${DOCKER_PASSWORD}" | docker login -u "${DOCKER_USERNAME}" --password-stdin
 
           # Start zero-downtime deployment script
-          ./scripts/deploy.sh --version "${PACKAGE_VERSION}"
+          ./scripts/deploy.sh --version "${{ secrets.PACKAGE_VERSION }}"
 
           docker logout
           docker image prune -f
