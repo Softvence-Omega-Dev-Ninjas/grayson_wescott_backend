@@ -147,7 +147,7 @@ jobs:
           DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
           DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
         run: |
-          ssh deploy-server bash << 'DEPLOY_EOF'
+          ssh deploy-server bash << "DEPLOY_EOF"
           set -euo pipefail
           cd ~/${PACKAGE_NAME}
 
