@@ -69,15 +69,14 @@ jobs:
         run: ssh deploy-server "echo '🎉 SSH Connected Successfully!'"
 
       # 5️⃣ Create server folder & copy compose + scripts
-      - name: Copy Compose & Scripts 📦
+      - name: Copy Compose & Scripts 📁
         run: |
           echo "Creating directories..."
-          ssh deploy-server "mkdir -p ~/$PACKAGE_NAME/scripts"
-          echo "Copying files..."
-          scp compose.yaml deploy-server:~/$PACKAGE_NAME/
-          scp .env deploy-server:~/$PACKAGE_NAME/
-          scp Dockerfile deploy-server:~/$PACKAGE_NAME/
-          scp -r scripts deploy-server:~/$PACKAGE_NAME/
+          ssh deploy-server "mkdir -p ~/${{ secrets.PACKAGE_NAME}}/scripts"
+          echo "Copying compose.yaml..."
+          scp compose.yaml deploy-server:~/${{ secrets.PACKAGE_NAME}}/compose.yaml
+          echo "Copying scripts folder..."
+          scp -r scripts deploy-server:~/${{ secrets.PACKAGE_NAME}}/
           echo "✅ Files copied successfully"
 
       # 6️⃣ Generate .env from secrets
