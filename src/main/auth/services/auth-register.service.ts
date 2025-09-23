@@ -68,6 +68,7 @@ export class AuthRegisterService {
     console.info('Email sent successfully', response);
 
     if (response.error) {
+      console.error('Failed to send email', response.error);
       throw new AppError(500, 'Failed to send email');
     }
 
