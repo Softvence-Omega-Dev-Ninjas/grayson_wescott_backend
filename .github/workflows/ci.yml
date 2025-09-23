@@ -116,7 +116,7 @@ jobs:
 
 
       - name: Build Docker Image 🔨
-        run: docker compose build
+        run: docker build -t ${{ secrets.IMAGE_TAG }} .
 
       - name: Push Docker Image 🚀
-        run: docker compose push
+        run: docker push ${{ secrets.IMAGE_TAG }}

@@ -1,9 +1,6 @@
 services:
   app:
     platform: linux/amd64
-    build:
-      context: .
-      dockerfile: Dockerfile
     image: ${DOCKER_USERNAME}/${PACKAGE_NAME}:${PACKAGE_VERSION}
     container_name: ${PACKAGE_NAME}_api
     ports:
