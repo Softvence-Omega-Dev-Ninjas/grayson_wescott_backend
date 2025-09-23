@@ -21,13 +21,13 @@ jobs:
       - name: 📋 Verify environment variables
         env:
           NODE_ENV: production
-          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+          IMAGE_TAG: ${{ secrets.IMAGE_TAG }}
           PACKAGE_NAME: ${{ secrets.PACKAGE_NAME }}
           PACKAGE_VERSION: ${{ secrets.PACKAGE_VERSION }}
-          IMAGE_TAG: ${{ secrets.IMAGE_TAG }}
+          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
           VPS_HOST: ${{ secrets.VPS_HOST }}
           VPS_USER: ${{ secrets.VPS_USER }}
-          VPS_SSH_PRIVATE_KEY_FILE: ${{ github.workspace }}/deploy_key.pem
+          VPS_SSH_PRIVATE_KEY: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
         run: |
           echo "🧪 Testing variable availability:"
           echo "Node environment: ${NODE_ENV:-'NOT_SET'}"
@@ -46,11 +46,11 @@ jobs:
           chmod 700 ~/.ssh
 
           # Prefer using the key file created by the setup action; fallback to secret
-          if [ -n "${VPS_SSH_PRIVATE_KEY_FILE:-}" ] && [ -f "${VPS_SSH_PRIVATE_KEY_FILE}" ]; then
-            echo "Using deploy key from VPS_SSH_PRIVATE_KEY_FILE: $VPS_SSH_PRIVATE_KEY_FILE"
-            cp "$VPS_SSH_PRIVATE_KEY_FILE" ~/.ssh/deploy_key
+          if [ -n "${VPS_SSH_PRIVATE_KEY:-}" ] && [ -f "${VPS_SSH_PRIVATE_KEY}" ]; then
+            echo "Using deploy key from VPS_SSH_PRIVATE_KEY: $VPS_SSH_PRIVATE_KEY"
+            cp "$VPS_SSH_PRIVATE_KEY" ~/.ssh/deploy_key
           else
-            echo "No VPS_SSH_PRIVATE_KEY_FILE found, falling back to secret"
+            echo "No VPS_SSH_PRIVATE_KEY found, falling back to secret"
             echo "${{ secrets.VPS_SSH_PRIVATE_KEY }}" | tr -d '\r' > ~/.ssh/deploy_key
           fi
 
