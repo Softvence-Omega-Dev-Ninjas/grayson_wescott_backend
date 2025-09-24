@@ -15,7 +15,7 @@ PORT="${PORT:-5056}"
 # VPS host comes from GitHub secret
 VPS_HOST_IP="${VPS_HOST_IP:?VPS_HOST_IP not set}"
 BASE_URL="http://$VPS_HOST_IP"
-HEALTH_ENDPOINT="${HEALTH_ENDPOINT:-$BASE_URL:$PORT/api/docs}"
+HEALTH_ENDPOINT="${HEALTH_ENDPOINT:-$BASE_URL:$PORT/api/health}"
 HEALTH_TIMEOUT="${HEALTH_TIMEOUT:-15}"
 HEALTH_RETRIES="${HEALTH_RETRIES:-12}" # up to 2 minutes
 VERSION_FILE="./deployment_versions.txt"
