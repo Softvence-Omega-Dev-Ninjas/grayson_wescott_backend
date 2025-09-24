@@ -6,18 +6,17 @@
 set -euo pipefail
 
 # ================================
-# Configurable (from env vars)
+# from GitHub secret
 # ================================
 PACKAGE_NAME="${PACKAGE_NAME:?PACKAGE_NAME not set}"
+PACKAGE_VERSION="${PACKAGE_VERSION:?PACKAGE_VERSION not set}"
 DOCKER_USERNAME="${DOCKER_USERNAME:?DOCKER_USERNAME not set}"
-PACKAGE_VERSION="${PACKAGE_VERSION:-latest}"
-PORT="${PORT:-5056}"
-# VPS host comes from GitHub secret
 VPS_HOST_IP="${VPS_HOST_IP:?VPS_HOST_IP not set}"
+PORT="${PORT:?PORT not set}"
 BASE_URL="http://$VPS_HOST_IP"
 HEALTH_ENDPOINT="${HEALTH_ENDPOINT:-$BASE_URL:$PORT/api/health}"
 HEALTH_TIMEOUT="${HEALTH_TIMEOUT:-15}"
-HEALTH_RETRIES="${HEALTH_RETRIES:-12}" # up to 2 minutes
+HEALTH_RETRIES="${HEALTH_RETRIES:-5}"
 VERSION_FILE="./deployment_versions.txt"
 
 # ================================
@@ -75,13 +74,12 @@ rollback() {
 }
 
 deploy() {
-  local v="${1:?No version specified}"
-  local image="${DOCKER_USERNAME}/${PACKAGE_NAME}:${v}"
+  local image="${DOCKER_USERNAME}/${PACKAGE_NAME}:${PACKAGE_VERSION}"
 
   log "Deploying version $v (image=$image)"
 
   # Pull new image
-  docker pull "$image" || warn "Image not in registry, will build locally"
+  docker pull "$image" || warn "Image not in registry, skipping pull"
 
   # Update .env with new version
   [ -f .env ] && sed -i "s/^PACKAGE_VERSION=.*/PACKAGE_VERSION=$v/" .env
