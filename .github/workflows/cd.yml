@@ -152,7 +152,6 @@ jobs:
           export DOCKER_PASSWORD="${{ secrets.DOCKER_PASSWORD }}"
           export VPS_HOST_IP="${{ secrets.VPS_HOST_IP }}"
           export PORT="${{ secrets.PORT }}"
-          export HEALTH_ENDPOINT="${{ secrets.HEALTH_ENDPOINT }}"
 
           cd ~/$PACKAGE_NAME
 
