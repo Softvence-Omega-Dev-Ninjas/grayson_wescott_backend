@@ -74,7 +74,8 @@ rollback() {
 }
 
 deploy() {
-  local image="${DOCKER_USERNAME}/${PACKAGE_NAME}:${PACKAGE_VERSION}"
+  local v="$1"
+  local image="${DOCKER_USERNAME}/${PACKAGE_NAME}:${v}"
 
   log "Deploying version $v (image=$image)"
 
@@ -84,7 +85,7 @@ deploy() {
   # Update .env with new version
   [ -f .env ] && sed -i "s/^PACKAGE_VERSION=.*/PACKAGE_VERSION=$v/" .env
 
-  # Recreate service with compose (ensures networks/volumes are correct)
+  # Recreate service with compose
   docker compose up -d --remove-orphans
 
   sleep 5
