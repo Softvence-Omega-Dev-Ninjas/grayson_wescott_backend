@@ -74,19 +74,26 @@ rollback() {
 }
 
 deploy() {
-  local v="$1"
-  local image="${DOCKER_USERNAME}/${PACKAGE_NAME}:${v}"
+  local image="${DOCKER_USERNAME}/${PACKAGE_NAME}:${PACKAGE_VERSION}"
+  local cur=$(current_version)
 
-  log "Deploying version $v (image=$image)"
+  log "Deploying version (image=$image)"
+
+  # If current version exists and is different from the new one, stop & remove it
+  if [ "$cur" != "none" ] && [ "$cur" != "$v" ]; then
+    warn "Removing old version $cur..."
+    docker compose down || warn "Failed to stop old containers"
+    docker rmi "${DOCKER_USERNAME}/${PACKAGE_NAME}:${cur}" || warn "Failed to remove old image"
+  fi
 
   # Pull new image
   docker pull "$image" || warn "Image not in registry, skipping pull"
 
-  # Update .env with new version
-  [ -f .env ] && sed -i "s/^PACKAGE_VERSION=.*/PACKAGE_VERSION=$v/" .env
-
   # Recreate service with compose
   docker compose up -d --remove-orphans
+
+  # Cleanup
+  docker system prune -a -f
 
   sleep 5
   if health_check; then
