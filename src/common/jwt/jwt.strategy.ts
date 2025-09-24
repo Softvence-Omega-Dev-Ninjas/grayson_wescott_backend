@@ -35,6 +35,6 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       throw new ForbiddenException('User is not logged in');
     }
 
-    return payload
+    return payload;
   }
 }

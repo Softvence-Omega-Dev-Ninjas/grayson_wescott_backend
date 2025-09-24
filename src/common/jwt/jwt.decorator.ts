@@ -16,7 +16,6 @@ export const GetUser = createParamDecorator(
   (key: keyof JWTPayload | undefined, ctx: ExecutionContext) => {
     const request = ctx.switchToHttp().getRequest<RequestWithUser>();
     const user = request.user;
-console.log("user",user);
     return key ? user?.sub : user;
   },
 );
