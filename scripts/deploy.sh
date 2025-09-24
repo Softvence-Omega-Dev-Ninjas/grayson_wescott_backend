@@ -77,10 +77,10 @@ deploy() {
   local image="${DOCKER_USERNAME}/${PACKAGE_NAME}:${PACKAGE_VERSION}"
   local cur=$(current_version)
 
-  log "Deploying version (image=$image)"
+  log "Deploying version $PACKAGE_VERSION (image=$image)"
 
   # If current version exists and is different from the new one, stop & remove it
-  if [ "$cur" != "none" ] && [ "$cur" != "$v" ]; then
+  if [ "$cur" != "none" ] && [ "$cur" != "$PACKAGE_VERSION" ]; then
     warn "Removing old version $cur..."
     docker compose down || warn "Failed to stop old containers"
     docker rmi "${DOCKER_USERNAME}/${PACKAGE_NAME}:${cur}" || warn "Failed to remove old image"
@@ -92,13 +92,13 @@ deploy() {
   # Recreate service with compose
   docker compose up -d --remove-orphans
 
-  # Cleanup
+  # Cleanup unused containers/images (but keep volumes)
   docker system prune -a -f
 
   sleep 5
   if health_check; then
-    save_version "$v"
-    ok "Deployment $v successful"
+    save_version "$PACKAGE_VERSION"
+    ok "Deployment $PACKAGE_VERSION successful"
   else
     err "New version not responding, rolling back..."
     rollback
