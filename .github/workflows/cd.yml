@@ -82,7 +82,7 @@ jobs:
       # 6️⃣ Generate .env from secrets
       - name: Generate .env on server 🌐
         run: |
-          ssh deploy-server "cat > ~/${PACKAGE_NAME}/.env <<EOF
+          ssh deploy-server "cat > ~/${{ secrets.PACKAGE_NAME}}/.env <<EOF
           NODE_ENV=${{ secrets.NODE_ENV }}
           IMAGE_TAG=${{ secrets.IMAGE_TAG }}
           PACKAGE_NAME=${{ secrets.PACKAGE_NAME }}
