@@ -25,10 +25,6 @@ services:
       options:
         max-size: '10m'
         max-file: '3'
-    labels:
-      - 'app.name=${PACKAGE_NAME}'
-      - 'app.version=${PACKAGE_VERSION}'
-      - 'deployment.type=zero-downtime'
 
   db:
     image: postgres
@@ -43,11 +39,6 @@ services:
       - postgres_data:/var/lib/postgresql/data
     ports:
       - '${PG_PORT}:${PG_PORT}'
-    logging:
-      driver: 'json-file'
-      options:
-        max-size: '10m'
-        max-file: '3'
     healthcheck:
       test:
         ['CMD', 'pg_isready', '-U', '${PG_USERNAME}', '-d', '${PG_DATABASE}']
@@ -71,73 +62,6 @@ services:
       timeout: 3s
       retries: 5
       start_period: 5s
-    deploy:
-      resources:
-        limits:
-          cpus: '0.25'
-          memory: 1000M
-        reservations:
-          cpus: '0.1'
-          memory: 1000M
-    logging:
-      driver: 'json-file'
-      options:
-        max-size: '5m'
-        max-file: '3'
-
-  nginx:
-    image: nginx:alpine
-    container_name: ${PACKAGE_NAME}_nginx
-    depends_on:
-      - app
-    volumes:
-      - ./nginx/conf.d:/etc/nginx/conf.d
-      - ./nginx/certbot/www:/var/www/certbot
-      - ./nginx/certbot/conf:/etc/letsencrypt
-      - ./nginx/selfsigned:/etc/nginx/selfsigned
-    ports:
-      - '80:80'
-      - '443:443'
-    networks:
-      - default
-    restart: always
-
-  certbot:
-    image: certbot/certbot
-    container_name: ${PACKAGE_NAME}_certbot
-    volumes:
-      - ./nginx/certbot/www:/var/www/certbot
-      - ./nginx/certbot/conf:/etc/letsencrypt
-    env_file:
-      - .env
-    entrypoint: >
-      certbot certonly --webroot --webroot-path=/var/www/certbot 
-      --email ${EMAIL} --agree-tos --no-eff-email 
-      -d ${BASE_URL}
-    depends_on:
-      - nginx
-    networks:
-      - default
-    restart: 'no'
-
-  certbot-renew:
-    image: certbot/certbot
-    container_name: ${PACKAGE_NAME}_certbot_renew
-    volumes:
-      - ./nginx/certbot/www:/var/www/certbot
-      - ./nginx/certbot/conf:/etc/letsencrypt
-    entrypoint: >
-      sh -c "trap exit TERM; 
-             while :; do 
-               echo '🔄 Checking for SSL renewal...'; 
-               certbot renew --webroot --webroot-path=/var/www/certbot --quiet --deploy-hook 'nginx -s reload'; 
-               sleep 12h; 
-             done"
-    depends_on:
-      - nginx
-    networks:
-      - default
-    restart: unless-stopped
 
 volumes:
   postgres_data:
