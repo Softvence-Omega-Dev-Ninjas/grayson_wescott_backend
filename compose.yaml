@@ -63,60 +63,6 @@ services:
       retries: 5
       start_period: 5s
 
-  nginx:
-    image: nginx:alpine
-    container_name: ${PACKAGE_NAME}_nginx
-    depends_on:
-      - app
-    volumes:
-      - ./nginx/conf.d:/etc/nginx/conf.d
-      - /var/www/certbot:/var/www/certbot
-      - ./nginx/certbot/conf:/etc/letsencrypt
-      - ./nginx/selfsigned:/etc/nginx/selfsigned
-    ports:
-      - '80:80'
-      - '443:443'
-    networks:
-      - default
-    restart: always
-
-  certbot:
-    image: certbot/certbot
-    container_name: ${PACKAGE_NAME}_certbot
-    volumes:
-      - /var/www/certbot:/var/www/certbot
-      - ./nginx/certbot/conf:/etc/letsencrypt
-    env_file:
-      - .env
-    entrypoint: >
-      sh -c "certbot certonly --webroot --webroot-path=/var/www/certbot
-      --email ${EMAIL} --agree-tos --no-eff-email
-      -d ${BASE_URL} -d www.${BASE_URL}"
-    depends_on:
-      - nginx
-    networks:
-      - default
-    restart: 'no'
-
-  certbot-renew:
-    image: certbot/certbot
-    container_name: ${PACKAGE_NAME}_certbot_renew
-    volumes:
-      - /var/www/certbot:/var/www/certbot
-      - ./nginx/certbot/conf:/etc/letsencrypt
-    entrypoint: >
-      sh -c "trap exit TERM; 
-             while :; do 
-               echo '🔄 Checking for SSL renewal...'; 
-               certbot renew --webroot --webroot-path=/var/www/certbot --quiet --deploy-hook 'nginx -s reload'; 
-               sleep 12h; 
-             done"
-    depends_on:
-      - nginx
-    networks:
-      - default
-    restart: unless-stopped
-
 volumes:
   postgres_data:
   redis_data:
