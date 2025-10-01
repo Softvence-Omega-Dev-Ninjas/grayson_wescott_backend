@@ -153,7 +153,23 @@ export class UpdateProgramService {
       // Return updated program with exercises and users
       return tx.program.findUnique({
         where: { id },
-        include: { exercises: true, userPrograms: { include: { user: true } } },
+        include: {
+          exercises: true,
+          userPrograms: {
+            include: {
+              user: {
+                select: {
+                  id: true,
+                  name: true,
+                  username: true,
+                  avatarUrl: true,
+                  email: true,
+                  phone: true,
+                },
+              },
+            },
+          },
+        },
       });
     });
 

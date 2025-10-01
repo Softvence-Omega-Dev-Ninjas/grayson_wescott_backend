@@ -44,7 +44,20 @@ export class ProgramService {
         orderBy: { createdAt: 'desc' },
         include: {
           exercises: true,
-          userPrograms: { include: { user: true } },
+          userPrograms: {
+            include: {
+              user: {
+                select: {
+                  id: true,
+                  name: true,
+                  username: true,
+                  avatarUrl: true,
+                  email: true,
+                  phone: true,
+                },
+              },
+            },
+          },
         },
       }),
     ]);
@@ -66,7 +79,20 @@ export class ProgramService {
       where: { id },
       include: {
         exercises: true,
-        userPrograms: { include: { user: true } },
+        userPrograms: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                name: true,
+                username: true,
+                avatarUrl: true,
+                email: true,
+                phone: true,
+              },
+            },
+          },
+        },
       },
     });
 

@@ -53,7 +53,7 @@ export class AddProgramDto {
   @ApiProperty({ example: 'This is my program' })
   @IsNotEmpty()
   @IsString()
-  coachNote: string
+  coachNote: string;
 
   @ApiProperty({
     type: [CreateProgramExerciseDto],

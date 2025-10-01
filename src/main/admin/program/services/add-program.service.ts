@@ -60,7 +60,18 @@ export class AddProgramService {
       include: {
         exercises: true,
         userPrograms: {
-          include: { user: true },
+          include: {
+            user: {
+              select: {
+                id: true,
+                name: true,
+                username: true,
+                avatarUrl: true,
+                email: true,
+                phone: true,
+              },
+            },
+          },
         },
       },
     });
