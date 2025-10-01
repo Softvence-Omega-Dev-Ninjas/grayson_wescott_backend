@@ -1,11 +1,7 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { ENVEnum } from '@project/common/enum/env.enum';
 import { AppGateway } from '@project/lib/gateway/app.gateway';
 import { PrismaService } from '@project/lib/prisma/prisma.service';
-import { RecognitionEvent } from '@project/lib/queue/interface/events-payload';
-import { QueueName } from '@project/lib/queue/interface/queue-name';
-import { Worker } from 'bullmq';
 
 @Injectable()
 export class RecognitionWorker implements OnModuleInit {
@@ -18,62 +14,63 @@ export class RecognitionWorker implements OnModuleInit {
   ) {}
 
   onModuleInit() {
-    new Worker<RecognitionEvent>(
-      QueueName.RECOGNITION,
-      async (job) => {
-        const {
-          action,
-          info: { title, recipients },
-          meta: { createdAt, performedBy, recognitionId },
-        } = job.data;
+    // new Worker<RecognitionEvent>(
+    //   QueueName.RECOGNITION,
+    //   async (job) => {
+    //     const {
+    //       action,
+    //       info: { title, recipients },
+    //       meta: { createdAt, performedBy, recognitionId },
+    //     } = job.data;
 
-        try {
-          // * Send Socket Notification
-          this.gateway.notifyMultipleUsers(
-            recipients.map((recipient) => recipient.id),
-            action,
-            {
-              type: action,
-              title,
-              createdAt,
-              message: 'Test Message',
-              meta: { recognitionId },
-            },
-          );
+    //     try {
+    //       // * Send Socket Notification
+    //       this.gateway.notifyMultipleUsers(
+    //         recipients.map((recipient) => recipient.id),
+    //         action,
+    //         {
+    //           type: action,
+    //           title,
+    //           createdAt,
+    //           message: 'Test Message',
+    //           meta: { recognitionId },
+    //         },
+    //       );
 
-          // * Store the notification in the database
-          await this.prisma.notification.create({
-            data: {
-              type: 'Recognition',
-              title,
-              message: 'Test Message',
-              meta: {
-                recognitionId,
-                performedBy,
-                createdAt,
-              },
-              users: {
-                createMany: {
-                  data: recipients.map((recipient) => ({
-                    userId: recipient.id,
-                  })),
-                },
-              },
-            },
-          });
-        } catch (err) {
-          this.logger.error(
-            `Failed to process recognition event ${action}: ${err.message}`,
-            err.stack,
-          );
-        }
-      },
-      {
-        connection: {
-          host: this.config.getOrThrow(ENVEnum.REDIS_HOST),
-          port: +this.config.getOrThrow(ENVEnum.REDIS_PORT),
-        },
-      },
-    );
+    //       // * Store the notification in the database
+    //       await this.prisma.notification.create({
+    //         data: {
+    //           type: 'Recognition',
+    //           title,
+    //           message: 'Test Message',
+    //           meta: {
+    //             recognitionId,
+    //             performedBy,
+    //             createdAt,
+    //           },
+    //           users: {
+    //             createMany: {
+    //               data: recipients.map((recipient) => ({
+    //                 userId: recipient.id,
+    //               })),
+    //             },
+    //           },
+    //         },
+    //       });
+    //     } catch (err) {
+    //       this.logger.error(
+    //         `Failed to process recognition event ${action}: ${err.message}`,
+    //         err.stack,
+    //       );
+    //     }
+    //   },
+    //   {
+    //     connection: {
+    //       host: this.config.getOrThrow(ENVEnum.REDIS_HOST),
+    //       port: +this.config.getOrThrow(ENVEnum.REDIS_PORT),
+    //     },
+    //   },
+    // );
+    this.logger.log('Recognition worker initialized');
   }
 }

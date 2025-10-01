@@ -38,6 +38,7 @@ model UserProgram {
   updatedAt DateTime @default(now()) @updatedAt
 
   @@map("user_programs")
+  @@unique([userId, programId], map: "user_programs_unique")
 }
 
 enum ExerciseCategory {

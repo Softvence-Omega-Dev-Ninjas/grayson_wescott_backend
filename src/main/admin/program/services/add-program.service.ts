@@ -62,6 +62,7 @@ export class AddProgramService {
           startDate,
           endDate,
         })),
+        skipDuplicates: true,
       });
 
       // 4. Return program with exercises + users
