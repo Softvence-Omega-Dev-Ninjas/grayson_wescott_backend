@@ -3,14 +3,12 @@ model Program {
 
   name        String
   description String?
+  coachNote   String?
 
   categories ExerciseCategory[]
   status     ProgramStatus
 
-  startDate DateTime  @default(now())
-  endDate   DateTime?
-
-  coachNote String
+  duration Int // in weeks
 
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now()) @updatedAt
@@ -32,6 +30,9 @@ model UserProgram {
   programId String
 
   status ProgramProgress @default(IN_PROGRESS)
+
+  startDate DateTime  @default(now())
+  endDate   DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now()) @updatedAt

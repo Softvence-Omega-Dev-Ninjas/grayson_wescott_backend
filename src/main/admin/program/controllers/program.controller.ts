@@ -14,7 +14,7 @@ import {
   TPaginatedResponse,
   TResponse,
 } from '@project/common/utils/response.util';
-import { AddProgramDto } from '../dto/add-program.dto';
+import { AddProgramDto, AssignUsersToProgramDto } from '../dto/add-program.dto';
 import { GetProgramsDto } from '../dto/get-programs.dto';
 import { UpdateProgramDto } from '../dto/update-program.dto';
 import { AddProgramService } from '../services/add-program.service';
@@ -59,6 +59,11 @@ export class ProgramController {
     @Body() dto: UpdateProgramDto,
   ): Promise<TResponse<any>> {
     return this.updateProgramService.updateProgram(id, dto);
+  }
+
+  @Patch('assign-users/:id')
+  assignUsers(@Param('id') id: string, @Body() dto: AssignUsersToProgramDto) {
+    return this.addProgramService.assignUsersToProgram(id, dto);
   }
 
   @ApiOperation({ summary: 'Delete program' })

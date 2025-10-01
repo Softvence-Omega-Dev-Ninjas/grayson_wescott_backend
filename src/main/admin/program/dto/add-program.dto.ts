@@ -5,21 +5,16 @@ import {
   ArrayNotEmpty,
   IsArray,
   IsEnum,
+  IsInt,
   IsISO8601,
   IsNotEmpty,
   IsOptional,
   IsString,
   IsUUID,
+  Min,
   ValidateNested,
 } from 'class-validator';
 import { CreateProgramExerciseDto } from './program-exercise.dto';
-
-export class ProgramUserDto {
-  @ApiProperty({ example: '550e8400-e29b-41d4-a716-446655440000' })
-  @IsNotEmpty()
-  @IsUUID()
-  userId: string;
-}
 
 export class AddProgramDto {
   @ApiProperty({ example: 'My Program' })
@@ -32,28 +27,25 @@ export class AddProgramDto {
   @IsString()
   description?: string;
 
+  @ApiPropertyOptional({ example: 'This is my coach note' })
+  @IsOptional()
+  @IsString()
+  coachNote?: string;
+
   @ApiProperty({
     example: [ExerciseCategory.CARDIO, ExerciseCategory.STRENGTH],
     enum: ExerciseCategory,
+    isArray: true,
   })
   @IsArray()
   @IsEnum(ExerciseCategory, { each: true })
   categories: ExerciseCategory[];
 
-  @ApiProperty({ example: '2022-01-01T00:00:00.000Z' })
-  @IsNotEmpty()
-  @IsISO8601()
-  startDate: string;
-
-  @ApiProperty({ example: '2022-01-01T00:00:00.000Z' })
-  @IsNotEmpty()
-  @IsISO8601()
-  endDate: string;
-
-  @ApiProperty({ example: 'This is my program' })
-  @IsNotEmpty()
-  @IsString()
-  coachNote: string;
+  @ApiProperty({ example: 8, description: 'Duration in weeks' })
+  @IsInt()
+  @Type(() => Number)
+  @Min(1)
+  duration: number;
 
   @ApiProperty({
     type: [CreateProgramExerciseDto],
@@ -83,9 +75,29 @@ export class AddProgramDto {
       '550e8400-e29b-41d4-a716-446655440000',
       '123e4567-e89b-12d3-a456-426614174000',
     ],
+    description: 'Optional: list of user UUIDs to auto-assign to the program',
+  })
+  @IsArray()
+  @ArrayNotEmpty()
+  @IsUUID('all', { each: true })
+  userIds: string[];
+}
+
+export class AssignUsersToProgramDto {
+  @ApiProperty({
+    example: [
+      '550e8400-e29b-41d4-a716-446655440000',
+      '123e4567-e89b-12d3-a456-426614174000',
+    ],
     description: 'List of user UUIDs to attach to this program',
   })
   @IsArray()
   @ArrayNotEmpty()
-  userIds!: string[];
+  @IsUUID('all', { each: true })
+  userIds: string[];
+
+  @ApiPropertyOptional({ example: '2022-01-01T00:00:00.000Z' })
+  @IsOptional()
+  @IsISO8601()
+  startDate?: string;
 }

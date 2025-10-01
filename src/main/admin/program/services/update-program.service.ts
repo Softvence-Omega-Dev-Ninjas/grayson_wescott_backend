@@ -69,13 +69,9 @@ export class UpdateProgramService {
             ? dto.description
             : program.description,
           categories: dto.categories ? dto.categories : program.categories,
-          startDate: dto.startDate
-            ? new Date(dto.startDate).toISOString()
-            : program.startDate,
-          endDate: dto.endDate
-            ? new Date(dto.endDate).toISOString()
-            : program.endDate,
           coachNote: dto.coachNote?.trim() ? dto.coachNote : program.coachNote,
+          duration: dto.duration ? dto.duration : program.duration,
+          status: dto.status ? dto.status : program.status,
         },
       });
 

@@ -1,11 +1,11 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { ExerciseCategory } from '@prisma/client';
+import { ExerciseCategory, ProgramStatus } from '@prisma/client';
 import { Type } from 'class-transformer';
 import {
   ArrayNotEmpty,
   IsArray,
   IsEnum,
-  IsISO8601,
+  IsInt,
   IsOptional,
   IsString,
   IsUUID,
@@ -40,20 +40,21 @@ export class UpdateProgramDto {
   @IsEnum(ExerciseCategory, { each: true })
   categories?: ExerciseCategory[];
 
-  @ApiPropertyOptional({ example: '2022-01-01T00:00:00.000Z' })
-  @IsOptional()
-  @IsISO8601()
-  startDate?: string;
-
-  @ApiPropertyOptional({ example: '2022-01-01T00:00:00.000Z' })
-  @IsOptional()
-  @IsISO8601()
-  endDate?: string;
-
   @ApiPropertyOptional({ example: 'This is my program' })
   @IsOptional()
   @IsString()
   coachNote?: string;
+
+  @ApiPropertyOptional({ example: 8 })
+  @IsOptional()
+  @IsInt()
+  @Type(() => Number)
+  duration?: number;
+
+  @ApiPropertyOptional({ example: ProgramStatus.ARCHIVED })
+  @IsOptional()
+  @IsEnum(ProgramStatus)
+  status?: ProgramStatus;
 
   @ApiPropertyOptional({
     type: [UpdateProgramExerciseDto],
