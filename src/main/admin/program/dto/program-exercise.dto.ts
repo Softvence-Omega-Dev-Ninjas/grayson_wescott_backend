@@ -1,5 +1,4 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-// dto/program-exercise.dto.ts
 import { DayOfWeek } from '@prisma/client';
 import { Type } from 'class-transformer';
 import {

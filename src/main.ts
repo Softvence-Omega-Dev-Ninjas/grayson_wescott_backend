@@ -24,6 +24,8 @@ async function bootstrap() {
       'http://localhost:5175',
       'http://localhost:5176',
       'http://localhost:5177',
+      'https://carbonengines.com',
+      'https://grayson-wescott-frontend.vercel.app',
     ],
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
     credentials: true,
