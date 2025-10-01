@@ -17,16 +17,15 @@ export class UpdateProgramService {
   constructor(private readonly prisma: PrismaService) {}
 
   @HandleError('Failed to update program', 'Program')
-  async updateProgram(dto: UpdateProgramDto): Promise<TResponse<any>> {
+  async updateProgram(
+    id: string,
+    dto: UpdateProgramDto,
+  ): Promise<TResponse<any>> {
     // Check if program exists
-    const program = await this.prisma.program.findUnique({
-      where: { id: dto.programId },
+    const program = await this.prisma.program.findUniqueOrThrow({
+      where: { id },
       include: { exercises: true, userPrograms: true },
     });
-
-    if (!program) {
-      throw new AppError(404, 'Program not found');
-    }
 
     // Validate users
     const users = await this.prisma.user.findMany({
@@ -63,7 +62,7 @@ export class UpdateProgramService {
     const updatedProgram = await this.prisma.$transaction(async (tx) => {
       // Update basic program info
       await tx.program.update({
-        where: { id: dto.programId },
+        where: { id },
         data: {
           name: dto.name?.trim() ? dto.name : program.name,
           description: dto.description?.trim()
@@ -103,7 +102,7 @@ export class UpdateProgramService {
       if (exercisesToCreate.length) {
         await tx.programExercise.createMany({
           data: exercisesToCreate.map((e) => ({
-            programId: dto.programId,
+            programId: id,
             title: e.title,
             description: e.description ?? null,
             dayOfWeek: e.dayOfWeek,
@@ -127,7 +126,7 @@ export class UpdateProgramService {
       );
       if (usersToRemove.length) {
         await tx.userProgram.deleteMany({
-          where: { userId: { in: usersToRemove }, programId: dto.programId },
+          where: { userId: { in: usersToRemove }, programId: id },
         });
       }
 
@@ -138,7 +137,7 @@ export class UpdateProgramService {
       if (usersToAdd?.length) {
         await tx.userProgram.createMany({
           data: usersToAdd.map((userId) => ({
-            programId: dto.programId,
+            programId: id,
             userId,
           })),
         });
@@ -146,7 +145,7 @@ export class UpdateProgramService {
 
       // Return updated program with exercises and users
       return tx.program.findUnique({
-        where: { id: dto.programId },
+        where: { id },
         include: { exercises: true, userPrograms: { include: { user: true } } },
       });
     });

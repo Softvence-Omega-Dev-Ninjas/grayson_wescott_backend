@@ -6,7 +6,7 @@ const { default: yoctoSpinner } = require('yocto-spinner');
 // Helper function to run shell commands and return the output
 function runCommand(command) {
   try {
-    console.log(chalk.blue(`\nRunning command: ${command}\n`)); // Log command for debugging
+    console.log(chalk.blue(`\nRunning command: ${command}\n`));
     return execSync(command, { encoding: 'utf-8' });
   } catch (error) {
     console.error(chalk.red(`Error while executing command: ${command}`));
@@ -17,7 +17,7 @@ function runCommand(command) {
 // Get the list of staged files that are added or modified
 function getStagedFiles() {
   const result = runCommand('git diff --cached --name-only');
-  return result.split('\n').filter((file) => file); // Remove empty lines
+  return result.split('\n').filter((file) => file);
 }
 
 // Main function that runs checks and fixes on modified files
@@ -34,7 +34,7 @@ function getStagedFiles() {
     return;
   }
 
-  // Filter for JavaScript/TypeScript files or any other file types you'd like to check
+  // Filter for relevant file types
   const filesToCheck = stagedFiles.filter(
     (file) =>
       file.endsWith('.js') ||
@@ -52,26 +52,48 @@ function getStagedFiles() {
   }
 
   try {
-    // Run lint check only on specific files
+    // Run lint check
     spinner.start('Running lint check...');
     const lintResult = runCommand(`npm run lint -- ${filesToCheck.join(' ')}`);
     spinner.success(chalk.green(emoji('✅') + ' Lint checks passed!'));
 
-    // Run fix command only on specific files if needed
-    spinner.start('Applying fixes...');
-    const fixResult = runCommand(
+    // Run lint:fix
+    spinner.start('Applying lint fixes...');
+    const lintFixResult = runCommand(
       `npm run lint:fix -- ${filesToCheck.join(' ')}`,
     );
-    spinner.success(chalk.green(emoji('⚙️') + ' Fixes applied successfully!'));
+    spinner.success(chalk.green(emoji('⚙️') + ' Lint fixes applied!'));
+
+    // Run format check
+    spinner.start('Running format check...');
+    const formatResult = runCommand(
+      `npm run format -- ${filesToCheck.join(' ')}`,
+    );
+    spinner.success(chalk.green(emoji('✅') + ' Format checks passed!'));
+
+    // Run format:fix
+    spinner.start('Applying format fixes...');
+    const formatFixResult = runCommand(
+      `npm run format:fix -- ${filesToCheck.join(' ')}`,
+    );
+    spinner.success(chalk.green(emoji('⚙️') + ' Format fixes applied!'));
 
     // Output results
     console.log(
-      chalk.blue(emoji('💻') + ' Lint check output:\n') +
-        chalk.gray(lintResult),
+      chalk.blue(emoji('💻') + ' Lint output:\n') + chalk.gray(lintResult),
     );
     console.log(
-      chalk.blue(emoji('🔧') + ' Fix output:\n') + chalk.gray(fixResult),
+      chalk.blue(emoji('🔧') + ' Lint fix output:\n') +
+        chalk.gray(lintFixResult),
     );
+    console.log(
+      chalk.blue(emoji('📐') + ' Format output:\n') + chalk.gray(formatResult),
+    );
+    console.log(
+      chalk.blue(emoji('🛠️') + ' Format fix output:\n') +
+        chalk.gray(formatFixResult),
+    );
+
     console.log(
       chalk.cyan(emoji('🚀') + ' All checks passed and fixes applied!'),
     );

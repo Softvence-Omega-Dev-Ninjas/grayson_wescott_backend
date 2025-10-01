@@ -1,11 +1,10 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiPropertyOptional } from '@nestjs/swagger';
 import { ExerciseCategory } from '@prisma/client';
 import { Type } from 'class-transformer';
 import {
   ArrayNotEmpty,
   IsArray,
   IsEnum,
-  IsNotEmpty,
   IsOptional,
   IsString,
   IsUUID,
@@ -21,11 +20,6 @@ export class UpdateProgramExerciseDto extends CreateProgramExerciseDto {
 }
 
 export class UpdateProgramDto {
-  @ApiProperty({ example: '550e8400-e29b-41d4-a716-446655440000' })
-  @IsNotEmpty()
-  @IsUUID()
-  programId: string;
-
   @ApiPropertyOptional({ example: 'Updated Program Name' })
   @IsOptional()
   @IsString()

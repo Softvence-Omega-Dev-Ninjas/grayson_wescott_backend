@@ -4,7 +4,7 @@ import { ValidateAdmin } from '@project/common/jwt/jwt.decorator';
 import { GetClientsForProgramDto } from '../dto/get-clients.dto';
 import { UserService } from '../services/user.service';
 
-@ApiTags('User')
+@ApiTags('Admin --- User')
 @ApiBearerAuth()
 @ValidateAdmin()
 @Controller('user')
