@@ -42,12 +42,12 @@ export class CreateProgramExerciseDto {
   @Min(0)
   duration?: number;
 
-  @ApiPropertyOptional({ example: 30 })
+  @ApiPropertyOptional({ example: 3 })
   @IsOptional()
   @IsInt()
   @Type(() => Number)
   @Min(0)
-  restSeconds?: number;
+  rest?: number;
 
   @ApiPropertyOptional({ example: 10 })
   @IsOptional()

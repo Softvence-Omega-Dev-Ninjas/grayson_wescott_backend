@@ -7,8 +7,8 @@ model ProgramExercise {
   dayOfWeek DayOfWeek
   order     Int       @default(0) // order in that day
 
-  duration    Int? // in minutes
-  restSeconds Int? // in seconds
+  duration Int? // in minutes
+  rest     Int? // in minutes
 
   reps  Int? // optional
   sets  Int? // optional
