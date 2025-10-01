@@ -5,6 +5,7 @@ import {
   ArrayNotEmpty,
   IsArray,
   IsEnum,
+  IsISO8601,
   IsOptional,
   IsString,
   IsUUID,
@@ -38,6 +39,21 @@ export class UpdateProgramDto {
   @IsArray()
   @IsEnum(ExerciseCategory, { each: true })
   categories?: ExerciseCategory[];
+
+  @ApiPropertyOptional({ example: '2022-01-01T00:00:00.000Z' })
+  @IsOptional()
+  @IsISO8601()
+  startDate?: string;
+
+  @ApiPropertyOptional({ example: '2022-01-01T00:00:00.000Z' })
+  @IsOptional()
+  @IsISO8601()
+  endDate?: string;
+
+  @ApiPropertyOptional({ example: 'This is my program' })
+  @IsOptional()
+  @IsString()
+  coachNote?: string;
 
   @ApiPropertyOptional({
     type: [UpdateProgramExerciseDto],

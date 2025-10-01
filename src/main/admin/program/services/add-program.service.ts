@@ -32,6 +32,9 @@ export class AddProgramService {
         description: dto.description ?? null,
         categories: dto.categories ?? [],
         status: 'PUBLISHED',
+        startDate: new Date(dto.startDate).toISOString(),
+        endDate: new Date(dto.endDate).toISOString(),
+        coachNote: dto.coachNote,
         exercises: {
           create: dto.exercises.map((e) => ({
             title: e.title,
