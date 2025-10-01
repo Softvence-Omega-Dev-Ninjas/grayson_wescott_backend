@@ -14,71 +14,80 @@ export class AddProgramService {
 
   @HandleError('Failed to add programme', 'Program')
   async addProgramme(dto: AddProgramDto): Promise<TResponse<any>> {
-    const users = await this.prisma.user.findMany({
-      where: {
-        id: {
-          in: dto.userIds.map((u) => u),
+    return this.prisma.$transaction(async (tx) => {
+      // 1. Validate users
+      const users = await tx.user.findMany({
+        where: { id: { in: dto.userIds } },
+      });
+
+      if (users.length !== dto.userIds.length) {
+        throw new AppError(404, 'Some users do not exist');
+      }
+
+      // 2. Create program + exercises
+      const programme = await tx.program.create({
+        data: {
+          name: dto.name,
+          description: dto.description ?? null,
+          coachNote: dto.coachNote ?? null,
+          categories: dto.categories ?? [],
+          status: 'PUBLISHED',
+          duration: dto.duration,
+          exercises: {
+            create: dto.exercises.map((e) => ({
+              title: e.title,
+              description: e.description ?? null,
+              dayOfWeek: e.dayOfWeek,
+              order: e.order,
+              duration: e.duration ?? null,
+              rest: e.rest ?? null,
+              reps: e.reps ?? null,
+              sets: e.sets ?? null,
+              tempo: e.tempo ?? null,
+              videoUrl: e.videoUrl ?? null,
+            })),
+          },
         },
-      },
-    });
+      });
 
-    if (users.length !== dto.userIds.length) {
-      throw new AppError(404, 'Some users do not exist');
-    }
+      // 3. Assign users to program (inline logic, no extra query roundtrip)
+      const startDate = new Date();
+      const endDate = new Date(startDate);
+      endDate.setDate(startDate.getDate() + programme.duration * 7);
 
-    const programme = await this.prisma.program.create({
-      data: {
-        name: dto.name,
-        description: dto.description ?? null,
-        coachNote: dto.coachNote ?? null,
-        categories: dto.categories ?? [],
-        status: 'PUBLISHED',
-        duration: dto.duration,
-        exercises: {
-          create: dto.exercises.map((e) => ({
-            title: e.title,
-            description: e.description ?? null,
-            dayOfWeek: e.dayOfWeek,
-            order: e.order,
-            duration: e.duration ?? null,
-            rest: e.rest ?? null,
-            reps: e.reps ?? null,
-            sets: e.sets ?? null,
-            tempo: e.tempo ?? null,
-            videoUrl: e.videoUrl ?? null,
-          })),
-        },
-      },
-    });
+      await tx.userProgram.createMany({
+        data: [...new Set(dto.userIds)].map((userId) => ({
+          userId,
+          programId: programme.id,
+          startDate,
+          endDate,
+        })),
+      });
 
-    // assign users
-    await this.assignUsersToProgram(programme.id, {
-      userIds: dto.userIds,
-    });
-
-    // return program with exercises and assigned users
-    const updatedProgram = await this.prisma.program.findUnique({
-      where: { id: programme.id },
-      include: {
-        exercises: true,
-        userPrograms: {
-          include: {
-            user: {
-              select: {
-                id: true,
-                name: true,
-                username: true,
-                avatarUrl: true,
-                email: true,
-                phone: true,
+      // 4. Return program with exercises + users
+      const updatedProgram = await tx.program.findUnique({
+        where: { id: programme.id },
+        include: {
+          exercises: true,
+          userPrograms: {
+            include: {
+              user: {
+                select: {
+                  id: true,
+                  name: true,
+                  username: true,
+                  avatarUrl: true,
+                  email: true,
+                  phone: true,
+                },
               },
             },
           },
         },
-      },
-    });
+      });
 
-    return successResponse(updatedProgram, 'Program added successfully');
+      return successResponse(updatedProgram, 'Program added successfully');
+    });
   }
 
   @HandleError('Failed to assign users to program', 'Program')
@@ -124,23 +133,31 @@ export class AddProgramService {
       skipDuplicates: true,
     });
 
-    // 5. Return assigned userPrograms with user info
-    const assigned = await this.prisma.userProgram.findMany({
-      where: { programId, userId: { in: uniqueIds } },
+    // 5. Return update program
+    const updatedProgram = await this.prisma.program.findUnique({
+      where: { id: programId },
       include: {
-        user: {
-          select: {
-            id: true,
-            name: true,
-            username: true,
-            email: true,
-            avatarUrl: true,
-            phone: true,
+        exercises: true,
+        userPrograms: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                name: true,
+                username: true,
+                avatarUrl: true,
+                email: true,
+                phone: true,
+              },
+            },
           },
         },
       },
     });
 
-    return successResponse(assigned, 'Users assigned to program successfully');
+    return successResponse(
+      updatedProgram,
+      'Users assigned to program successfully',
+    );
   }
 }

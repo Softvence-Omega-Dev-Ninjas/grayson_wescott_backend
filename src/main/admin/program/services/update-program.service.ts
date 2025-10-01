@@ -138,11 +138,18 @@ export class UpdateProgramService {
         (id) => !currentUserIds.includes(id),
       );
       if (usersToAdd?.length) {
+        const startDate = new Date();
+        const endDate = new Date(startDate);
+        endDate.setDate(startDate.getDate() + (program.duration ?? 0) * 7);
+
         await tx.userProgram.createMany({
           data: usersToAdd.map((userId) => ({
-            programId: id,
             userId,
+            programId: id,
+            startDate: new Date(startDate).toISOString(),
+            endDate: new Date(endDate).toISOString(),
           })),
+          skipDuplicates: true, // just in case
         });
       }
 
