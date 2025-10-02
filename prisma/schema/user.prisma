@@ -18,6 +18,9 @@ model User {
   lastLoginAt  DateTime?
   lastLogoutAt DateTime?
 
+  // timezone
+  timezone String @default("UTC")
+
   // OTP / Verification OR TFA
   otp          String? // hashed OTP
   otpType      OtpType?

@@ -25,6 +25,7 @@ export class TwilioService {
         from: this.fromPhone,
         to: phone,
       });
+      this.logger.log(`SMS sent to ${phone}`);
     } catch (error) {
       throw new AppError(500, error.message || error || 'Error sending SMS');
     }

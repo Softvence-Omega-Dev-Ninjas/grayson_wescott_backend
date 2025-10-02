@@ -40,6 +40,8 @@ enum DayOfWeek {
 model UserProgramExercise {
   id String @id @default(uuid())
 
+  dayNumber Int     // 1, 2, 3, 4, 5, 6, 7
+
   // Relations
   userProgram   UserProgram @relation(fields: [userProgramId], references: [id], onDelete: Cascade)
   userProgramId String
