@@ -1,6 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { MailService } from '@project/lib/mail/mail.service';
 import { PrismaService } from '@project/lib/prisma/prisma.service';
 import { DateTime } from 'luxon';
 
@@ -8,10 +7,7 @@ import { DateTime } from 'luxon';
 export class DailyExerciseService {
   private readonly logger = new Logger(DailyExerciseService.name);
 
-  constructor(
-    private prisma: PrismaService,
-    private mail: MailService,
-  ) {}
+  constructor(private prisma: PrismaService) {}
 
   // Runs every day at 1AM UTC
   @Cron(CronExpression.EVERY_DAY_AT_1AM)
@@ -65,11 +61,6 @@ export class DailyExerciseService {
       });
 
       // 6. Send notification
-      // await this.mail.sendEmail(
-      //   userProgram.user.email,
-      //   'Daily Exercise',
-      //   `You have ${todaysExercises.length} exercises to complete today.`,
-      // );
     }
 
     this.logger.log('Daily exercise cron job completed.');
