@@ -65,11 +65,11 @@ export class DailyExerciseService {
       });
 
       // 6. Send notification
-      await this.mail.sendEmail(
-        userProgram.user.email,
-        'Daily Exercise',
-        `You have ${todaysExercises.length} exercises to complete today.`,
-      );
+      // await this.mail.sendEmail(
+      //   userProgram.user.email,
+      //   'Daily Exercise',
+      //   `You have ${todaysExercises.length} exercises to complete today.`,
+      // );
     }
 
     this.logger.log('Daily exercise cron job completed.');
