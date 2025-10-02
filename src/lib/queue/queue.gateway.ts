@@ -15,7 +15,7 @@ import {
 } from '@project/common/utils/response.util';
 import { Notification } from '@project/lib/queue/interface/events-payload';
 import { Server, Socket } from 'socket.io';
-import { ChatEventsEnum } from '../chat/enum/chat-events.enum';
+import { EventsEnum } from '../../common/enum/events.enum';
 import { PrismaService } from '../prisma/prisma.service';
 
 @WebSocketGateway({
@@ -75,7 +75,7 @@ export class QueueGateway
       this.subscribeClient(user.id, client);
 
       this.logger.log(`User connected: ${user.id} (socket ${client.id})`);
-      client.emit(ChatEventsEnum.SUCCESS, successResponse(user));
+      client.emit(EventsEnum.SUCCESS, successResponse(user));
     } catch (err: any) {
       this.disconnectWithError(client, err?.message ?? 'Auth failed');
     }
@@ -128,13 +128,13 @@ export class QueueGateway
 
   /** ---------------- ERROR HELPERS ---------------- */
   public disconnectWithError(client: Socket, message: string) {
-    client.emit(ChatEventsEnum.ERROR, errorResponse(null, message));
+    client.emit(EventsEnum.ERROR, errorResponse(null, message));
     client.disconnect(true);
     this.logger.warn(`Disconnect ${client.id}: ${message}`);
   }
 
   public emitError(client: Socket, message: string) {
-    client.emit(ChatEventsEnum.ERROR, errorResponse(null, message));
+    client.emit(EventsEnum.ERROR, errorResponse(null, message));
     return errorResponse(null, message);
   }
 

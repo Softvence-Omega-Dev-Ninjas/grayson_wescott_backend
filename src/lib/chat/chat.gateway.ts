@@ -19,6 +19,7 @@ import {
   successResponse,
 } from '@project/common/utils/response.util';
 import { Server, Socket } from 'socket.io';
+import { EventsEnum } from '../../common/enum/events.enum';
 import { PrismaService } from '../prisma/prisma.service';
 import { CallActionDto, InitiateCallDto } from './dto/call.dto';
 import {
@@ -37,7 +38,6 @@ import {
   RTCIceCandidateDto,
   RTCOfferDto,
 } from './dto/webrtc.dto';
-import { ChatEventsEnum } from './enum/chat-events.enum';
 import { CallService } from './services/call.service';
 import { ClientConversationService } from './services/client-conversation.service';
 import { ConversationService } from './services/conversation.service';
@@ -110,7 +110,7 @@ export class ChatGateway
       this.subscribeClient(user.id, client);
 
       this.logger.log(`User connected: ${user.id} (socket ${client.id})`);
-      client.emit(ChatEventsEnum.SUCCESS, successResponse(user));
+      client.emit(EventsEnum.SUCCESS, successResponse(user));
     } catch (err: any) {
       this.disconnectWithError(client, err?.message ?? 'Auth failed');
     }
@@ -163,18 +163,18 @@ export class ChatGateway
 
   /** ---------------- ERROR HELPERS ---------------- */
   public disconnectWithError(client: Socket, message: string) {
-    client.emit(ChatEventsEnum.ERROR, errorResponse(null, message));
+    client.emit(EventsEnum.ERROR, errorResponse(null, message));
     client.disconnect(true);
     this.logger.warn(`Disconnect ${client.id}: ${message}`);
   }
 
   public emitError(client: Socket, message: string) {
-    client.emit(ChatEventsEnum.ERROR, errorResponse(null, message));
+    client.emit(EventsEnum.ERROR, errorResponse(null, message));
     return errorResponse(null, message);
   }
 
   /** ---------------- MESSAGE EVENTS ---------------- */
-  @SubscribeMessage(ChatEventsEnum.SEND_MESSAGE_CLIENT)
+  @SubscribeMessage(EventsEnum.SEND_MESSAGE_CLIENT)
   async onSendMessageClient(
     @ConnectedSocket() client: Socket,
     @MessageBody() payload: ClientMessageDto,
@@ -182,7 +182,7 @@ export class ChatGateway
     await this.messageService.sendMessageFromClient(client, payload);
   }
 
-  @SubscribeMessage(ChatEventsEnum.SEND_MESSAGE_ADMIN)
+  @SubscribeMessage(EventsEnum.SEND_MESSAGE_ADMIN)
   async onSendMessageAdmin(
     @ConnectedSocket() client: Socket,
     @MessageBody() payload: AdminMessageDto,
@@ -190,7 +190,7 @@ export class ChatGateway
     await this.messageService.sendMessageFromAdmin(client, payload);
   }
 
-  @SubscribeMessage(ChatEventsEnum.UPDATE_MESSAGE_STATUS)
+  @SubscribeMessage(EventsEnum.UPDATE_MESSAGE_STATUS)
   async onMessageStatusUpdate(
     @ConnectedSocket() client: Socket,
     @MessageBody() payload: MessageDeliveryStatusDto,
@@ -198,13 +198,13 @@ export class ChatGateway
     await this.messageService.messageStatusUpdate(client, payload);
   }
 
-  @SubscribeMessage(ChatEventsEnum.MARK_MESSAGE_READ)
+  @SubscribeMessage(EventsEnum.MARK_MESSAGE_READ)
   async onMarkMessagesAsRead(@MessageBody() payload: MarkReadDto) {
     await this.messageService.markMessagesAsRead(payload);
   }
 
   /** ---------------- CONVERSATION EVENTS ---------------- **/
-  @SubscribeMessage(ChatEventsEnum.LOAD_CONVERSATION_LIST)
+  @SubscribeMessage(EventsEnum.LOAD_CONVERSATION_LIST)
   async onLoadConversationsByAdmin(
     @ConnectedSocket() client: Socket,
     @MessageBody() payload: LoadConversationsDto,
@@ -215,7 +215,7 @@ export class ChatGateway
     );
   }
 
-  @SubscribeMessage(ChatEventsEnum.LOAD_SINGLE_CONVERSATION)
+  @SubscribeMessage(EventsEnum.LOAD_SINGLE_CONVERSATION)
   async onLoadSingleConversationByAdmin(
     @ConnectedSocket() client: Socket,
     @MessageBody() payload: LoadSingleConversationDto,
@@ -226,7 +226,7 @@ export class ChatGateway
     );
   }
 
-  @SubscribeMessage(ChatEventsEnum.INIT_CONVERSATION_WITH_CLIENT)
+  @SubscribeMessage(EventsEnum.INIT_CONVERSATION_WITH_CLIENT)
   async onInitConversationWithClient(
     @ConnectedSocket() client: Socket,
     @MessageBody() payload: InitConversationWithClientDto,
@@ -237,7 +237,7 @@ export class ChatGateway
     );
   }
 
-  @SubscribeMessage(ChatEventsEnum.LOAD_CLIENT_CONVERSATION)
+  @SubscribeMessage(EventsEnum.LOAD_CLIENT_CONVERSATION)
   async onLoadClientConversation(
     @ConnectedSocket() client: Socket,
     @MessageBody() payload: PaginationDto,
@@ -249,7 +249,7 @@ export class ChatGateway
   }
 
   /** ---------------- CALL EVENTS ---------------- **/
-  @SubscribeMessage(ChatEventsEnum.CALL_INITIATE)
+  @SubscribeMessage(EventsEnum.CALL_INITIATE)
   async onCallInitiate(
     @ConnectedSocket() client: Socket,
     @MessageBody() data: InitiateCallDto,
@@ -257,7 +257,7 @@ export class ChatGateway
     await this.callService.initiateCall(client, data);
   }
 
-  @SubscribeMessage(ChatEventsEnum.CALL_ACCEPT)
+  @SubscribeMessage(EventsEnum.CALL_ACCEPT)
   async onCallAccept(
     @ConnectedSocket() client: Socket,
     @MessageBody() data: CallActionDto,
@@ -265,7 +265,7 @@ export class ChatGateway
     await this.callService.acceptCall(client, data.callId);
   }
 
-  @SubscribeMessage(ChatEventsEnum.CALL_REJECT)
+  @SubscribeMessage(EventsEnum.CALL_REJECT)
   async onCallReject(
     @ConnectedSocket() client: Socket,
     @MessageBody() data: CallActionDto,
@@ -273,7 +273,7 @@ export class ChatGateway
     await this.callService.rejectCall(client, data.callId);
   }
 
-  @SubscribeMessage(ChatEventsEnum.CALL_JOIN)
+  @SubscribeMessage(EventsEnum.CALL_JOIN)
   async onCallJoin(
     @ConnectedSocket() client: Socket,
     @MessageBody() data: CallActionDto,
@@ -281,7 +281,7 @@ export class ChatGateway
     await this.callService.joinCall(client, data.callId);
   }
 
-  @SubscribeMessage(ChatEventsEnum.CALL_LEAVE)
+  @SubscribeMessage(EventsEnum.CALL_LEAVE)
   async onCallLeave(
     @ConnectedSocket() client: Socket,
     @MessageBody() data: CallActionDto,
@@ -289,7 +289,7 @@ export class ChatGateway
     await this.callService.leaveCall(client, data.callId);
   }
 
-  @SubscribeMessage(ChatEventsEnum.CALL_END)
+  @SubscribeMessage(EventsEnum.CALL_END)
   async onCallEnd(
     @ConnectedSocket() client: Socket,
     @MessageBody() data: CallActionDto,
@@ -298,7 +298,7 @@ export class ChatGateway
   }
 
   /** ---------------- WEBRTC EVENTS ---------------- */
-  @SubscribeMessage(ChatEventsEnum.RTC_OFFER)
+  @SubscribeMessage(EventsEnum.RTC_OFFER)
   async onRTCOffer(
     @ConnectedSocket() client: Socket,
     @MessageBody() payload: RTCOfferDto,
@@ -306,7 +306,7 @@ export class ChatGateway
     await this.webRTCService.handleOffer(client, payload);
   }
 
-  @SubscribeMessage(ChatEventsEnum.RTC_ANSWER)
+  @SubscribeMessage(EventsEnum.RTC_ANSWER)
   async onRTCAnswer(
     @ConnectedSocket() client: Socket,
     @MessageBody() payload: RTCAnswerDto,
@@ -314,7 +314,7 @@ export class ChatGateway
     await this.webRTCService.handleAnswer(client, payload);
   }
 
-  @SubscribeMessage(ChatEventsEnum.RTC_ICE_CANDIDATE)
+  @SubscribeMessage(EventsEnum.RTC_ICE_CANDIDATE)
   async onRTCIceCandidate(
     @ConnectedSocket() client: Socket,
     @MessageBody() payload: RTCIceCandidateDto,

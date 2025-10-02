@@ -6,8 +6,8 @@ import {
 } from '@project/common/utils/response.util';
 import { PrismaService } from '@project/lib/prisma/prisma.service';
 import { Socket } from 'socket.io';
+import { EventsEnum } from '../../../common/enum/events.enum';
 import { ChatGateway } from '../chat.gateway';
-import { ChatEventsEnum } from '../enum/chat-events.enum';
 
 @Injectable()
 export class WebRTCService {
@@ -36,7 +36,7 @@ export class WebRTCService {
       .filter((p) => p.userId !== userId)
       .forEach((p) =>
         this.chatGateway.server.to(p.userId).emit(
-          ChatEventsEnum.RTC_OFFER,
+          EventsEnum.RTC_OFFER,
           successResponse({
             callId: call.id,
             sdp: payload.sdp,
@@ -66,7 +66,7 @@ export class WebRTCService {
       .filter((p) => p.userId !== userId)
       .forEach((p) =>
         this.chatGateway.server.to(p.userId).emit(
-          ChatEventsEnum.RTC_ANSWER,
+          EventsEnum.RTC_ANSWER,
           successResponse({
             callId: call.id,
             sdp: payload.sdp,
@@ -103,7 +103,7 @@ export class WebRTCService {
         this.chatGateway.server
           .to(p.userId)
           .emit(
-            ChatEventsEnum.RTC_ICE_CANDIDATE,
+            EventsEnum.RTC_ICE_CANDIDATE,
             successResponse({ ...payload, from: userId }),
           ),
       );

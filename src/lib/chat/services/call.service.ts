@@ -7,9 +7,9 @@ import {
 } from '@project/common/utils/response.util';
 import { PrismaService } from '@project/lib/prisma/prisma.service';
 import { Socket } from 'socket.io';
+import { EventsEnum } from '../../../common/enum/events.enum';
 import { ChatGateway } from '../chat.gateway';
 import { InitiateCallDto } from '../dto/call.dto';
-import { ChatEventsEnum } from '../enum/chat-events.enum';
 
 @Injectable()
 export class CallService {
@@ -59,7 +59,7 @@ export class CallService {
     // Notify all participants
     this.emitCallEvent(
       conversation.participants.map((p) => ({ userId: p.userId! })),
-      ChatEventsEnum.CALL_INCOMING,
+      EventsEnum.CALL_INCOMING,
       call,
     );
 
@@ -97,7 +97,7 @@ export class CallService {
       });
     }
 
-    this.emitCallEvent(call.participants, ChatEventsEnum.CALL_ACCEPT, {
+    this.emitCallEvent(call.participants, EventsEnum.CALL_ACCEPT, {
       callId,
       userId,
     });
@@ -122,7 +122,7 @@ export class CallService {
       data: { status: CallParticipantStatus.MISSED, leftAt: new Date() },
     });
 
-    this.emitCallEvent(call.participants, ChatEventsEnum.CALL_REJECT, {
+    this.emitCallEvent(call.participants, EventsEnum.CALL_REJECT, {
       callId,
       userId,
     });
@@ -151,7 +151,7 @@ export class CallService {
       });
     }
 
-    this.emitCallEvent([{ userId }], ChatEventsEnum.CALL_JOIN, {
+    this.emitCallEvent([{ userId }], EventsEnum.CALL_JOIN, {
       callId,
       userId,
     });
@@ -190,11 +190,11 @@ export class CallService {
         where: { id: callId },
         data: { status: CallStatus.ENDED, endedAt: new Date() },
       });
-      this.emitCallEvent(call?.participants || [], ChatEventsEnum.CALL_END, {
+      this.emitCallEvent(call?.participants || [], EventsEnum.CALL_END, {
         callId,
       });
     } else {
-      this.emitCallEvent(call?.participants || [], ChatEventsEnum.CALL_LEAVE, {
+      this.emitCallEvent(call?.participants || [], EventsEnum.CALL_LEAVE, {
         callId,
         userId,
       });
@@ -212,7 +212,7 @@ export class CallService {
       include: { participants: true },
     });
 
-    this.emitCallEvent(call.participants, ChatEventsEnum.CALL_END, { callId });
+    this.emitCallEvent(call.participants, EventsEnum.CALL_END, { callId });
 
     return successResponse({ callId }, 'Call ended successfully');
   }
@@ -231,7 +231,7 @@ export class CallService {
       data: { status: CallParticipantStatus.MISSED },
     });
 
-    this.emitCallEvent(call.participants, ChatEventsEnum.CALL_MISSED, {
+    this.emitCallEvent(call.participants, EventsEnum.CALL_MISSED, {
       callId,
     });
 
@@ -241,7 +241,7 @@ export class CallService {
   /** ---------------- Helper to emit call events ---------------- */
   private emitCallEvent(
     participants: { userId: string }[],
-    event: ChatEventsEnum,
+    event: EventsEnum,
     payload: any,
   ) {
     participants.forEach((p) => {
