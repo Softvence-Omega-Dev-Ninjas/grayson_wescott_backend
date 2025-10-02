@@ -301,7 +301,7 @@ export class AuthFacebookService {
     return this.utils.generateToken({
       sub: user.id,
       email: user.email,
-      roles: user.role,
+      role: user.role,
     });
   }
 

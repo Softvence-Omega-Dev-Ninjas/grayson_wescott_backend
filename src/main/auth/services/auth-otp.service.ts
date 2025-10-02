@@ -140,7 +140,7 @@ export class AuthOtpService {
     const token = this.utils.generateToken({
       sub: updatedUser.id,
       email: updatedUser.email,
-      roles: updatedUser.role,
+      role: updatedUser.role,
     });
 
     return successResponse(

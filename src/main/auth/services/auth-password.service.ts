@@ -89,7 +89,7 @@ export class AuthPasswordService {
     const tokenWithExpiry = this.utils.generateResetTokenWithExpiry({
       sub: user.id,
       email: user.email,
-      roles: user.role,
+      role: user.role,
     });
 
     const { token, expiryTime } = tokenWithExpiry;
