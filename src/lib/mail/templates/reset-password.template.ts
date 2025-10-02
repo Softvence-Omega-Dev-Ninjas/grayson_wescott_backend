@@ -1,7 +1,4 @@
-export const resetPasswordTemplate = (
-  resetLink: string,
-  message: string,
-) => `
+export const resetPasswordTemplate = (resetLink: string, message: string) => `
 <div style="font-family: Arial, sans-serif; background-color: #f4f4f7; padding: 30px;">
   <div style="max-width: 550px; margin: auto; background-color: #ffffff; padding: 35px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.05);">
     
