@@ -13,7 +13,7 @@ import { ChatEventsEnum } from '../chat/enum/chat-events.enum';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
-export class AppGateway  {
+export class AppGateway {
   private readonly logger = new Logger(AppGateway.name);
   private readonly clients = new Map<string, Set<Socket>>();
 
