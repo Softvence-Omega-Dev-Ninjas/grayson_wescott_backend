@@ -1,6 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
+import {
+  OnGatewayConnection,
+  OnGatewayDisconnect,
+  OnGatewayInit,
+  WebSocketGateway,
+} from '@nestjs/websockets';
 import { ENVEnum } from '@project/common/enum/env.enum';
 import { JWTPayload } from '@project/common/jwt/jwt.interface';
 import {
@@ -12,9 +18,15 @@ import { Server, Socket } from 'socket.io';
 import { ChatEventsEnum } from '../chat/enum/chat-events.enum';
 import { PrismaService } from '../prisma/prisma.service';
 
+@WebSocketGateway({
+  cors: { origin: '*' },
+  namespace: '/api/queue',
+})
 @Injectable()
-export class AppGateway {
-  private readonly logger = new Logger(AppGateway.name);
+export class QueueGateway
+  implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect
+{
+  private readonly logger = new Logger(QueueGateway.name);
   private readonly clients = new Map<string, Set<Socket>>();
 
   constructor(
@@ -24,11 +36,11 @@ export class AppGateway {
   ) {}
 
   /**--- INIT --- */
-  public init(server: Server) {
+  afterInit(server: Server) {
     this.logger.log('Socket.IO server initialized', server.adapter?.name ?? '');
   }
 
-  public async connection(client: Socket) {
+  async handleConnection(client: Socket) {
     try {
       const token = this.extractTokenFromSocket(client);
       if (!token) {
@@ -69,7 +81,7 @@ export class AppGateway {
     }
   }
 
-  public disconnect(client: Socket) {
+  handleDisconnect(client: Socket) {
     const userId = client.data?.userId;
     if (userId) {
       this.unsubscribeClient(userId, client);

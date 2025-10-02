@@ -18,6 +18,5 @@ import { ClientConversationService } from './services/client-conversation.servic
     SingleConversationService,
     ClientConversationService,
   ],
-  exports: [ChatGateway],
 })
 export class ChatModule {}
