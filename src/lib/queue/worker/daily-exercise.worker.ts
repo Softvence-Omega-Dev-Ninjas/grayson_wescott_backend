@@ -3,13 +3,13 @@ import { ConfigService } from '@nestjs/config';
 import { ENVEnum } from '@project/common/enum/env.enum';
 import { PrismaService } from '@project/lib/prisma/prisma.service';
 import { Job, Worker } from 'bullmq';
-import { RecognitionEvent } from '../interface/events-payload';
-import { QueueName } from '../interface/queue-name';
+import { QueueName } from '../interface/queue-names';
+import { QueuePayload } from '../interface/queue-payload';
 import { QueueGateway } from '../queue.gateway';
 
 @Injectable()
-export class RecognitionWorker implements OnModuleInit {
-  private logger = new Logger(RecognitionWorker.name);
+export class DailyExerciseWorker implements OnModuleInit {
+  private logger = new Logger(DailyExerciseWorker.name);
 
   constructor(
     private readonly gateway: QueueGateway,
@@ -18,43 +18,35 @@ export class RecognitionWorker implements OnModuleInit {
   ) {}
 
   onModuleInit() {
-    new Worker<RecognitionEvent>(
-      QueueName.RECOGNITION,
-      async (job: Job<RecognitionEvent>) => {
-        const {
-          action,
-          info: { title, recipients },
-          meta: { createdAt, performedBy, recognitionId },
-        } = job.data;
+    new Worker<QueuePayload>(
+      QueueName.DAILY_EXERCISE,
+      async (job: Job<QueuePayload>) => {
+        const { type, recipients, title, message, createdAt, meta } = job.data;
 
         try {
           // * Send Socket Notification
           this.gateway.notifyMultipleUsers(
-            recipients.map((recipient) => recipient.id),
-            action,
+            recipients.map((recipient: any) => recipient.id),
+            type,
             {
-              type: action,
+              type,
               title,
+              message,
               createdAt,
-              message: 'Test Message',
-              meta: { recognitionId },
+              meta,
             },
           );
 
           // * Store the notification in the database
           await this.prisma.notification.create({
             data: {
-              type: 'Recognition',
+              type,
               title,
-              message: 'Test Message',
-              meta: {
-                recognitionId,
-                performedBy,
-                createdAt,
-              },
+              message,
+              meta: JSON.stringify(meta),
               users: {
                 createMany: {
-                  data: recipients.map((recipient) => ({
+                  data: recipients.map((recipient: any) => ({
                     userId: recipient.id,
                   })),
                 },
@@ -63,7 +55,7 @@ export class RecognitionWorker implements OnModuleInit {
           });
         } catch (err) {
           this.logger.error(
-            `Failed to process recognition event ${action}: ${err.message}`,
+            `Failed to process notification event ${type}: ${err.message}`,
             err.stack,
           );
         }

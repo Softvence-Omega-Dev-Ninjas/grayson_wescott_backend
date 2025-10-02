@@ -13,10 +13,10 @@ import {
   errorResponse,
   successResponse,
 } from '@project/common/utils/response.util';
-import { Notification } from '@project/lib/queue/interface/events-payload';
 import { Server, Socket } from 'socket.io';
 import { EventsEnum } from '../../common/enum/events.enum';
 import { PrismaService } from '../prisma/prisma.service';
+import { NotificationPayload } from './interface/queue-payload';
 
 @WebSocketGateway({
   cors: { origin: '*' },
@@ -138,7 +138,7 @@ export class QueueGateway
     return errorResponse(null, message);
   }
 
-  /** ---------------- NOTIFICATION API ---------------- */
+  /** ---------------- Notification API ---------------- */
   public getClientsForUser(userId: string): Set<Socket> {
     return this.clients.get(userId) || new Set();
   }
@@ -146,7 +146,7 @@ export class QueueGateway
   public async notifySingleUser(
     userId: string,
     event: string,
-    data: Notification,
+    data: NotificationPayload,
   ): Promise<void> {
     const clients = this.getClientsForUser(userId);
     if (clients.size === 0) {
@@ -156,17 +156,19 @@ export class QueueGateway
 
     clients.forEach((client) => {
       client.emit(event, data);
-      this.logger.log(`Notification sent to user ${userId} via event ${event}`);
+      this.logger.log(
+        `NotificationPayload sent to user ${userId} via event ${event}`,
+      );
     });
   }
 
   public async notifyMultipleUsers(
     userIds: string[],
     event: string,
-    data: Notification,
+    data: NotificationPayload,
   ): Promise<void> {
     if (userIds.length === 0) {
-      this.logger.warn('No user IDs provided for notification');
+      this.logger.warn('No user IDs provided for NotificationPayload');
       return;
     }
 
@@ -177,13 +179,13 @@ export class QueueGateway
 
   public async notifyAllUsers(
     event: string,
-    data: Notification,
+    data: NotificationPayload,
   ): Promise<void> {
     this.clients.forEach((clients, userId) => {
       clients.forEach((client) => {
         client.emit(event, data);
         this.logger.log(
-          `Notification sent to all users via event ${event} for user ${userId}`,
+          `NotificationPayload sent to all users via event ${event} for user ${userId}`,
         );
       });
     });
