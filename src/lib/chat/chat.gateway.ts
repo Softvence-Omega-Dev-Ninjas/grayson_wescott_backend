@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import {
@@ -12,8 +12,13 @@ import {
   WebSocketServer,
 } from '@nestjs/websockets';
 import { PaginationDto } from '@project/common/dto/pagination.dto';
+import { ENVEnum } from '@project/common/enum/env.enum';
+import { JWTPayload } from '@project/common/jwt/jwt.interface';
+import {
+  errorResponse,
+  successResponse,
+} from '@project/common/utils/response.util';
 import { Server, Socket } from 'socket.io';
-import { AppGateway } from '../gateway/app.gateway';
 import { PrismaService } from '../prisma/prisma.service';
 import { CallActionDto, InitiateCallDto } from './dto/call.dto';
 import {
@@ -46,9 +51,11 @@ import { WebRTCService } from './services/webrtc.service';
 })
 @Injectable()
 export class ChatGateway
-  extends AppGateway
   implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect
 {
+  private readonly logger = new Logger(ChatGateway.name);
+  private readonly clients = new Map<string, Set<Socket>>();
+
   constructor(
     private readonly messageService: MessageService,
     private readonly conversationService: ConversationService,
@@ -56,26 +63,114 @@ export class ChatGateway
     private readonly clientConversationService: ClientConversationService,
     private readonly callService: CallService,
     private readonly webRTCService: WebRTCService,
-    configService: ConfigService,
-    prisma: PrismaService,
-    jwtService: JwtService,
-  ) {
-    super(configService, prisma, jwtService);
-  }
+    private readonly configService: ConfigService,
+    private readonly prisma: PrismaService,
+    private readonly jwtService: JwtService,
+  ) {}
 
   @WebSocketServer()
   server: Server;
 
   afterInit(server: Server) {
-    this.init(server);
+    this.logger.log('Socket.IO server initialized', server.adapter?.name ?? '');
   }
 
-  handleConnection(client: Socket) {
-    this.connection(client);
+  async handleConnection(client: Socket) {
+    try {
+      const token = this.extractTokenFromSocket(client);
+      if (!token) {
+        return this.disconnectWithError(client, 'Missing token');
+      }
+
+      const payload = this.jwtService.verify<JWTPayload>(token, {
+        secret: this.configService.getOrThrow(ENVEnum.JWT_SECRET),
+      });
+
+      if (!payload.sub) {
+        return this.disconnectWithError(client, 'Invalid token payload');
+      }
+
+      const user = await this.prisma.user.findUnique({
+        where: { id: payload.sub },
+        select: {
+          id: true,
+          email: true,
+          role: true,
+          name: true,
+          avatarUrl: true,
+        },
+      });
+
+      if (!user) return this.disconnectWithError(client, 'User not found');
+
+      client.data.userId = user.id;
+      client.data.user = payload;
+      client.join(user.id);
+
+      this.subscribeClient(user.id, client);
+
+      this.logger.log(`User connected: ${user.id} (socket ${client.id})`);
+      client.emit(ChatEventsEnum.SUCCESS, successResponse(user));
+    } catch (err: any) {
+      this.disconnectWithError(client, err?.message ?? 'Auth failed');
+    }
   }
 
   handleDisconnect(client: Socket) {
-    this.disconnect(client);
+    const userId = client.data?.userId;
+    if (userId) {
+      this.unsubscribeClient(userId, client);
+      client.leave(userId);
+      this.logger.log(`Client disconnected: ${userId}`);
+    } else {
+      this.logger.log(
+        `Client disconnected: unknown user (socket ${client.id})`,
+      );
+    }
+  }
+
+  /** ---------------- CLIENT HELPERS ---------------- */
+  private subscribeClient(userId: string, client: Socket) {
+    if (!this.clients.has(userId)) {
+      this.clients.set(userId, new Set());
+    }
+    this.clients.get(userId)!.add(client);
+    this.logger.debug(`Subscribed client to user ${userId}`);
+  }
+
+  private unsubscribeClient(userId: string, client: Socket) {
+    const set = this.clients.get(userId);
+    if (!set) return;
+
+    set.delete(client);
+    this.logger.debug(`Unsubscribed client from user ${userId}`);
+    if (set.size === 0) {
+      this.clients.delete(userId);
+      this.logger.debug(`Removed empty client set for user ${userId}`);
+    }
+  }
+
+  private extractTokenFromSocket(client: Socket): string | null {
+    const authHeader =
+      (client.handshake.headers.authorization as string) ||
+      (client.handshake.auth?.token as string);
+
+    if (!authHeader) return null;
+    return authHeader.startsWith('Bearer ')
+      ? authHeader.split(' ')[1]
+      : authHeader;
+  }
+
+  /** ---------------- ERROR HELPERS ---------------- */
+  public disconnectWithError(client: Socket, message: string) {
+    client.emit(ChatEventsEnum.ERROR, errorResponse(null, message));
+    client.disconnect(true);
+    this.logger.warn(`Disconnect ${client.id}: ${message}`);
+  }
+
+  public emitError(client: Socket, message: string) {
+    client.emit(ChatEventsEnum.ERROR, errorResponse(null, message));
+    return errorResponse(null, message);
   }
 
   /** ---------------- MESSAGE EVENTS ---------------- */
