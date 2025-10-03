@@ -6,6 +6,6 @@ import { CronMailService } from './services/cron-mail.service';
 @Global()
 @Module({
   providers: [MailService, AuthMailService, CronMailService],
-  exports: [AuthMailService],
+  exports: [AuthMailService, CronMailService],
 })
 export class MailModule {}
