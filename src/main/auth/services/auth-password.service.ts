@@ -7,7 +7,7 @@ import {
   successResponse,
   TResponse,
 } from '@project/common/utils/response.util';
-import { MailService } from '@project/lib/mail/mail.service';
+import { AuthMailService } from '@project/lib/mail/services/auth-mail.service';
 import { PrismaService } from '@project/lib/prisma/prisma.service';
 import { UtilsService } from '@project/lib/utils/utils.service';
 import { ChangePasswordDto, ResetPasswordDto } from '../dto/password.dto';
@@ -17,7 +17,7 @@ export class AuthPasswordService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly utils: UtilsService,
-    private readonly mailService: MailService,
+    private readonly mailService: AuthMailService,
     private readonly configService: ConfigService,
   ) {}
 
@@ -89,7 +89,7 @@ export class AuthPasswordService {
     const tokenWithExpiry = this.utils.generateResetTokenWithExpiry({
       sub: user.id,
       email: user.email,
-      roles: user.role,
+      role: user.role,
     });
 
     const { token, expiryTime } = tokenWithExpiry;

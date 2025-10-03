@@ -1,4 +1,8 @@
-import { ForbiddenException, Injectable } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PassportStrategy } from '@nestjs/passport';
 import { PrismaService } from '@project/lib/prisma/prisma.service';
@@ -12,10 +16,8 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     private readonly config: ConfigService,
     private readonly prisma: PrismaService,
   ) {
-    const jwtSecret = config.get<string>(ENVEnum.JWT_SECRET);
-    if (!jwtSecret) {
-      throw new Error('JWT_SECRET environment variable is not defined');
-    }
+    const jwtSecret = config.getOrThrow<string>(ENVEnum.JWT_SECRET);
+
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       secretOrKey: jwtSecret,
@@ -28,13 +30,15 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     });
 
     if (!user) {
-      throw new ForbiddenException('User not found');
+      // unauthorized because token refers to no user
+      throw new UnauthorizedException('User not found');
     }
 
     if (!user.isLoggedIn) {
       throw new ForbiddenException('User is not logged in');
     }
 
+    // return payload — this will be assigned to req.user
     return payload;
   }
 }

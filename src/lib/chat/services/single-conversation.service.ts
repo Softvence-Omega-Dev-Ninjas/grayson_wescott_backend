@@ -4,11 +4,11 @@ import { HandleError } from '@project/common/error/handle-error.decorator';
 import { errorResponse, TResponse } from '@project/common/utils/response.util';
 import { PrismaService } from '@project/lib/prisma/prisma.service';
 import { Socket } from 'socket.io';
+import { EventsEnum } from '../../../common/enum/events.enum';
 import {
   InitConversationWithClientDto,
   LoadSingleConversationDto,
 } from '../dto/conversation.dto';
-import { ChatEventsEnum } from '../enum/chat-events.enum';
 
 @Injectable()
 export class SingleConversationService {
@@ -24,7 +24,7 @@ export class SingleConversationService {
 
     if (!payload.conversationId) {
       client.emit(
-        ChatEventsEnum.ERROR,
+        EventsEnum.ERROR,
         errorResponse(null, 'Conversation ID is required'),
       );
       return errorResponse(null, 'Conversation ID is required');
@@ -48,7 +48,7 @@ export class SingleConversationService {
 
     if (!conversation) {
       client.emit(
-        ChatEventsEnum.ERROR,
+        EventsEnum.ERROR,
         errorResponse(null, 'Conversation not found'),
       );
       return errorResponse(null, 'Conversation not found');
@@ -140,7 +140,7 @@ export class SingleConversationService {
     };
 
     // Emit to requester
-    client.emit(ChatEventsEnum.SINGLE_CONVERSATION, outputData);
+    client.emit(EventsEnum.SINGLE_CONVERSATION, outputData);
 
     return outputData;
   }

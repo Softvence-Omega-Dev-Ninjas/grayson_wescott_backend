@@ -5,7 +5,7 @@ import {
   successResponse,
   TResponse,
 } from '@project/common/utils/response.util';
-import { MailService } from '@project/lib/mail/mail.service';
+import { AuthMailService } from '@project/lib/mail/services/auth-mail.service';
 import { PrismaService } from '@project/lib/prisma/prisma.service';
 import { UtilsService } from '@project/lib/utils/utils.service';
 import { RegisterDto } from '../dto/register.dto';
@@ -14,7 +14,7 @@ import { RegisterDto } from '../dto/register.dto';
 export class AuthRegisterService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly mailService: MailService,
+    private readonly authMailService: AuthMailService,
     private readonly utils: UtilsService,
   ) {}
 
@@ -56,7 +56,7 @@ export class AuthRegisterService {
     });
 
     // Send verification email
-    const response = await this.mailService.sendVerificationCodeEmail(
+    const response = await this.authMailService.sendVerificationCodeEmail(
       email,
       otp.toString(),
       {

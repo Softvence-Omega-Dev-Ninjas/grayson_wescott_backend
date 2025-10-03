@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import {
@@ -12,8 +12,14 @@ import {
   WebSocketServer,
 } from '@nestjs/websockets';
 import { PaginationDto } from '@project/common/dto/pagination.dto';
+import { ENVEnum } from '@project/common/enum/env.enum';
+import { JWTPayload } from '@project/common/jwt/jwt.interface';
+import {
+  errorResponse,
+  successResponse,
+} from '@project/common/utils/response.util';
 import { Server, Socket } from 'socket.io';
-import { AppGateway } from '../gateway/app.gateway';
+import { EventsEnum } from '../../common/enum/events.enum';
 import { PrismaService } from '../prisma/prisma.service';
 import { CallActionDto, InitiateCallDto } from './dto/call.dto';
 import {
@@ -32,7 +38,6 @@ import {
   RTCIceCandidateDto,
   RTCOfferDto,
 } from './dto/webrtc.dto';
-import { ChatEventsEnum } from './enum/chat-events.enum';
 import { CallService } from './services/call.service';
 import { ClientConversationService } from './services/client-conversation.service';
 import { ConversationService } from './services/conversation.service';
@@ -46,9 +51,11 @@ import { WebRTCService } from './services/webrtc.service';
 })
 @Injectable()
 export class ChatGateway
-  extends AppGateway
   implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect
 {
+  private readonly logger = new Logger(ChatGateway.name);
+  private readonly clients = new Map<string, Set<Socket>>();
+
   constructor(
     private readonly messageService: MessageService,
     private readonly conversationService: ConversationService,
@@ -56,30 +63,118 @@ export class ChatGateway
     private readonly clientConversationService: ClientConversationService,
     private readonly callService: CallService,
     private readonly webRTCService: WebRTCService,
-    configService: ConfigService,
-    prisma: PrismaService,
-    jwtService: JwtService,
-  ) {
-    super(configService, prisma, jwtService);
-  }
+    private readonly configService: ConfigService,
+    private readonly prisma: PrismaService,
+    private readonly jwtService: JwtService,
+  ) {}
 
   @WebSocketServer()
   server: Server;
 
   afterInit(server: Server) {
-    this.init(server);
+    this.logger.log('Socket.IO server initialized', server.adapter?.name ?? '');
   }
 
-  handleConnection(client: Socket) {
-    this.connection(client);
+  async handleConnection(client: Socket) {
+    try {
+      const token = this.extractTokenFromSocket(client);
+      if (!token) {
+        return this.disconnectWithError(client, 'Missing token');
+      }
+
+      const payload = this.jwtService.verify<JWTPayload>(token, {
+        secret: this.configService.getOrThrow(ENVEnum.JWT_SECRET),
+      });
+
+      if (!payload.sub) {
+        return this.disconnectWithError(client, 'Invalid token payload');
+      }
+
+      const user = await this.prisma.user.findUnique({
+        where: { id: payload.sub },
+        select: {
+          id: true,
+          email: true,
+          role: true,
+          name: true,
+          avatarUrl: true,
+        },
+      });
+
+      if (!user) return this.disconnectWithError(client, 'User not found');
+
+      client.data.userId = user.id;
+      client.data.user = payload;
+      client.join(user.id);
+
+      this.subscribeClient(user.id, client);
+
+      this.logger.log(`User connected: ${user.id} (socket ${client.id})`);
+      client.emit(EventsEnum.SUCCESS, successResponse(user));
+    } catch (err: any) {
+      this.disconnectWithError(client, err?.message ?? 'Auth failed');
+    }
   }
 
   handleDisconnect(client: Socket) {
-    this.disconnect(client);
+    const userId = client.data?.userId;
+    if (userId) {
+      this.unsubscribeClient(userId, client);
+      client.leave(userId);
+      this.logger.log(`Client disconnected: ${userId}`);
+    } else {
+      this.logger.log(
+        `Client disconnected: unknown user (socket ${client.id})`,
+      );
+    }
+  }
+
+  /** ---------------- CLIENT HELPERS ---------------- */
+  private subscribeClient(userId: string, client: Socket) {
+    if (!this.clients.has(userId)) {
+      this.clients.set(userId, new Set());
+    }
+    this.clients.get(userId)!.add(client);
+    this.logger.debug(`Subscribed client to user ${userId}`);
+  }
+
+  private unsubscribeClient(userId: string, client: Socket) {
+    const set = this.clients.get(userId);
+    if (!set) return;
+
+    set.delete(client);
+    this.logger.debug(`Unsubscribed client from user ${userId}`);
+    if (set.size === 0) {
+      this.clients.delete(userId);
+      this.logger.debug(`Removed empty client set for user ${userId}`);
+    }
+  }
+
+  private extractTokenFromSocket(client: Socket): string | null {
+    const authHeader =
+      (client.handshake.headers.authorization as string) ||
+      (client.handshake.auth?.token as string);
+
+    if (!authHeader) return null;
+    return authHeader.startsWith('Bearer ')
+      ? authHeader.split(' ')[1]
+      : authHeader;
+  }
+
+  /** ---------------- ERROR HELPERS ---------------- */
+  public disconnectWithError(client: Socket, message: string) {
+    client.emit(EventsEnum.ERROR, errorResponse(null, message));
+    client.disconnect(true);
+    this.logger.warn(`Disconnect ${client.id}: ${message}`);
+  }
+
+  public emitError(client: Socket, message: string) {
+    client.emit(EventsEnum.ERROR, errorResponse(null, message));
+    return errorResponse(null, message);
   }
 
   /** ---------------- MESSAGE EVENTS ---------------- */
-  @SubscribeMessage(ChatEventsEnum.SEND_MESSAGE_CLIENT)
+  @SubscribeMessage(EventsEnum.SEND_MESSAGE_CLIENT)
   async onSendMessageClient(
     @ConnectedSocket() client: Socket,
     @MessageBody() payload: ClientMessageDto,
@@ -87,7 +182,7 @@ export class ChatGateway
     await this.messageService.sendMessageFromClient(client, payload);
   }
 
-  @SubscribeMessage(ChatEventsEnum.SEND_MESSAGE_ADMIN)
+  @SubscribeMessage(EventsEnum.SEND_MESSAGE_ADMIN)
   async onSendMessageAdmin(
     @ConnectedSocket() client: Socket,
     @MessageBody() payload: AdminMessageDto,
@@ -95,7 +190,7 @@ export class ChatGateway
     await this.messageService.sendMessageFromAdmin(client, payload);
   }
 
-  @SubscribeMessage(ChatEventsEnum.UPDATE_MESSAGE_STATUS)
+  @SubscribeMessage(EventsEnum.UPDATE_MESSAGE_STATUS)
   async onMessageStatusUpdate(
     @ConnectedSocket() client: Socket,
     @MessageBody() payload: MessageDeliveryStatusDto,
@@ -103,13 +198,13 @@ export class ChatGateway
     await this.messageService.messageStatusUpdate(client, payload);
   }
 
-  @SubscribeMessage(ChatEventsEnum.MARK_MESSAGE_READ)
+  @SubscribeMessage(EventsEnum.MARK_MESSAGE_READ)
   async onMarkMessagesAsRead(@MessageBody() payload: MarkReadDto) {
     await this.messageService.markMessagesAsRead(payload);
   }
 
   /** ---------------- CONVERSATION EVENTS ---------------- **/
-  @SubscribeMessage(ChatEventsEnum.LOAD_CONVERSATION_LIST)
+  @SubscribeMessage(EventsEnum.LOAD_CONVERSATION_LIST)
   async onLoadConversationsByAdmin(
     @ConnectedSocket() client: Socket,
     @MessageBody() payload: LoadConversationsDto,
@@ -120,7 +215,7 @@ export class ChatGateway
     );
   }
 
-  @SubscribeMessage(ChatEventsEnum.LOAD_SINGLE_CONVERSATION)
+  @SubscribeMessage(EventsEnum.LOAD_SINGLE_CONVERSATION)
   async onLoadSingleConversationByAdmin(
     @ConnectedSocket() client: Socket,
     @MessageBody() payload: LoadSingleConversationDto,
@@ -131,7 +226,7 @@ export class ChatGateway
     );
   }
 
-  @SubscribeMessage(ChatEventsEnum.INIT_CONVERSATION_WITH_CLIENT)
+  @SubscribeMessage(EventsEnum.INIT_CONVERSATION_WITH_CLIENT)
   async onInitConversationWithClient(
     @ConnectedSocket() client: Socket,
     @MessageBody() payload: InitConversationWithClientDto,
@@ -142,7 +237,7 @@ export class ChatGateway
     );
   }
 
-  @SubscribeMessage(ChatEventsEnum.LOAD_CLIENT_CONVERSATION)
+  @SubscribeMessage(EventsEnum.LOAD_CLIENT_CONVERSATION)
   async onLoadClientConversation(
     @ConnectedSocket() client: Socket,
     @MessageBody() payload: PaginationDto,
@@ -154,7 +249,7 @@ export class ChatGateway
   }
 
   /** ---------------- CALL EVENTS ---------------- **/
-  @SubscribeMessage(ChatEventsEnum.CALL_INITIATE)
+  @SubscribeMessage(EventsEnum.CALL_INITIATE)
   async onCallInitiate(
     @ConnectedSocket() client: Socket,
     @MessageBody() data: InitiateCallDto,
@@ -162,7 +257,7 @@ export class ChatGateway
     await this.callService.initiateCall(client, data);
   }
 
-  @SubscribeMessage(ChatEventsEnum.CALL_ACCEPT)
+  @SubscribeMessage(EventsEnum.CALL_ACCEPT)
   async onCallAccept(
     @ConnectedSocket() client: Socket,
     @MessageBody() data: CallActionDto,
@@ -170,7 +265,7 @@ export class ChatGateway
     await this.callService.acceptCall(client, data.callId);
   }
 
-  @SubscribeMessage(ChatEventsEnum.CALL_REJECT)
+  @SubscribeMessage(EventsEnum.CALL_REJECT)
   async onCallReject(
     @ConnectedSocket() client: Socket,
     @MessageBody() data: CallActionDto,
@@ -178,7 +273,7 @@ export class ChatGateway
     await this.callService.rejectCall(client, data.callId);
   }
 
-  @SubscribeMessage(ChatEventsEnum.CALL_JOIN)
+  @SubscribeMessage(EventsEnum.CALL_JOIN)
   async onCallJoin(
     @ConnectedSocket() client: Socket,
     @MessageBody() data: CallActionDto,
@@ -186,7 +281,7 @@ export class ChatGateway
     await this.callService.joinCall(client, data.callId);
   }
 
-  @SubscribeMessage(ChatEventsEnum.CALL_LEAVE)
+  @SubscribeMessage(EventsEnum.CALL_LEAVE)
   async onCallLeave(
     @ConnectedSocket() client: Socket,
     @MessageBody() data: CallActionDto,
@@ -194,7 +289,7 @@ export class ChatGateway
     await this.callService.leaveCall(client, data.callId);
   }
 
-  @SubscribeMessage(ChatEventsEnum.CALL_END)
+  @SubscribeMessage(EventsEnum.CALL_END)
   async onCallEnd(
     @ConnectedSocket() client: Socket,
     @MessageBody() data: CallActionDto,
@@ -203,7 +298,7 @@ export class ChatGateway
   }
 
   /** ---------------- WEBRTC EVENTS ---------------- */
-  @SubscribeMessage(ChatEventsEnum.RTC_OFFER)
+  @SubscribeMessage(EventsEnum.RTC_OFFER)
   async onRTCOffer(
     @ConnectedSocket() client: Socket,
     @MessageBody() payload: RTCOfferDto,
@@ -211,7 +306,7 @@ export class ChatGateway
     await this.webRTCService.handleOffer(client, payload);
   }
 
-  @SubscribeMessage(ChatEventsEnum.RTC_ANSWER)
+  @SubscribeMessage(EventsEnum.RTC_ANSWER)
   async onRTCAnswer(
     @ConnectedSocket() client: Socket,
     @MessageBody() payload: RTCAnswerDto,
@@ -219,7 +314,7 @@ export class ChatGateway
     await this.webRTCService.handleAnswer(client, payload);
   }
 
-  @SubscribeMessage(ChatEventsEnum.RTC_ICE_CANDIDATE)
+  @SubscribeMessage(EventsEnum.RTC_ICE_CANDIDATE)
   async onRTCIceCandidate(
     @ConnectedSocket() client: Socket,
     @MessageBody() payload: RTCIceCandidateDto,

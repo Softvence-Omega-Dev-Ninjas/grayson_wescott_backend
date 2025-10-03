@@ -1,4 +1,4 @@
-export enum ChatEventsEnum {
+export enum EventsEnum {
   // === Generic status events ===
   ERROR = 'private:error', // Server -> Client: operation failed
   SUCCESS = 'private:success', // Server -> Client: operation succeeded

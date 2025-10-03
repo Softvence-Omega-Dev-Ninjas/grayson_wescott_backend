@@ -19,6 +19,8 @@ model ProgramExercise {
   program   Program @relation(fields: [programId], references: [id], onDelete: Cascade)
   programId String
 
+  userProgramExercise UserProgramExercise[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now()) @updatedAt
 
@@ -33,4 +35,36 @@ enum DayOfWeek {
   FRIDAY
   SATURDAY
   SUNDAY
+}
+
+model UserProgramExercise {
+  id String @id @default(uuid())
+
+  dayNumber Int     // 1, 2, 3, 4, 5, 6, 7
+
+  // Relations
+  userProgram   UserProgram @relation(fields: [userProgramId], references: [id], onDelete: Cascade)
+  userProgramId String
+
+  programExercise   ProgramExercise? @relation(fields: [programExerciseId], references: [id], onDelete: SetNull)
+  programExerciseId String?
+
+  // User-specific fields
+  status        ExerciseStatus @default(PENDING) // PENDING, COMPLETED, SKIPPED, RETRY
+  note          String? // user can add personal note
+  equipmentUsed String? // e.g., "Dumbbell 10kg", "Resistance Band Medium"
+
+  completedAt DateTime? // when exercise was completed
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  @@map("user_program_exercises")
+}
+
+enum ExerciseStatus {
+  PENDING
+  COMPLETED
+  SKIPPED
+  RETRY
 }

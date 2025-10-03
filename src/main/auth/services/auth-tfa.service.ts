@@ -5,7 +5,7 @@ import {
   successResponse,
   TResponse,
 } from '@project/common/utils/response.util';
-import { MailService } from '@project/lib/mail/mail.service';
+import { AuthMailService } from '@project/lib/mail/services/auth-mail.service';
 import { PrismaService } from '@project/lib/prisma/prisma.service';
 import { TwilioService } from '@project/lib/twilio/twilio.service';
 import { UtilsService } from '@project/lib/utils/utils.service';
@@ -18,7 +18,7 @@ export class AuthTfaService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly utils: UtilsService,
-    private readonly mailService: MailService,
+    private readonly authMailService: AuthMailService,
     private readonly twilio: TwilioService,
   ) {}
 
@@ -58,7 +58,7 @@ export class AuthTfaService {
         });
 
         if (method === 'EMAIL') {
-          await this.mailService.sendVerificationCodeEmail(
+          await this.authMailService.sendVerificationCodeEmail(
             user.email,
             otp.toString(),
             {

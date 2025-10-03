@@ -1,20 +1,32 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
+import {
+  OnGatewayConnection,
+  OnGatewayDisconnect,
+  OnGatewayInit,
+  WebSocketGateway,
+} from '@nestjs/websockets';
 import { ENVEnum } from '@project/common/enum/env.enum';
 import { JWTPayload } from '@project/common/jwt/jwt.interface';
 import {
   errorResponse,
   successResponse,
 } from '@project/common/utils/response.util';
-import { Notification } from '@project/lib/queue/interface/events-payload';
 import { Server, Socket } from 'socket.io';
-import { ChatEventsEnum } from '../chat/enum/chat-events.enum';
+import { EventsEnum } from '../../common/enum/events.enum';
 import { PrismaService } from '../prisma/prisma.service';
+import { NotificationPayload } from './interface/queue-payload';
 
+@WebSocketGateway({
+  cors: { origin: '*' },
+  namespace: '/api/queue',
+})
 @Injectable()
-export class AppGateway {
-  private readonly logger = new Logger(AppGateway.name);
+export class QueueGateway
+  implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect
+{
+  private readonly logger = new Logger(QueueGateway.name);
   private readonly clients = new Map<string, Set<Socket>>();
 
   constructor(
@@ -24,11 +36,11 @@ export class AppGateway {
   ) {}
 
   /**--- INIT --- */
-  public init(server: Server) {
+  afterInit(server: Server) {
     this.logger.log('Socket.IO server initialized', server.adapter?.name ?? '');
   }
 
-  public async connection(client: Socket) {
+  async handleConnection(client: Socket) {
     try {
       const token = this.extractTokenFromSocket(client);
       if (!token) {
@@ -63,13 +75,13 @@ export class AppGateway {
       this.subscribeClient(user.id, client);
 
       this.logger.log(`User connected: ${user.id} (socket ${client.id})`);
-      client.emit(ChatEventsEnum.SUCCESS, successResponse(user));
+      client.emit(EventsEnum.SUCCESS, successResponse(user));
     } catch (err: any) {
       this.disconnectWithError(client, err?.message ?? 'Auth failed');
     }
   }
 
-  public disconnect(client: Socket) {
+  handleDisconnect(client: Socket) {
     const userId = client.data?.userId;
     if (userId) {
       this.unsubscribeClient(userId, client);
@@ -116,17 +128,17 @@ export class AppGateway {
 
   /** ---------------- ERROR HELPERS ---------------- */
   public disconnectWithError(client: Socket, message: string) {
-    client.emit(ChatEventsEnum.ERROR, errorResponse(null, message));
+    client.emit(EventsEnum.ERROR, errorResponse(null, message));
     client.disconnect(true);
     this.logger.warn(`Disconnect ${client.id}: ${message}`);
   }
 
   public emitError(client: Socket, message: string) {
-    client.emit(ChatEventsEnum.ERROR, errorResponse(null, message));
+    client.emit(EventsEnum.ERROR, errorResponse(null, message));
     return errorResponse(null, message);
   }
 
-  /** ---------------- NOTIFICATION API ---------------- */
+  /** ---------------- Notification API ---------------- */
   public getClientsForUser(userId: string): Set<Socket> {
     return this.clients.get(userId) || new Set();
   }
@@ -134,7 +146,7 @@ export class AppGateway {
   public async notifySingleUser(
     userId: string,
     event: string,
-    data: Notification,
+    data: NotificationPayload,
   ): Promise<void> {
     const clients = this.getClientsForUser(userId);
     if (clients.size === 0) {
@@ -144,17 +156,19 @@ export class AppGateway {
 
     clients.forEach((client) => {
       client.emit(event, data);
-      this.logger.log(`Notification sent to user ${userId} via event ${event}`);
+      this.logger.log(
+        `NotificationPayload sent to user ${userId} via event ${event}`,
+      );
     });
   }
 
   public async notifyMultipleUsers(
     userIds: string[],
     event: string,
-    data: Notification,
+    data: NotificationPayload,
   ): Promise<void> {
     if (userIds.length === 0) {
-      this.logger.warn('No user IDs provided for notification');
+      this.logger.warn('No user IDs provided for NotificationPayload');
       return;
     }
 
@@ -165,13 +179,13 @@ export class AppGateway {
 
   public async notifyAllUsers(
     event: string,
-    data: Notification,
+    data: NotificationPayload,
   ): Promise<void> {
     this.clients.forEach((clients, userId) => {
       clients.forEach((client) => {
         client.emit(event, data);
         this.logger.log(
-          `Notification sent to all users via event ${event} for user ${userId}`,
+          `NotificationPayload sent to all users via event ${event} for user ${userId}`,
         );
       });
     });

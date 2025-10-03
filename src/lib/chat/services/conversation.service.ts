@@ -6,9 +6,9 @@ import {
 } from '@project/common/utils/response.util';
 import { PrismaService } from '@project/lib/prisma/prisma.service';
 import { Socket } from 'socket.io';
+import { EventsEnum } from '../../../common/enum/events.enum';
 import { ChatGateway } from '../chat.gateway';
 import { LoadConversationsDto } from '../dto/conversation.dto';
-import { ChatEventsEnum } from '../enum/chat-events.enum';
 
 @Injectable()
 export class ConversationService {
@@ -58,7 +58,7 @@ export class ConversationService {
 
     // Emit
     this.chatGateway.server.to(client.data.userId).emit(
-      ChatEventsEnum.CONVERSATION_LIST,
+      EventsEnum.CONVERSATION_LIST,
       successPaginatedResponse(
         outputData,
         {

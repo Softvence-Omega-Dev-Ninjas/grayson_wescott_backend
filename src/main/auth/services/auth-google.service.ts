@@ -49,7 +49,7 @@ export class AuthGoogleService {
     const token = this.utils.generateToken({
       sub: user.id,
       email: user.email,
-      roles: user.role,
+      role: user.role,
     });
 
     return successResponse(

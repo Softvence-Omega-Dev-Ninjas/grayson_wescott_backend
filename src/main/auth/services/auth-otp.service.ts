@@ -6,7 +6,7 @@ import {
   successResponse,
   TResponse,
 } from '@project/common/utils/response.util';
-import { MailService } from '@project/lib/mail/mail.service';
+import { AuthMailService } from '@project/lib/mail/services/auth-mail.service';
 import { PrismaService } from '@project/lib/prisma/prisma.service';
 import { TwilioService } from '@project/lib/twilio/twilio.service';
 import { UtilsService } from '@project/lib/utils/utils.service';
@@ -18,7 +18,7 @@ export class AuthOtpService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly utils: UtilsService,
-    private readonly mailService: MailService,
+    private readonly authMailService: AuthMailService,
     private readonly twilio: TwilioService,
     private readonly authTfaService: AuthTfaService,
   ) {}
@@ -59,7 +59,7 @@ export class AuthOtpService {
     // 5. Send OTP
     if (email) {
       try {
-        await this.mailService.sendVerificationCodeEmail(
+        await this.authMailService.sendVerificationCodeEmail(
           email,
           otp.toString(),
           {
@@ -140,7 +140,7 @@ export class AuthOtpService {
     const token = this.utils.generateToken({
       sub: updatedUser.id,
       email: updatedUser.email,
-      roles: updatedUser.role,
+      role: updatedUser.role,
     });
 
     return successResponse(

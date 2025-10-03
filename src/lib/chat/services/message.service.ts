@@ -12,6 +12,7 @@ import {
 } from '@project/common/utils/response.util';
 import { PrismaService } from '@project/lib/prisma/prisma.service';
 import { Socket } from 'socket.io';
+import { EventsEnum } from '../../../common/enum/events.enum';
 import { ChatGateway } from '../chat.gateway';
 import {
   AdminMessageDto,
@@ -19,7 +20,6 @@ import {
   MarkReadDto,
   MessageDeliveryStatusDto,
 } from '../dto/message.dto';
-import { ChatEventsEnum } from '../enum/chat-events.enum';
 
 @Injectable()
 export class MessageService {
@@ -85,12 +85,12 @@ export class MessageService {
     // Notify admins + client
     this.emitToAdmins(
       admins,
-      ChatEventsEnum.NEW_MESSAGE,
+      EventsEnum.NEW_MESSAGE,
       message,
       'New message received from client',
     );
     client.emit(
-      ChatEventsEnum.NEW_MESSAGE,
+      EventsEnum.NEW_MESSAGE,
       successResponse(message, 'Message sent successfully'),
     );
 
@@ -157,14 +157,14 @@ export class MessageService {
     this.chatGateway.server
       .to(clientId)
       .emit(
-        ChatEventsEnum.NEW_MESSAGE,
+        EventsEnum.NEW_MESSAGE,
         successResponse(message, 'New message from admin'),
       );
 
     const admins = await this.getAllAdminParticipants();
     this.emitToAdmins(
       admins,
-      ChatEventsEnum.NEW_MESSAGE,
+      EventsEnum.NEW_MESSAGE,
       {
         message,
         fromAdmin: true,
@@ -273,13 +273,13 @@ export class MessageService {
   }
 
   private emitError(client: Socket, message: string) {
-    client.emit(ChatEventsEnum.ERROR, errorResponse(null, message));
+    client.emit(EventsEnum.ERROR, errorResponse(null, message));
     return errorResponse(null, message);
   }
 
   private emitToAdmins(
     admins: { userId: string }[],
-    event: ChatEventsEnum,
+    event: EventsEnum,
     payload: any,
     message: string,
   ) {
@@ -310,12 +310,12 @@ export class MessageService {
     this.chatGateway.server
       .to(clientId)
       .emit(
-        ChatEventsEnum.UPDATE_MESSAGE_STATUS,
+        EventsEnum.UPDATE_MESSAGE_STATUS,
         successResponse(payload, 'Your message has been delivered'),
       );
     this.emitToAdmins(
       admins,
-      ChatEventsEnum.UPDATE_MESSAGE_STATUS,
+      EventsEnum.UPDATE_MESSAGE_STATUS,
       payload,
       'Your message has been delivered',
     );

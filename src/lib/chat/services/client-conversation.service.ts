@@ -7,8 +7,8 @@ import {
 } from '@project/common/utils/response.util';
 import { PrismaService } from '@project/lib/prisma/prisma.service';
 import { Socket } from 'socket.io';
+import { EventsEnum } from '../../../common/enum/events.enum';
 import { ChatGateway } from '../chat.gateway';
-import { ChatEventsEnum } from '../enum/chat-events.enum';
 
 @Injectable()
 export class ClientConversationService {
@@ -46,7 +46,7 @@ export class ClientConversationService {
 
     if (!conversation) {
       client.emit(
-        ChatEventsEnum.CLIENT_CONVERSATION,
+        EventsEnum.CLIENT_CONVERSATION,
         successPaginatedResponse(
           [],
           { page, limit, total: 0 },
@@ -121,7 +121,7 @@ export class ClientConversationService {
 
     // Emit to client
     client.emit(
-      ChatEventsEnum.CLIENT_CONVERSATION,
+      EventsEnum.CLIENT_CONVERSATION,
       successPaginatedResponse(
         paginatedData,
         {
