@@ -4,7 +4,9 @@ export interface QueueMeta {
   performedBy: string; // System or Any User
   recordType: string; // Prisma Model
   recordId: string; // Prisma Model Id
-  others: {
+  // any other data
+  [key: string]: any;
+  others?: {
     [key: string]: any;
   };
 }

@@ -4,7 +4,7 @@ import { OnEvent } from '@nestjs/event-emitter';
 import { QueueName } from '@project/lib/queue/interface/queue-names';
 import { Queue } from 'bullmq';
 import { QUEUE_EVENTS } from '../interface/queue-events';
-import { QueuePayload } from '../interface/queue-payload';
+import { DailyExerciseJobPayload } from './../payload/daily-exercise.payload';
 
 @Injectable()
 export class DailyExerciseEventService {
@@ -17,7 +17,7 @@ export class DailyExerciseEventService {
    * Handles the `DAILY_EXERCISE` event
    */
   @OnEvent(QUEUE_EVENTS.DAILY_EXERCISE)
-  async handleDailyExerciseCreate(payload: QueuePayload) {
+  async handleDailyExerciseCreate(payload: DailyExerciseJobPayload) {
     // Enqueue for processing by worker
     await this.queue.add(QUEUE_EVENTS.DAILY_EXERCISE, payload);
   }

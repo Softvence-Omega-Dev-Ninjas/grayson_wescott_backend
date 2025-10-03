@@ -1,29 +1,22 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { ENVEnum } from '@project/common/enum/env.enum';
 import { PrismaService } from '@project/lib/prisma/prisma.service';
-import { QueueName } from '@project/lib/queue/interface/queue-names';
-import { QueuePayload } from '@project/lib/queue/interface/queue-payload';
-import { Queue } from 'bullmq';
 import { DateTime } from 'luxon';
+import { QUEUE_EVENTS } from '../interface/queue-events';
+import {
+  Channel,
+  DailyExerciseJobPayload,
+} from '../payload/daily-exercise.payload';
 
 @Injectable()
 export class DailyExerciseCron {
   private readonly logger = new Logger(DailyExerciseCron.name);
-  private readonly queue: Queue<QueuePayload>;
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly config: ConfigService,
-  ) {
-    this.queue = new Queue<QueuePayload>(QueueName.DAILY_EXERCISE, {
-      connection: {
-        host: this.config.getOrThrow(ENVEnum.REDIS_HOST),
-        port: +this.config.getOrThrow(ENVEnum.REDIS_PORT),
-      },
-    });
-  }
+    private readonly eventEmitter: EventEmitter2,
+  ) {}
 
   // Runs every day at 1AM UTC
   @Cron(CronExpression.EVERY_DAY_AT_1AM)
@@ -32,7 +25,7 @@ export class DailyExerciseCron {
 
     const nowUTC = DateTime.utc();
 
-    // Fetch active user programs (only minimal data — keep payload small)
+    // * Fetch active user programs based on startDate and endDate
     const activeUserPrograms = await this.prisma.userProgram.findMany({
       where: {
         startDate: { lte: nowUTC.toJSDate() },
@@ -42,46 +35,44 @@ export class DailyExerciseCron {
       select: {
         id: true,
         userId: true,
-        user: { select: { timezone: true } },
+        user: {
+          select: {
+            timezone: true,
+            email: true,
+            phone: true,
+            avatarUrl: true,
+            name: true,
+          },
+        },
       },
     });
 
-    if (activeUserPrograms.length === 0) {
+    // * Check if there are any active user programs
+    if (!activeUserPrograms.length) {
       this.logger.log('No active user programs found.');
       return;
     }
 
-    // Enqueue one job per user program (worker will fetch full program + exercises)
-    const jobPromises = activeUserPrograms.map((up) => {
-      const payload: QueuePayload = {
-        recipients: [{ id: up.userId }],
-        type: 'DAILY_EXERCISE' as any, // keep consistent with your QUEUE_EVENTS enum
-        title: 'Daily Exercise',
-        message: 'Daily Exercise available',
-        createdAt: nowUTC.toJSDate(),
-        meta: {
-          performedBy: up.userId,
-          recordType: 'UserProgram',
-          recordId: up.id,
-          others: {
-            enqueuedAt: nowUTC.toISO(),
-          },
-        },
+    // * Emit event for each user program
+    activeUserPrograms.forEach((up) => {
+      const channels: Channel[] = ['socket', 'email'];
+
+      if (up.user?.phone) {
+        channels.push('sms');
+      }
+
+      const payload: DailyExerciseJobPayload = {
+        event: QUEUE_EVENTS.DAILY_EXERCISE,
+        programId: up.id,
+        recordType: 'userProgram',
+        recordId: up.id,
+        channels,
       };
 
-      // Use a stable jobId to avoid duplicate enqueueing (optional)
-      const jobId = `${up.id}-${nowUTC.toISODate()}`;
-
-      return this.queue.add(up.id, payload, {
-        jobId,
-        removeOnComplete: true,
-        attempts: 3,
-        backoff: { type: 'exponential', delay: 5000 },
-      });
+      this.eventEmitter.emit(QUEUE_EVENTS.DAILY_EXERCISE, payload);
     });
 
-    await Promise.all(jobPromises);
-
+    // * Log
     this.logger.log(
       `Enqueued ${activeUserPrograms.length} daily exercise job(s).`,
     );
