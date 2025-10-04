@@ -43,7 +43,6 @@ export class DailyExerciseWorker extends WorkerHost {
 
       if (!userProgram) {
         this.logger.warn(`UserProgram ${payload.programId} not found.`);
-        await job.remove();
         return;
       }
 
@@ -61,18 +60,23 @@ export class DailyExerciseWorker extends WorkerHost {
         .filter((ex) => ex.dayOfWeek === dayOfWeek)
         .sort((a, b) => a.order - b.order);
 
-      // 4) create UserProgramExercise rows
-      if (todaysExercises.length) {
-        await this.prisma.userProgramExercise.createMany({
-          data: todaysExercises.map((ex) => ({
-            userProgramId: userProgram.id,
-            programExerciseId: ex.id,
-            status: 'PENDING',
-            dayNumber,
-          })),
-          skipDuplicates: true,
-        });
+      if (!todaysExercises.length) {
+        this.logger.log(
+          `No exercises scheduled for UserProgram ${userProgram.id} on ${dayOfWeek}.`,
+        );
+        return;
       }
+
+      // 4) create UserProgramExercise rows
+      await this.prisma.userProgramExercise.createMany({
+        data: todaysExercises.map((ex) => ({
+          userProgramId: userProgram.id,
+          programExerciseId: ex.id,
+          status: 'PENDING',
+          dayNumber,
+        })),
+        skipDuplicates: true,
+      });
 
       // 5) Notification record
       const title = `${userProgram.program.name} — Day ${dayNumber}`;
@@ -99,6 +103,9 @@ export class DailyExerciseWorker extends WorkerHost {
 
       // 6) Socket notification
       if (!payload.channels || payload.channels.includes('socket')) {
+        this.logger.log(
+          `Socket notification sent to user ${userProgram.user.id} for job ${job.id}`,
+        );
         this.gateway.notifySingleUser(
           userProgram.user.id,
           QUEUE_EVENTS.DAILY_EXERCISE,
@@ -125,8 +132,7 @@ export class DailyExerciseWorker extends WorkerHost {
       if (!payload.channels || payload.channels.includes('sms')) {
         // TODO: send via this.twilio
       }
-
-      await job.remove();
+      this.logger.log(`Job ${job.id} processed successfully.`);
     } catch (err) {
       this.logger.error(
         `Failed to process job ${job.id}: ${err?.message}`,

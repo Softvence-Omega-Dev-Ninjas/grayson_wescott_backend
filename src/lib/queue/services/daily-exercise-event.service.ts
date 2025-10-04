@@ -21,6 +21,7 @@ export class DailyExerciseEventService {
     // Enqueue for processing by worker
     await this.queue.add(QUEUE_EVENTS.DAILY_EXERCISE, payload, {
       removeOnComplete: true,
+      removeOnFail: false,
       attempts: 3,
       backoff: { type: 'exponential', delay: 5000 },
     });

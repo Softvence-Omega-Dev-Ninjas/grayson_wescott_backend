@@ -19,7 +19,8 @@ export class DailyExerciseCron {
   ) {}
 
   // Runs every day at 1AM UTC
-  @Cron(CronExpression.EVERY_DAY_AT_1AM)
+  // @Cron(CronExpression.EVERY_10_SECONDS) // For testing, change to every 10 minutes
+  @Cron(CronExpression.EVERY_DAY_AT_1AM) // For production, uncomment this line
   async handleDailyExercises() {
     this.logger.log('Enqueueing daily exercise jobs (producer)...');
 
