@@ -6,8 +6,6 @@ import { EventEmitterModule } from '@nestjs/event-emitter';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { ScheduleModule } from '@nestjs/schedule';
-import { ServeStaticModule } from '@nestjs/serve-static';
-import { join } from 'path';
 import { AppController } from './app.controller';
 import { ENVEnum } from './common/enum/env.enum';
 import { JwtStrategy } from './common/jwt/jwt.strategy';
@@ -23,11 +21,6 @@ import { MainModule } from './main/main.module';
 
     CacheModule.register({
       isGlobal: true,
-    }),
-
-    ServeStaticModule.forRoot({
-      rootPath: join(process.cwd(), 'uploads'),
-      serveRoot: '/api/files',
     }),
 
     EventEmitterModule.forRoot({
