@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post } from '@nestjs/common';
+import { Body, Controller, Get, Param } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { GetUser, ValidateAuth } from '@project/common/jwt/jwt.decorator';
 import { ManageDailyExerciseDto } from '../dto/manage-daily-exercise.dto';
@@ -21,11 +21,8 @@ export class ProgramController {
     return this.programService.getCurrentlyAssignedProgram(userId);
   }
 
-  @ApiOperation({
-    summary: 'Manage a Daily Exercise Log',
-    description: 'enum status: PENDING, IN_PROGRESS, COMPLETED',
-  })
-  @Post('manage-exercise-log/:uxId')
+  @ApiOperation({ summary: 'Manage a Daily Exercise Log' })
+  @Get('manage-exercise-log/:uxId')
   async manageDailyExerciseLog(
     @Param('uxId') uxId: string,
     @Body() body: ManageDailyExerciseDto,
