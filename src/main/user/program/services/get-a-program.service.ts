@@ -9,7 +9,7 @@ import { PrismaService } from '@project/lib/prisma/prisma.service';
 import { DateTime } from 'luxon';
 
 @Injectable()
-export class ProgramService {
+export class GetAProgramService {
   constructor(private readonly prisma: PrismaService) {}
 
   @HandleError('Failed to fetch currently assigned program')

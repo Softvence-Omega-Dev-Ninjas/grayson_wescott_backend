@@ -1,9 +1,11 @@
-import { Body, Controller, Get, Param, Post } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { PaginationDto } from '@project/common/dto/pagination.dto';
 import { GetUser, ValidateAuth } from '@project/common/jwt/jwt.decorator';
 import { ManageDailyExerciseDto } from '../dto/manage-daily-exercise.dto';
+import { GetAProgramService } from '../services/get-a-program.service';
+import { GetAllProgramService } from '../services/get-all-program.service';
 import { ManageDailyProgramService } from '../services/manage-daily-program.service';
-import { ProgramService } from '../services/program.service';
 
 @ApiTags('Client --- Program')
 @ApiBearerAuth()
@@ -11,9 +13,19 @@ import { ProgramService } from '../services/program.service';
 @Controller('program/user')
 export class ProgramController {
   constructor(
-    private readonly programService: ProgramService,
+    private readonly programService: GetAProgramService,
     private readonly manageDailyProgramService: ManageDailyProgramService,
+    private readonly getAllProgramService: GetAllProgramService,
   ) {}
+
+  @ApiOperation({ summary: 'Get all Assigned Programs' })
+  @Get('assigned')
+  async getAllAssignedPrograms(
+    @GetUser('sub') userId: string,
+    @Query() query: PaginationDto,
+  ) {
+    return this.getAllProgramService.getAllPrograms(userId, query);
+  }
 
   @ApiOperation({ summary: 'Get a specific Assigned Program' })
   @Get(':id')
