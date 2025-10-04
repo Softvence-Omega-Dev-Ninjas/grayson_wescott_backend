@@ -83,21 +83,25 @@ export class DailyExerciseWorker extends WorkerHost {
       }
 
       // 5) create UserProgramExercise rows
-      await this.prisma.userProgramExercise.createMany({
-        data: todaysExercises.map((ex) => ({
-          userProgramId: userProgram.id,
-          programExerciseId: ex.id,
-          status: 'PENDING',
-          dayNumber,
-        })),
-        skipDuplicates: true,
-      });
+      const userProgramExercises =
+        await this.prisma.userProgramExercise.createMany({
+          data: todaysExercises.map((ex) => ({
+            userProgramId: userProgram.id,
+            programExerciseId: ex.id,
+            status: 'PENDING',
+            dayNumber,
+          })),
+          skipDuplicates: true,
+        });
+      this.logger.log(
+        `Created ${userProgramExercises.count} UserProgramExercise(s) for UserProgram ${userProgram.id}, Day ${dayNumber}`,
+      );
 
       // 6) Notification record
       const title = `${userProgram.program.name} — Day ${dayNumber}`;
       const message = `${todaysExercises.length} exercise(s) for ${dayOfWeek}`;
 
-      await this.prisma.notification.create({
+      const notification = await this.prisma.notification.create({
         data: {
           type: QUEUE_EVENTS.DAILY_EXERCISE,
           title,
@@ -115,6 +119,9 @@ export class DailyExerciseWorker extends WorkerHost {
           },
         },
       });
+      this.logger.log(
+        `Notification ${notification.id} created for user ${userProgram.user.id}`,
+      );
 
       // 6) Socket notification
       if (!payload.channels || payload.channels.includes('socket')) {
@@ -138,26 +145,36 @@ export class DailyExerciseWorker extends WorkerHost {
         );
       }
 
+      const exercisesList = todaysExercises.map((ex) => ex.title);
+      const email = userProgram.user.email;
+      const phone = userProgram.user.phone;
+
       // 7) Email notification
       if (!payload.channels || payload.channels.includes('email')) {
-        // TODO: send via this.mail
+        try {
+          await this.mail.sendDailyExerciseEmail(email, {
+            userName: userProgram.user.name || 'there',
+            title: userProgram.program.name,
+            exercises: todaysExercises,
+          });
+          this.logger.log(`Email sent to ${email} for job ${job.id}`);
+        } catch (err) {
+          this.logger.error(
+            `Failed to send email to ${email} for job ${job.id}: ${err.message}`,
+          );
+        }
       }
 
       // 8) SMS notification
       if (!payload.channels || payload.channels.includes('sms')) {
-        const phone = userProgram.user.phone;
         if (phone) {
           try {
-            const exerciseList = todaysExercises
-              .map((ex, i) => `${i + 1}. ${ex.title}`)
-              .join('\n');
-
             const smsBody = [
               `Hi ${userProgram.user.name || 'there'},`,
               `Your program: ${userProgram.program.name}`,
               `Day ${dayNumber} (${dayOfWeek})`,
               `You have ${todaysExercises.length} exercise(s) today:`,
-              exerciseList,
+              exercisesList,
             ].join('\n');
 
             // Basic sanity validation (length + phone format)
