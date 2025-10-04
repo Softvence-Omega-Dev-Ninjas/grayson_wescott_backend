@@ -3,6 +3,7 @@ import { ProgramController } from './controllers/program.controller';
 import { GetAProgramService } from './services/get-a-program.service';
 import { GetAllProgramService } from './services/get-all-program.service';
 import { ManageDailyProgramService } from './services/manage-daily-program.service';
+import { ProgressTrackingService } from './services/progress-tracking.service';
 
 @Module({
   controllers: [ProgramController],
@@ -10,6 +11,7 @@ import { ManageDailyProgramService } from './services/manage-daily-program.servi
     GetAProgramService,
     ManageDailyProgramService,
     GetAllProgramService,
+    ProgressTrackingService,
   ],
 })
 export class ProgramModule {}

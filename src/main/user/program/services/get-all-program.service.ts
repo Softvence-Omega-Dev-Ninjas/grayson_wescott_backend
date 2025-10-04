@@ -1,17 +1,17 @@
 import { Injectable } from '@nestjs/common';
-import { PaginationDto } from '@project/common/dto/pagination.dto';
 import { AppError } from '@project/common/error/handle-error.app';
 import { HandleError } from '@project/common/error/handle-error.decorator';
 import { successPaginatedResponse } from '@project/common/utils/response.util';
 import { PrismaService } from '@project/lib/prisma/prisma.service';
 import { DateTime } from 'luxon';
+import { CurrentlyAssignedProgramDto } from '../dto/currently-assigned-program.dto';
 
 @Injectable()
 export class GetAllProgramService {
   constructor(private readonly prisma: PrismaService) {}
 
   @HandleError('Failed to get programs', 'USER_PROGRAM')
-  async getAllPrograms(userId: string, query: PaginationDto) {
+  async getAllPrograms(userId: string, query: CurrentlyAssignedProgramDto) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
     });
@@ -27,7 +27,7 @@ export class GetAllProgramService {
     // get programs with program details
     const [userPrograms, total] = await this.prisma.$transaction([
       this.prisma.userProgram.findMany({
-        where: { userId },
+        where: { userId, ...(query.status && { status: query.status }) },
         take: limit,
         skip,
         orderBy: { createdAt: 'desc' },

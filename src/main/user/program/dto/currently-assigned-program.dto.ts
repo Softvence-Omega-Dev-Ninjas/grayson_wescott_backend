@@ -1,12 +1,14 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { IsNotEmpty, IsString } from 'class-validator';
+import { ApiPropertyOptional } from '@nestjs/swagger';
+import { ProgramProgress } from '@prisma/client';
+import { PaginationDto } from '@project/common/dto/pagination.dto';
+import { IsEnum, IsOptional } from 'class-validator';
 
-export class CurrentlyAssignedProgramDto {
-  @ApiProperty({
-    example: 'America/New_York',
-    description: 'User timezone (Use IANA time zone database by Luxon Package)',
+export class CurrentlyAssignedProgramDto extends PaginationDto {
+  @ApiPropertyOptional({
+    example: ProgramProgress.IN_PROGRESS,
+    enum: ProgramProgress,
   })
-  @IsNotEmpty()
-  @IsString()
-  userTimezone: string;
+  @IsOptional()
+  @IsEnum(ProgramProgress)
+  status: ProgramProgress;
 }

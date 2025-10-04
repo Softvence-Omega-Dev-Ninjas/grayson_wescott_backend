@@ -1,11 +1,12 @@
 import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { PaginationDto } from '@project/common/dto/pagination.dto';
 import { GetUser, ValidateAuth } from '@project/common/jwt/jwt.decorator';
+import { CurrentlyAssignedProgramDto } from '../dto/currently-assigned-program.dto';
 import { ManageDailyExerciseDto } from '../dto/manage-daily-exercise.dto';
 import { GetAProgramService } from '../services/get-a-program.service';
 import { GetAllProgramService } from '../services/get-all-program.service';
 import { ManageDailyProgramService } from '../services/manage-daily-program.service';
+import { ProgressTrackingService } from '../services/progress-tracking.service';
 
 @ApiTags('Client --- Program')
 @ApiBearerAuth()
@@ -16,13 +17,14 @@ export class ProgramController {
     private readonly programService: GetAProgramService,
     private readonly manageDailyProgramService: ManageDailyProgramService,
     private readonly getAllProgramService: GetAllProgramService,
+    private readonly progressTrackingService: ProgressTrackingService,
   ) {}
 
   @ApiOperation({ summary: 'Get all Assigned Programs' })
   @Get('assigned')
   async getAllAssignedPrograms(
     @GetUser('sub') userId: string,
-    @Query() query: PaginationDto,
+    @Query() query: CurrentlyAssignedProgramDto,
   ) {
     return this.getAllProgramService.getAllPrograms(userId, query);
   }
@@ -46,5 +48,11 @@ export class ProgramController {
     @Body() body: ManageDailyExerciseDto,
   ) {
     return this.manageDailyProgramService.manageADailyExerciseLog(uxId, body);
+  }
+
+  @ApiOperation({ summary: 'Get User Progress' })
+  @Get('assigned/progress')
+  async getUserProgress(@GetUser('sub') userId: string) {
+    return this.progressTrackingService.getUserProgress(userId);
   }
 }
