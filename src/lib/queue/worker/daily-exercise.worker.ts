@@ -67,6 +67,8 @@ export class DailyExerciseWorker extends WorkerHost {
         return;
       }
 
+      // TODO; Need validation so that we don't create duplicate per day records
+
       // 4) create UserProgramExercise rows
       await this.prisma.userProgramExercise.createMany({
         data: todaysExercises.map((ex) => ({
@@ -130,8 +132,25 @@ export class DailyExerciseWorker extends WorkerHost {
 
       // 8) SMS notification
       if (!payload.channels || payload.channels.includes('sms')) {
-        // TODO: send via this.twilio
+        const phone = userProgram.user.phone;
+        if (phone) {
+          try {
+            await this.twilio.sendSMS(phone, `${title}: ${message}`);
+            this.logger.log(
+              `SMS notification sent to ${phone} for job ${job.id}`,
+            );
+          } catch (smsErr) {
+            this.logger.error(
+              `Failed to send SMS to ${phone} for job ${job.id}: ${smsErr.message}`,
+            );
+          }
+        } else {
+          this.logger.warn(
+            `User ${userProgram.user.id} has no phone number, skipping SMS`,
+          );
+        }
       }
+
       this.logger.log(`Job ${job.id} processed successfully.`);
     } catch (err) {
       this.logger.error(

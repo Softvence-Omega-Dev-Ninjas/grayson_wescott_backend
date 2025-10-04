@@ -30,4 +30,17 @@ export class TwilioService {
       throw new AppError(500, error.message || error || 'Error sending SMS');
     }
   }
+
+  async sendSMS(phone: string, message: string): Promise<void> {
+    try {
+      await this.twilio.messages.create({
+        body: message,
+        from: this.fromPhone,
+        to: phone,
+      });
+      this.logger.log(`SMS sent to ${phone}`);
+    } catch (error) {
+      throw new AppError(500, error.message || error || 'Error sending SMS');
+    }
+  }
 }
