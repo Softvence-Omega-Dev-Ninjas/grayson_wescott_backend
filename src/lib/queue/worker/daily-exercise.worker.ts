@@ -67,9 +67,22 @@ export class DailyExerciseWorker extends WorkerHost {
         return;
       }
 
-      // TODO; Need validation so that we don't create duplicate per day records
+      // 4) Check if today's exercises already created for this user/day
+      const existing = await this.prisma.userProgramExercise.findFirst({
+        where: {
+          userProgramId: userProgram.id,
+          dayNumber,
+        },
+      });
 
-      // 4) create UserProgramExercise rows
+      if (existing) {
+        this.logger.warn(
+          `Exercises already created for UserProgram ${userProgram.id}, Day ${dayNumber}`,
+        );
+        return; // exit early so we don’t create duplicates or send duplicate notifications
+      }
+
+      // 5) create UserProgramExercise rows
       await this.prisma.userProgramExercise.createMany({
         data: todaysExercises.map((ex) => ({
           userProgramId: userProgram.id,
@@ -80,7 +93,7 @@ export class DailyExerciseWorker extends WorkerHost {
         skipDuplicates: true,
       });
 
-      // 5) Notification record
+      // 6) Notification record
       const title = `${userProgram.program.name} — Day ${dayNumber}`;
       const message = `${todaysExercises.length} exercise(s) for ${dayOfWeek}`;
 
@@ -135,7 +148,30 @@ export class DailyExerciseWorker extends WorkerHost {
         const phone = userProgram.user.phone;
         if (phone) {
           try {
-            await this.twilio.sendSMS(phone, `${title}: ${message}`);
+            const exerciseList = todaysExercises
+              .map((ex, i) => `${i + 1}. ${ex.title}`)
+              .join('\n');
+
+            const smsBody = [
+              `Hi ${userProgram.user.name || 'there'},`,
+              `Your program: ${userProgram.program.name}`,
+              `Day ${dayNumber} (${dayOfWeek})`,
+              `You have ${todaysExercises.length} exercise(s) today:`,
+              exerciseList,
+            ].join('\n');
+
+            // Basic sanity validation (length + phone format)
+            if (!/^\+?[1-9]\d{7,14}$/.test(phone)) {
+              this.logger.error(`Invalid phone number format: ${phone}`);
+              return;
+            }
+            if (smsBody.length > 1000) {
+              this.logger.warn(
+                `SMS body too long (${smsBody.length} chars). Trimming.`,
+              );
+            }
+
+            await this.twilio.sendSMS(phone, smsBody.slice(0, 1000)); // Twilio limit safeguard
             this.logger.log(
               `SMS notification sent to ${phone} for job ${job.id}`,
             );
