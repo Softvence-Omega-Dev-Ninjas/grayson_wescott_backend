@@ -22,22 +22,22 @@ export class ProgramService {
       throw new AppError(404, 'User not found');
     }
 
-    // Get current date/time in user's timezone
+    // timezone-aware now
     const userTimezone = user.timezone || 'UTC';
-    const currentDateTime = DateTime.now().setZone(userTimezone);
+    const now = DateTime.now().setZone(userTimezone);
 
-    // Find the user's currently in-progress program
+    // find user's active program (timezone-aware via toJSDate)
     const userProgram = await this.prisma.userProgram.findFirst({
       where: {
         userId,
         status: 'IN_PROGRESS',
-        startDate: { lte: currentDateTime.toJSDate() },
-        endDate: { gte: currentDateTime.toJSDate() },
+        startDate: { lte: now.toJSDate() },
+        endDate: { gte: now.toJSDate() },
       },
       include: {
         program: {
           include: {
-            exercises: true,
+            exercises: true, // weekly template exercises
           },
         },
       },
@@ -47,17 +47,17 @@ export class ProgramService {
       throw new AppError(404, 'No currently assigned program found');
     }
 
-    // Calculate difference in days between current date and program start date
+    // dayNumber / weekNumber (1-based)
     const startDate = DateTime.fromJSDate(userProgram.startDate).setZone(
       userTimezone,
     );
-    const diffInDays = currentDateTime
+    const diffInDays = now
       .startOf('day')
       .diff(startDate.startOf('day'), 'days').days;
-    const dayNumber = Math.floor(diffInDays) + 1; // 1-based index
+    const dayNumber = Math.floor(diffInDays) + 1;
     const weekNumber = Math.ceil(dayNumber / 7);
 
-    // Fetch today's exercises
+    // today's exercises (for UI)
     const todaysExercises = await this.prisma.userProgramExercise.findMany({
       where: {
         userProgramId: userProgram.id,
@@ -66,9 +66,93 @@ export class ProgramService {
       include: { programExercise: true },
     });
 
+    // load all userProgramExercise rows for this userProgram (we'll aggregate in JS)
+    const allUserProgramExercises =
+      await this.prisma.userProgramExercise.findMany({
+        where: { userProgramId: userProgram.id },
+        include: { programExercise: true }, // so we can sum durations
+      });
+
+    // Program template & derived totals
+    const exercisesPerWeek = userProgram.program.exercises.length || 0;
+    const totalWeeks = Math.max(1, userProgram.program.duration || 1);
+    const totalProgramDays = totalWeeks * 7;
+    const totalExercises = exercisesPerWeek * totalWeeks;
+
+    // Aggregations
+    const completedExercises = allUserProgramExercises.filter(
+      (e) => e.status === 'COMPLETED',
+    ).length;
+
+    const scheduledToDate = allUserProgramExercises.filter(
+      (e) => e.dayNumber <= dayNumber,
+    ).length;
+
+    // planned load (sum of planned durations in minutes) up to today
+    const plannedLoadToDate = allUserProgramExercises
+      .filter((e) => e.dayNumber <= dayNumber)
+      .reduce((sum, e) => sum + (e.programExercise?.duration ?? 0), 0);
+
+    // completed load (sum of durations for completed exercises)
+    const completedLoadToDate = allUserProgramExercises
+      .filter((e) => e.status === 'COMPLETED')
+      .reduce((sum, e) => sum + (e.programExercise?.duration ?? 0), 0);
+
+    // safe percentages
+    const completionPercent =
+      totalExercises > 0
+        ? Math.round((completedExercises / totalExercises) * 100)
+        : 0;
+
+    const complianceScore =
+      scheduledToDate > 0
+        ? Math.round((completedExercises / scheduledToDate) * 100)
+        : 0;
+
+    const loadCompletionPercent =
+      plannedLoadToDate > 0
+        ? Math.round((completedLoadToDate / plannedLoadToDate) * 100)
+        : 0;
+
+    // days remaining & percent elapsed (cap values)
+    const daysElapsed = Math.min(Math.max(dayNumber, 0), totalProgramDays);
+    const daysRemaining = Math.max(totalProgramDays - daysElapsed, 0);
+    const percentProgramElapsed = Math.round(
+      (daysElapsed / totalProgramDays) * 100,
+    );
+
+    // weekly summary (1..totalWeeks)
+    const weeklySummary = Array.from({ length: totalWeeks }).map((_, i) => {
+      const w = i + 1;
+      const startDay = (w - 1) * 7 + 1;
+      const endDay = w * 7;
+      const scheduled = allUserProgramExercises.filter(
+        (ex) => ex.dayNumber >= startDay && ex.dayNumber <= endDay,
+      ).length;
+      const completed = allUserProgramExercises.filter(
+        (ex) =>
+          ex.dayNumber >= startDay &&
+          ex.dayNumber <= endDay &&
+          ex.status === 'COMPLETED',
+      ).length;
+      const pct = scheduled > 0 ? Math.round((completed / scheduled) * 100) : 0;
+      return {
+        week: w,
+        scheduled,
+        completed,
+        completionPercent: pct,
+      };
+    });
+
+    const programProgressPercent = Math.min(
+      Math.round((dayNumber / totalProgramDays) * 100),
+      100,
+    );
+
     const formattedOutput = {
       id: userProgram.id,
       startDate: userProgram.startDate,
+      programProgressPercent,
       endDate: userProgram.endDate,
       status: userProgram.status,
       dayNumber,
@@ -86,32 +170,33 @@ export class ProgramService {
         programId: userProgram.programId,
         programName: userProgram.program.name,
         programDescription: userProgram.program.description,
-        programDuration: `${userProgram.program.duration} weeks`,
+        programDurationWeeks: totalWeeks,
+        exercisesPerWeek,
+        totalExercises,
       },
       analytics: {
-        trainingCompleted: '22/66', // Total exercises completed / total exercises in program
-        progressTracking: {
-          currentWeek: weekNumber,
-          totalWeeks: Math.ceil(userProgram.program.duration / 7),
-          percentageCompleted: Math.round(
-            (weekNumber / Math.ceil(userProgram.program.duration / 7)) * 100,
-          ),
-          complianceScore: 85, // Example compliance score
-        },
-        loadProgression: {
-          initialLoad: 50, // Example initial load
-          currentLoad: 75, // Example current load
-          targetLoad: 100, // Example target load
-          progressionRate: Math.round(((75 - 50) / (100 - 50)) * 100),
-        },
-        rpeTrends: {
-          averageRPE: 7, // Example average RPE
-          rpeOverTime: [
-            { week: 1, averageRPE: 6 },
-            { week: 2, averageRPE: 7 },
-            { week: 3, averageRPE: 8 },
-          ],
-        },
+        // counts
+        completedExercises,
+        totalExercises,
+        trainingCompleted: `${completedExercises}/${totalExercises}`,
+        scheduledToDate,
+
+        // percentages
+        completionPercent, // overall completed / total
+        complianceScore, // completed / scheduled up-to-today
+
+        // load (minutes)
+        plannedLoadToDate, // sum of planned minutes up to today
+        completedLoadToDate, // sum of durations for completed exercises
+        loadCompletionPercent, // completedLoad / plannedLoad
+
+        // progression
+        daysElapsed,
+        daysRemaining,
+        percentProgramElapsed,
+
+        // weekly breakdown
+        weeklySummary,
       },
     };
 
