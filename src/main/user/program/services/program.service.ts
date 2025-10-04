@@ -13,40 +13,42 @@ export class ProgramService {
   constructor(private readonly prisma: PrismaService) {}
 
   @HandleError('Failed to fetch currently assigned program')
-  async getCurrentlyAssignedProgram(userId: string): Promise<TResponse<any>> {
+  async getSpecificAssignedProgram(
+    userId: string,
+    programId: string,
+  ): Promise<TResponse<any>> {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
+      include: { userPrograms: true },
     });
 
     if (!user) {
       throw new AppError(404, 'User not found');
     }
 
-    // timezone-aware now
-    const userTimezone = user.timezone || 'UTC';
-    const now = DateTime.now().setZone(userTimezone);
+    // Validate programId belongs to user
+    const isAssigned = user.userPrograms.some(
+      (up) => up.programId === programId && up.userId === userId,
+    );
+    if (!isAssigned) {
+      throw new AppError(403, 'Program not assigned to user');
+    }
 
-    // find user's active program (timezone-aware via toJSDate)
+    // fetch userProgram with related program & exercises
     const userProgram = await this.prisma.userProgram.findFirst({
-      where: {
-        userId,
-        status: 'IN_PROGRESS',
-        startDate: { lte: now.toJSDate() },
-        endDate: { gte: now.toJSDate() },
-      },
+      where: { userId, programId },
       include: {
-        program: {
-          include: {
-            exercises: true, // weekly template exercises
-          },
-        },
+        program: { include: { exercises: true } },
       },
     });
 
     if (!userProgram) {
-      throw new AppError(404, 'No currently assigned program found');
+      throw new AppError(404, 'Assigned program not found');
     }
 
+    // timezone-aware now
+    const userTimezone = user.timezone || 'UTC';
+    const now = DateTime.now().setZone(userTimezone);
     // dayNumber / weekNumber (1-based)
     const startDate = DateTime.fromJSDate(userProgram.startDate).setZone(
       userTimezone,

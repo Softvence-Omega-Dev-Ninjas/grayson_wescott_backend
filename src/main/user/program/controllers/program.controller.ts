@@ -15,10 +15,13 @@ export class ProgramController {
     private readonly manageDailyProgramService: ManageDailyProgramService,
   ) {}
 
-  @ApiOperation({ summary: 'Get Currently Assigned Program' })
-  @Get('currently-assigned')
-  async getCurrentlyAssignedProgram(@GetUser('sub') userId: string) {
-    return this.programService.getCurrentlyAssignedProgram(userId);
+  @ApiOperation({ summary: 'Get a specific Assigned Program' })
+  @Get(':id')
+  async getSpecificAssignedProgram(
+    @GetUser('sub') userId: string,
+    @Param('id') id: string,
+  ) {
+    return this.programService.getSpecificAssignedProgram(userId, id);
   }
 
   @ApiOperation({
