@@ -4,8 +4,8 @@ model PrivateCall {
   conversationId String
   conversation   PrivateConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
 
-  initiatorId String
-  initiator   User   @relation(fields: [initiatorId], references: [id])
+  initiatorId String?
+  initiator   User?   @relation(fields: [initiatorId], references: [id], onDelete: SetNull)
 
   type   CallType
   status CallStatus @default(INITIATED)
@@ -16,6 +16,8 @@ model PrivateCall {
   participants PrivateCallParticipant[]
 
   createdAt DateTime @default(now())
+
+  @@map("private_calls")
 }
 
 model PrivateCallParticipant {
@@ -31,6 +33,8 @@ model PrivateCallParticipant {
 
   joinedAt DateTime  @default(now())
   leftAt   DateTime?
+
+  createdAt DateTime @default(now())
 }
 
 enum CallType {

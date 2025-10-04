@@ -61,6 +61,7 @@ export class ProgramController {
     return this.updateProgramService.updateProgram(id, dto);
   }
 
+  @ApiOperation({ summary: 'Assign users to program' })
   @Patch('assign-users/:id')
   assignUsers(@Param('id') id: string, @Body() dto: AssignUsersToProgramDto) {
     return this.addProgramService.assignUsersToProgram(id, dto);
