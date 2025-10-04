@@ -134,6 +134,8 @@ export class UpdateProgramService {
       }
 
       // Add new users
+      // TODO : filter out users who already have an active program
+      // (currently will just skip due to skipDuplicates, but we can do better)
       const usersToAdd = dtoUserIds?.filter(
         (id) => !currentUserIds.includes(id),
       );

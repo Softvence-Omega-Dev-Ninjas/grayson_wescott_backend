@@ -18,9 +18,9 @@ export class DailyExerciseCron {
     private readonly eventEmitter: EventEmitter2,
   ) {}
 
-  // Runs every day at 1AM UTC
-  // @Cron(CronExpression.EVERY_10_SECONDS) // For testing, change to every 10 minutes
-  @Cron(CronExpression.EVERY_DAY_AT_1AM) // For production, uncomment this line
+  // @Cron(CronExpression.EVERY_10_SECONDS) // For testing, change to every 10 seconds
+  // Runs every ten hours
+  @Cron(CronExpression.EVERY_10_HOURS) // For production, uncomment this line
   async handleDailyExercises() {
     this.logger.log('Enqueueing daily exercise jobs (producer)...');
 
@@ -36,6 +36,7 @@ export class DailyExerciseCron {
       select: {
         id: true,
         userId: true,
+        programId: true,
         user: {
           select: {
             timezone: true,
@@ -64,7 +65,7 @@ export class DailyExerciseCron {
 
       const payload: DailyExerciseJobPayload = {
         event: QUEUE_EVENTS.DAILY_EXERCISE,
-        programId: up.id,
+        programId: up.programId,
         recordType: 'userProgram',
         recordId: up.id,
         channels,

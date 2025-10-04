@@ -30,7 +30,7 @@ export class DailyExerciseWorker extends WorkerHost {
     try {
       // 1) Fetch userProgram + user + program.exercises
       const userProgram = await this.prisma.userProgram.findUnique({
-        where: { id: payload.programId },
+        where: { id: payload.recordId },
         include: {
           user: true,
           program: {
@@ -42,7 +42,7 @@ export class DailyExerciseWorker extends WorkerHost {
       });
 
       if (!userProgram) {
-        this.logger.warn(`UserProgram ${payload.programId} not found.`);
+        this.logger.warn(`UserProgram ${payload.recordId} not found.`);
         return;
       }
 
@@ -52,22 +52,13 @@ export class DailyExerciseWorker extends WorkerHost {
       const startDate = DateTime.fromJSDate(userProgram.startDate).setZone(
         userTZ,
       );
-      const dayNumber = Math.floor(now.diff(startDate, 'days').days) + 1;
+      const diffInDays = now
+        .startOf('day')
+        .diff(startDate.startOf('day'), 'days').days;
+      const dayNumber = Math.floor(diffInDays) + 1; // 1-based index
       const dayOfWeek = now.toFormat('EEEE').toUpperCase();
 
-      // 3) pick today's exercises
-      const todaysExercises = userProgram.program.exercises
-        .filter((ex) => ex.dayOfWeek === dayOfWeek)
-        .sort((a, b) => a.order - b.order);
-
-      if (!todaysExercises.length) {
-        this.logger.log(
-          `No exercises scheduled for UserProgram ${userProgram.id} on ${dayOfWeek}.`,
-        );
-        return;
-      }
-
-      // 4) Check if today's exercises already created for this user/day
+      // 3) Check if today's exercises already created for this user/day
       const existing = await this.prisma.userProgramExercise.findFirst({
         where: {
           userProgramId: userProgram.id,
@@ -80,6 +71,18 @@ export class DailyExerciseWorker extends WorkerHost {
           `Exercises already created for UserProgram ${userProgram.id}, Day ${dayNumber}`,
         );
         return; // exit early so we don’t create duplicates or send duplicate notifications
+      }
+
+      // 4) pick today's exercises
+      const todaysExercises = userProgram.program.exercises
+        .filter((ex) => ex.dayOfWeek === dayOfWeek)
+        .sort((a, b) => a.order - b.order);
+
+      if (!todaysExercises.length) {
+        this.logger.log(
+          `No exercises scheduled for UserProgram ${userProgram.id} on ${dayOfWeek}.`,
+        );
+        return;
       }
 
       // 5) create UserProgramExercise rows
@@ -123,7 +126,7 @@ export class DailyExerciseWorker extends WorkerHost {
         `Notification ${notification.id} created for user ${userProgram.user.id}`,
       );
 
-      // 6) Socket notification
+      // 7) Socket notification
       if (!payload.channels || payload.channels.includes('socket')) {
         this.logger.log(
           `Socket notification sent to user ${userProgram.user.id} for job ${job.id}`,
@@ -149,7 +152,7 @@ export class DailyExerciseWorker extends WorkerHost {
       const email = userProgram.user.email;
       const phone = userProgram.user.phone;
 
-      // 7) Email notification
+      // 8) Email notification
       if (!payload.channels || payload.channels.includes('email')) {
         try {
           await this.mail.sendDailyExerciseEmail(email, {
@@ -165,7 +168,7 @@ export class DailyExerciseWorker extends WorkerHost {
         }
       }
 
-      // 8) SMS notification
+      // 9) SMS notification
       if (!payload.channels || payload.channels.includes('sms')) {
         if (phone) {
           try {

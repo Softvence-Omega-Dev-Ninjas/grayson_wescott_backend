@@ -55,6 +55,8 @@ export class AddProgramService {
       const endDate = new Date(startDate);
       endDate.setDate(startDate.getDate() + programme.duration * 7);
 
+      // TODO: Filter out users who already have an active program
+      // (currently will just skip due to skipDuplicates, but we can do better)
       await tx.userProgram.createMany({
         data: [...new Set(dto.userIds)].map((userId) => ({
           userId,
@@ -99,6 +101,7 @@ export class AddProgramService {
     const { userIds, startDate = new Date() } = dto;
 
     // ensure unique ids
+    // TODO: filter user who already have an active program
     const uniqueIds = [...new Set(userIds)];
 
     // 1. Fetch program for duration
