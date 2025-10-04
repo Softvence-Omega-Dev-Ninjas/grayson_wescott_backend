@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Prisma, UserRole } from '@prisma/client';
 import { HandleError } from '@project/common/error/handle-error.decorator';
 import {
   successPaginatedResponse,
@@ -26,10 +26,22 @@ export class UserService {
     const skip = (page - 1) * limit;
     const search = query.search?.trim();
 
-    // Find users assigned to a specific program
-    const where: Prisma.UserWhereInput = {};
+    const now = new Date();
 
-    // Optional search by name or email
+    const where: Prisma.UserWhereInput = {
+      NOT: {
+        userPrograms: {
+          some: {
+            startDate: { lte: now },
+            endDate: { gte: now },
+          },
+        },
+      },
+      AND: {
+        role: UserRole.USER,
+      },
+    };
+
     if (search) {
       where.OR = [
         { name: { contains: search, mode: 'insensitive' } },
@@ -37,13 +49,8 @@ export class UserService {
       ];
     }
 
-    // Fetch total count for pagination
     const [users, total] = await this.prisma.$transaction([
-      this.prisma.user.findMany({
-        where,
-        take: limit,
-        skip,
-      }),
+      this.prisma.user.findMany({ where, take: limit, skip }),
       this.prisma.user.count({ where }),
     ]);
 
@@ -59,11 +66,7 @@ export class UserService {
 
     return successPaginatedResponse(
       sanitizedUsers,
-      {
-        page,
-        limit,
-        total,
-      },
+      { page, limit, total },
       'Users fetched successfully',
     );
   }

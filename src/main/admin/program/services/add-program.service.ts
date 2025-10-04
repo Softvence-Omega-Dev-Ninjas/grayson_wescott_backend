@@ -55,17 +55,39 @@ export class AddProgramService {
       const endDate = new Date(startDate);
       endDate.setDate(startDate.getDate() + programme.duration * 7);
 
-      // TODO: Filter out users who already have an active program
-      // (currently will just skip due to skipDuplicates, but we can do better)
-      await tx.userProgram.createMany({
-        data: [...new Set(dto.userIds)].map((userId) => ({
-          userId,
-          programId: programme.id,
-          startDate,
-          endDate,
-        })),
-        skipDuplicates: true,
+      // find userIds that already have an overlapping (active) program
+      const overlapping = await tx.userProgram.findMany({
+        where: {
+          userId: { in: dto.userIds },
+          AND: [
+            { status: 'IN_PROGRESS' },
+            { startDate: { lte: endDate } }, // existing starts on/before our end
+            { endDate: { gte: startDate } }, // existing ends on/after our start
+          ],
+        },
+        select: { userId: true },
       });
+      const overlappingIds = new Set(overlapping.map((r) => r.userId));
+
+      // filter userIds to only those without overlap
+      const toAssign = [...new Set(dto.userIds)].filter(
+        (id) => !overlappingIds.has(id),
+      );
+
+      if (toAssign.length > 0) {
+        await tx.userProgram.createMany({
+          data: toAssign.map((userId) => ({
+            userId,
+            programId: programme.id,
+            startDate,
+            endDate,
+          })),
+          skipDuplicates: true,
+        });
+      }
+
+      // Metadata about skipped users
+      const skippedUserIds = [...overlappingIds];
 
       // 4. Return program with exercises + users
       const updatedProgram = await tx.program.findUnique({
@@ -89,7 +111,13 @@ export class AddProgramService {
         },
       });
 
-      return successResponse(updatedProgram, 'Program added successfully');
+      return successResponse(
+        {
+          program: updatedProgram,
+          skippedUserIds,
+        },
+        'Program added successfully',
+      );
     });
   }
 
@@ -99,12 +127,8 @@ export class AddProgramService {
     dto: AssignUsersToProgramDto,
   ): Promise<TResponse<any>> {
     const { userIds, startDate = new Date() } = dto;
-
-    // ensure unique ids
-    // TODO: filter user who already have an active program
     const uniqueIds = [...new Set(userIds)];
 
-    // 1. Fetch program for duration
     const program = await this.prisma.program.findUnique({
       where: { id: programId },
     });
@@ -112,7 +136,11 @@ export class AddProgramService {
     if (!program.duration)
       throw new AppError(400, 'Program duration is not set');
 
-    // 2. Validate users exist
+    const newStart = new Date(startDate);
+    const newEnd = new Date(newStart);
+    newEnd.setDate(newStart.getDate() + program.duration * 7);
+
+    // Validate users exist
     const users = await this.prisma.user.findMany({
       where: { id: { in: uniqueIds } },
       select: { id: true },
@@ -121,23 +149,36 @@ export class AddProgramService {
       throw new AppError(404, 'Some users do not exist');
     }
 
-    // 3. Calculate dates
-    const endDate = new Date(startDate);
-    // duration stored in weeks
-    endDate.setDate(new Date(startDate).getDate() + program.duration * 7);
-
-    // 4. Create many (skip duplicates)
-    await this.prisma.userProgram.createMany({
-      data: uniqueIds.map((u) => ({
-        userId: u,
-        programId,
-        startDate: new Date(startDate).toISOString(),
-        endDate: new Date(endDate).toISOString(),
-      })),
-      skipDuplicates: true,
+    // Find overlapping userPrograms for the requested window
+    const overlapping = await this.prisma.userProgram.findMany({
+      where: {
+        userId: { in: uniqueIds },
+        AND: [
+          { status: 'IN_PROGRESS' },
+          { startDate: { lte: newEnd } },
+          { endDate: { gte: newStart } },
+        ],
+      },
+      select: { userId: true },
     });
+    const overlappingIds = new Set(overlapping.map((r) => r.userId));
 
-    // 5. Return update program
+    // users to actually create
+    const toCreate = uniqueIds.filter((id) => !overlappingIds.has(id));
+
+    if (toCreate.length > 0) {
+      await this.prisma.userProgram.createMany({
+        data: toCreate.map((u) => ({
+          userId: u,
+          programId,
+          startDate: newStart.toISOString(),
+          endDate: newEnd.toISOString(),
+        })),
+        skipDuplicates: true,
+      });
+    }
+
+    // Fetch updated program (you may want to include skipped info in response)
     const updatedProgram = await this.prisma.program.findUnique({
       where: { id: programId },
       include: {
@@ -159,8 +200,9 @@ export class AddProgramService {
       },
     });
 
+    // Metadata about skipped users
     return successResponse(
-      updatedProgram,
+      { program: updatedProgram, skippedUserIds: Array.from(overlappingIds) },
       'Users assigned to program successfully',
     );
   }

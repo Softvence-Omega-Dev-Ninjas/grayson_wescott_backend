@@ -134,29 +134,51 @@ export class UpdateProgramService {
       }
 
       // Add new users
-      // TODO : filter out users who already have an active program
-      // (currently will just skip due to skipDuplicates, but we can do better)
       const usersToAdd = dtoUserIds?.filter(
         (id) => !currentUserIds.includes(id),
       );
+      let skippedUsers: string[] = [];
       if (usersToAdd?.length) {
         const startDate = new Date();
         const endDate = new Date(startDate);
         endDate.setDate(startDate.getDate() + (program.duration ?? 0) * 7);
 
-        await tx.userProgram.createMany({
-          data: usersToAdd.map((userId) => ({
-            userId,
-            programId: id,
-            startDate: new Date(startDate).toISOString(),
-            endDate: new Date(endDate).toISOString(),
-          })),
-          skipDuplicates: true, // just in case
+        // Find overlapping active programs
+        const overlapping = await tx.userProgram.findMany({
+          where: {
+            userId: { in: usersToAdd },
+            AND: [
+              { status: 'IN_PROGRESS' },
+              { startDate: { lte: endDate } }, // existing starts before new end
+              { endDate: { gte: startDate } }, // existing ends after new start
+            ],
+          },
+          select: { userId: true },
         });
+        const overlappingIds = new Set(overlapping.map((r) => r.userId));
+
+        // Only add users without overlaps
+        const toAssign = usersToAdd.filter((id) => !overlappingIds.has(id));
+
+        if (toAssign.length > 0) {
+          await tx.userProgram.createMany({
+            data: toAssign.map((userId) => ({
+              userId,
+              programId: id,
+              startDate: startDate.toISOString(),
+              endDate: endDate.toISOString(),
+            })),
+            skipDuplicates: true,
+          });
+        }
+
+        if (overlappingIds.size > 0) {
+          skippedUsers = usersToAdd.filter((id) => overlappingIds.has(id));
+        }
       }
 
       // Return updated program with exercises and users
-      return tx.program.findUnique({
+      const updatedProgram = await tx.program.findUnique({
         where: { id },
         include: {
           exercises: true,
@@ -176,6 +198,8 @@ export class UpdateProgramService {
           },
         },
       });
+
+      return { updatedProgram, skippedUsers };
     });
 
     return successResponse(updatedProgram, 'Program updated successfully');
