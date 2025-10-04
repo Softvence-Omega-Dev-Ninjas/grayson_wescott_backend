@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma, UserRole } from '@prisma/client';
+import { UserResponseDto } from '@project/common/dto/user-response.dto';
 import { HandleError } from '@project/common/error/handle-error.decorator';
 import {
   successPaginatedResponse,
@@ -8,7 +9,6 @@ import {
 import { PrismaService } from '@project/lib/prisma/prisma.service';
 import { UtilsService } from '@project/lib/utils/utils.service';
 import { GetClientsForProgramDto } from '../dto/get-clients.dto';
-import { UserResponseDto } from './../../../../common/dto/user-response.dto';
 
 @Injectable()
 export class UserService {
@@ -26,17 +26,7 @@ export class UserService {
     const skip = (page - 1) * limit;
     const search = query.search?.trim();
 
-    const now = new Date();
-
     const where: Prisma.UserWhereInput = {
-      NOT: {
-        userPrograms: {
-          some: {
-            startDate: { lte: now },
-            endDate: { gte: now },
-          },
-        },
-      },
       AND: {
         role: UserRole.USER,
       },

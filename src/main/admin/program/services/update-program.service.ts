@@ -137,48 +137,25 @@ export class UpdateProgramService {
       const usersToAdd = dtoUserIds?.filter(
         (id) => !currentUserIds.includes(id),
       );
-      let skippedUsers: string[] = [];
+
       if (usersToAdd?.length) {
         const startDate = new Date();
         const endDate = new Date(startDate);
         endDate.setDate(startDate.getDate() + (program.duration ?? 0) * 7);
 
-        // Find overlapping active programs
-        const overlapping = await tx.userProgram.findMany({
-          where: {
-            userId: { in: usersToAdd },
-            AND: [
-              { status: 'IN_PROGRESS' },
-              { startDate: { lte: endDate } }, // existing starts before new end
-              { endDate: { gte: startDate } }, // existing ends after new start
-            ],
-          },
-          select: { userId: true },
+        await tx.userProgram.createMany({
+          data: usersToAdd.map((userId) => ({
+            userId,
+            programId: id,
+            startDate: startDate.toISOString(),
+            endDate: endDate.toISOString(),
+          })),
+          skipDuplicates: true,
         });
-        const overlappingIds = new Set(overlapping.map((r) => r.userId));
-
-        // Only add users without overlaps
-        const toAssign = usersToAdd.filter((id) => !overlappingIds.has(id));
-
-        if (toAssign.length > 0) {
-          await tx.userProgram.createMany({
-            data: toAssign.map((userId) => ({
-              userId,
-              programId: id,
-              startDate: startDate.toISOString(),
-              endDate: endDate.toISOString(),
-            })),
-            skipDuplicates: true,
-          });
-        }
-
-        if (overlappingIds.size > 0) {
-          skippedUsers = usersToAdd.filter((id) => overlappingIds.has(id));
-        }
       }
 
       // Return updated program with exercises and users
-      const updatedProgram = await tx.program.findUnique({
+      return await tx.program.findUnique({
         where: { id },
         include: {
           exercises: true,
@@ -198,8 +175,6 @@ export class UpdateProgramService {
           },
         },
       });
-
-      return { updatedProgram, skippedUsers };
     });
 
     return successResponse(updatedProgram, 'Program updated successfully');
