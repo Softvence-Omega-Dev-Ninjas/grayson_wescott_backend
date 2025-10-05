@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { AppError } from '@project/common/error/handle-error.app';
 import { HandleError } from '@project/common/error/handle-error.decorator';
 import {
   successResponse,
@@ -27,7 +28,7 @@ export class ProgressTrackingService {
     });
 
     if (!user) {
-      return successResponse(null, 'User not found');
+      throw new AppError(404, 'User not found');
     }
 
     const userTimezone = user.timezone || 'UTC';
