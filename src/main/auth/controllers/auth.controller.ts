@@ -1,5 +1,20 @@
-import { Body, Controller, Get, Post } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Get,
+  Patch,
+  Post,
+  UploadedFile,
+  UseInterceptors,
+} from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import {
+  ApiBearerAuth,
+  ApiConsumes,
+  ApiOperation,
+  ApiTags,
+} from '@nestjs/swagger';
 import { GetUser, ValidateAuth } from '@project/common/jwt/jwt.decorator';
 import {
   FacebookLoginCompleteDto,
@@ -15,7 +30,10 @@ import {
 } from '../dto/password.dto';
 import { VerifySocialProviderOtpDto } from '../dto/provider.dto';
 import { RegisterDto } from '../dto/register.dto';
+import { SetPhoneDto } from '../dto/set-phone.dto';
 import { RequestTFA } from '../dto/tfa.dto';
+import { UpdateProfileDto } from '../dto/update-profile.dto';
+import { UpdateUserPreferencesDto } from '../dto/update-user-preferences.dto';
 import { VerifyTfaDto } from '../dto/verify-tfa.dto';
 import { AuthFacebookService } from '../services/auth-facebook.service';
 import { AuthGetProfileService } from '../services/auth-get-profile.service';
@@ -25,6 +43,7 @@ import { AuthOtpService } from '../services/auth-otp.service';
 import { AuthPasswordService } from '../services/auth-password.service';
 import { AuthRegisterService } from '../services/auth-register.service';
 import { AuthTfaService } from '../services/auth-tfa.service';
+import { UpdateProfileService } from '../services/update-profile.service';
 import { AuthLogoutService } from './../services/auth-logout.service';
 
 @ApiTags('Auth')
@@ -40,6 +59,7 @@ export class AuthController {
     private readonly authPasswordService: AuthPasswordService,
     private readonly authTfaService: AuthTfaService,
     private readonly authGetProfileService: AuthGetProfileService,
+    private readonly updateProfileService: UpdateProfileService,
   ) {}
 
   @ApiOperation({ summary: 'User Registration with Email' })
@@ -154,5 +174,55 @@ export class AuthController {
   @ValidateAuth()
   async getProfile(@GetUser('sub') userId: string) {
     return this.authGetProfileService.getProfile(userId);
+  }
+
+  @ApiOperation({ summary: 'Update User Preferences' })
+  @ApiBearerAuth()
+  @Post('update-preferences')
+  @ValidateAuth()
+  async updatePreferences(
+    @GetUser('sub') userId: string,
+    @Body() body: UpdateUserPreferencesDto,
+  ) {
+    return this.updateProfileService.manageUserPreferences(userId, body);
+  }
+
+  @ApiOperation({ summary: 'Set Phone Number' })
+  @ApiBearerAuth()
+  @Post('set-phone-number')
+  @ValidateAuth()
+  async setPhoneNumber(
+    @GetUser('sub') userId: string,
+    @Body() body: SetPhoneDto,
+  ) {
+    return this.updateProfileService.setPhoneNumber(userId, body.phone);
+  }
+
+  @ApiOperation({ summary: 'Update profile' })
+  @ApiBearerAuth()
+  @Patch(':id')
+  @ValidateAuth()
+  @ApiConsumes('multipart/form-data')
+  @UseInterceptors(
+    FileInterceptor('image', {
+      limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB Max
+      fileFilter: (req, file, callback) => {
+        // Accept only image mimetype
+        if (!file.mimetype.startsWith('image/')) {
+          return callback(
+            new BadRequestException('Only image files are allowed!'),
+            false,
+          );
+        }
+        callback(null, true);
+      },
+    }),
+  )
+  update(
+    @GetUser('sub') id: string,
+    @Body() dto: UpdateProfileDto,
+    @UploadedFile() file?: Express.Multer.File,
+  ) {
+    return this.updateProfileService.updateProfile(id, dto, file);
   }
 }

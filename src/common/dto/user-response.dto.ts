@@ -31,6 +31,9 @@ export class UserResponseDto {
   isVerified: boolean;
 
   @Expose()
+  isPhoneVerified: boolean;
+
+  @Expose()
   isLoggedIn: boolean;
 
   @Expose()
@@ -38,6 +41,15 @@ export class UserResponseDto {
 
   @Expose()
   twoFAMethod?: string;
+
+  @Expose()
+  timezone: string;
+
+  @Expose()
+  allowDirectMessages: boolean;
+
+  @Expose()
+  allowEmailMessages: boolean;
 
   @Expose()
   createdAt: Date;

@@ -1,3 +1,3 @@
 export enum QUEUE_EVENTS {
-  DAILY_EXERCISE = 'DAILY_EXERCISE',
+  DAILY_EXERCISE = 'queue:daily_exercise',
 }

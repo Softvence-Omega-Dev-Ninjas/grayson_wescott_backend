@@ -11,6 +11,7 @@ model User {
   avatarUrl String? @default("https://www.gravatar.com/avatar/000000000000000000000000000000?d=mp&f=y")
 
   role         UserRole     @default(USER)
+  status       UserStatus   @default(ACTIVE)
   signUpMethod SignUpMethod @default(EMAIL) // * First sign-up method
 
   // Logout tracking
@@ -19,13 +20,18 @@ model User {
   lastLogoutAt DateTime?
 
   // timezone
-  timezone String @default("UTC")
+  timezone String @default("UTC") // e.g., "America/New_York"
+
+  // Messaging Preferences
+  allowDirectMessages Boolean @default(true)
+  allowEmailMessages  Boolean @default(true)
 
   // OTP / Verification OR TFA
-  otp          String? // hashed OTP
-  otpType      OtpType?
-  otpExpiresAt DateTime?
-  isVerified   Boolean   @default(false)
+  otp             String? // hashed OTP
+  otpType         OtpType?
+  otpExpiresAt    DateTime?
+  isVerified      Boolean   @default(false)
+  isPhoneVerified Boolean   @default(false)
 
   // Reset password
   resetToken          String? // hashed reset token
@@ -34,7 +40,7 @@ model User {
   // 2FA
   isTwoFAEnabled Boolean      @default(false)
   twoFAMethod    TwoFAMethod? // EMAIL, PHONE, AUTH_APP
-  twoFASecret    String? // For authenticator apps (TOTP secret)
+  twoFASecret    String? // For authenticator apps (TOTP secret)`
 
   // Social auth linked accounts
   authProviders UserAuthProvider[]
@@ -80,6 +86,13 @@ enum UserRole {
   USER
 }
 
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+  ON_HOLD
+  DEACTIVATED
+}
+
 enum AuthProvider {
   GOOGLE
   FACEBOOK
@@ -102,5 +115,6 @@ enum TwoFAMethod {
 
 enum OtpType {
   VERIFICATION
+  PHONE_VERIFICATION
   TFA
 }

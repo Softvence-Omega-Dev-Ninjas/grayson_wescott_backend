@@ -9,10 +9,13 @@ import { AuthPasswordService } from './services/auth-password.service';
 import { AuthRegisterService } from './services/auth-register.service';
 import { AuthTfaService } from './services/auth-tfa.service';
 import { AuthGetProfileService } from './services/auth-get-profile.service';
+import { UpdateProfileService } from './services/update-profile.service';
+import { S3Service } from '../s3/s3.service';
 
 @Module({
   controllers: [AuthController],
   providers: [
+    S3Service,
     AuthRegisterService,
     AuthGoogleService,
     AuthFacebookService,
@@ -22,6 +25,7 @@ import { AuthGetProfileService } from './services/auth-get-profile.service';
     AuthLogoutService,
     AuthTfaService,
     AuthGetProfileService,
+    UpdateProfileService,
   ],
 })
 export class AuthModule {}
