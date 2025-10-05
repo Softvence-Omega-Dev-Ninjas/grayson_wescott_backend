@@ -8,8 +8,8 @@ import {
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { AuthGuard } from '@nestjs/passport';
-import { IS_PUBLIC_KEY, ROLES_KEY } from './jwt.constants';
 import { UserEnum } from '../enum/user.enum';
+import { IS_PUBLIC_KEY, ROLES_KEY } from './jwt.constants';
 import { RequestWithUser } from './jwt.interface';
 
 @Injectable()
@@ -37,7 +37,9 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
 
   // Ensure we return a meaningful error if no user
   handleRequest(err: any, user: any, info: any) {
-    this.logger.error(err, info);
+    this.logger.error(`Auth error: ${err}`);
+    this.logger.debug(`Auth info: ${JSON.stringify(info)}`);
+    this.logger.debug(`Auth user: ${JSON.stringify(user)}`);
     if (err) {
       throw err;
     }
