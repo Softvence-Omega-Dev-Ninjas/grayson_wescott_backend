@@ -53,7 +53,7 @@ export class ProgramController {
   })
   @Post('exercises/:exerciseId/log')
   async manageDailyExerciseLog(
-    @Param('uxId') uxId: string,
+    @Param('exerciseId') uxId: string,
     @Body() body: ManageDailyExerciseDto,
   ) {
     return this.manageDailyProgramService.manageADailyExerciseLog(uxId, body);
