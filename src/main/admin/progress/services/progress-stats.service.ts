@@ -6,6 +6,7 @@ import {
 } from '@project/common/utils/response.util';
 import { PrismaService } from '@project/lib/prisma/prisma.service';
 import { getClientStats } from '../helper/client-stats.helper';
+import { computeProgramCompletionAdmin } from '../helper/program-completion.helper';
 import { getProgramStats } from '../helper/program-stats.helper';
 import { computeWorkoutStatsAdmin } from '../helper/workout-stats.helper';
 
@@ -23,25 +24,19 @@ export class ProgressStatsService {
       this.prisma,
       admin?.timezone || 'UTC',
     );
+    const programCompletion = await computeProgramCompletionAdmin(
+      this.prisma,
+      admin?.timezone || 'UTC',
+    );
 
-    const outPutData = {
-      clients,
-      programs,
-      workouts,
-      programCompletion: {
-        total: {
-          overallCompletionRate: '65%',
-          completionRateIncrementThisWeek: '5%',
-          completionRateIncrementThisMonth: '8%',
-        },
-        adherence: {
-          overallAdherenceRate: '70%',
-          adherenceRateThisWeek: '75%',
-          adherenceRateThisMonth: '72%',
-        },
+    return successResponse(
+      {
+        clients,
+        programs,
+        workouts,
+        programCompletion,
       },
-    };
-
-    return successResponse(outPutData, 'Progress stats fetched successfully');
+      'Progress stats fetched successfully',
+    );
   }
 }

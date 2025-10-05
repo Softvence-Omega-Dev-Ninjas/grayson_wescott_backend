@@ -37,15 +37,17 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
 
   // Ensure we return a meaningful error if no user
   handleRequest(err: any, user: any, info: any) {
-    this.logger.error(`Auth error: ${err}`);
-    this.logger.debug(`Auth info: ${JSON.stringify(info)}`);
-    this.logger.debug(`Auth user: ${JSON.stringify(user)}`);
+    if (info) {
+      this.logger.error(`Info: ${info}`);
+    }
     if (err) {
+      this.logger.error(`Auth error: ${err}`);
       throw err;
     }
     if (!user) {
       throw new UnauthorizedException('Unauthorized');
     }
+    this.logger.debug(`Auth user: ${JSON.stringify(user)}`);
     return user;
   }
 }
