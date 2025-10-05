@@ -89,6 +89,11 @@ export class AuthOtpService {
   async verifyOTP(dto: VerifyOTPDto): Promise<TResponse<any>> {
     const { email, phone, otp } = dto;
 
+    // if phone provide and it starts with + remove it
+    if (phone && phone.startsWith('+')) {
+      dto.phone = phone.slice(1);
+    }
+
     if (!email && !phone) {
       throw new AppError(400, 'Email or phone must be provided');
     }
@@ -134,6 +139,9 @@ export class AuthOtpService {
         lastLoginAt: new Date(),
         // Enable 2FA only if otp type is TFA
         isTwoFAEnabled: user.otpType === 'TFA' ? true : user.isTwoFAEnabled,
+        // Verify phone number if otp type is PHONE_VERIFICATION
+        isPhoneVerified:
+          user.otpType === 'PHONE_VERIFICATION' ? true : user.isPhoneVerified,
       },
     });
 

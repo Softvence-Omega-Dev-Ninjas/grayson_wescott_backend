@@ -30,6 +30,7 @@ model User {
   otpType      OtpType?
   otpExpiresAt DateTime?
   isVerified   Boolean   @default(false)
+  isPhoneVerified Boolean @default(false)
 
   // Reset password
   resetToken          String? // hashed reset token
@@ -106,5 +107,6 @@ enum TwoFAMethod {
 
 enum OtpType {
   VERIFICATION
+  PHONE_VERIFICATION
   TFA
 }

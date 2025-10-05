@@ -15,6 +15,7 @@ import {
 } from '../dto/password.dto';
 import { VerifySocialProviderOtpDto } from '../dto/provider.dto';
 import { RegisterDto } from '../dto/register.dto';
+import { SetPhoneDto } from '../dto/set-phone.dto';
 import { RequestTFA } from '../dto/tfa.dto';
 import { UpdateUserPreferencesDto } from '../dto/update-user-preferences.dto';
 import { VerifyTfaDto } from '../dto/verify-tfa.dto';
@@ -168,5 +169,16 @@ export class AuthController {
     @Body() body: UpdateUserPreferencesDto,
   ) {
     return this.updateProfileService.manageUserPreferences(userId, body);
+  }
+
+  @ApiOperation({ summary: 'Set Phone Number' })
+  @ApiBearerAuth()
+  @Post('set-phone-number')
+  @ValidateAuth()
+  async setPhoneNumber(
+    @GetUser('sub') userId: string,
+    @Body() body: SetPhoneDto,
+  ) {
+    return this.updateProfileService.setPhoneNumber(userId, body.phone);
   }
 }
