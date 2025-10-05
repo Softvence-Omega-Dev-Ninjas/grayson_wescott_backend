@@ -1,5 +1,20 @@
-import { Body, Controller, Get, Post } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Get,
+  Patch,
+  Post,
+  UploadedFile,
+  UseInterceptors,
+} from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import {
+  ApiBearerAuth,
+  ApiConsumes,
+  ApiOperation,
+  ApiTags,
+} from '@nestjs/swagger';
 import { GetUser, ValidateAuth } from '@project/common/jwt/jwt.decorator';
 import {
   FacebookLoginCompleteDto,
@@ -17,6 +32,7 @@ import { VerifySocialProviderOtpDto } from '../dto/provider.dto';
 import { RegisterDto } from '../dto/register.dto';
 import { SetPhoneDto } from '../dto/set-phone.dto';
 import { RequestTFA } from '../dto/tfa.dto';
+import { UpdateProfileDto } from '../dto/update-profile.dto';
 import { UpdateUserPreferencesDto } from '../dto/update-user-preferences.dto';
 import { VerifyTfaDto } from '../dto/verify-tfa.dto';
 import { AuthFacebookService } from '../services/auth-facebook.service';
@@ -180,5 +196,33 @@ export class AuthController {
     @Body() body: SetPhoneDto,
   ) {
     return this.updateProfileService.setPhoneNumber(userId, body.phone);
+  }
+
+  @ApiOperation({ summary: 'Update profile' })
+  @ApiBearerAuth()
+  @Patch(':id')
+  @ValidateAuth()
+  @ApiConsumes('multipart/form-data')
+  @UseInterceptors(
+    FileInterceptor('image', {
+      limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB Max
+      fileFilter: (req, file, callback) => {
+        // Accept only image mimetype
+        if (!file.mimetype.startsWith('image/')) {
+          return callback(
+            new BadRequestException('Only image files are allowed!'),
+            false,
+          );
+        }
+        callback(null, true);
+      },
+    }),
+  )
+  update(
+    @GetUser('sub') id: string,
+    @Body() dto: UpdateProfileDto,
+    @UploadedFile() file?: Express.Multer.File,
+  ) {
+    return this.updateProfileService.updateProfile(id, dto, file);
   }
 }

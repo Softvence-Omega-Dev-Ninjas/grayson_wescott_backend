@@ -9,6 +9,8 @@ import {
 import { PrismaService } from '@project/lib/prisma/prisma.service';
 import { TwilioService } from '@project/lib/twilio/twilio.service';
 import { UtilsService } from '@project/lib/utils/utils.service';
+import { S3Service } from '@project/main/s3/s3.service';
+import { UpdateProfileDto } from '../dto/update-profile.dto';
 import { UpdateUserPreferencesDto } from '../dto/update-user-preferences.dto';
 
 @Injectable()
@@ -17,6 +19,7 @@ export class UpdateProfileService {
     private readonly prisma: PrismaService,
     private readonly utils: UtilsService,
     private readonly twilio: TwilioService,
+    private readonly s3: S3Service,
   ) {}
 
   @HandleError('Failed to update user preferences', 'User')
@@ -126,6 +129,44 @@ export class UpdateProfileService {
     return successResponse(
       { phone: phoneNumber },
       'OTP sent to the new phone number for verification',
+    );
+  }
+
+  @HandleError('Failed to update profile', 'User')
+  async updateProfile(
+    userId: string,
+    dto: UpdateProfileDto,
+    file?: Express.Multer.File,
+  ) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      throw new AppError(404, 'User not found');
+    }
+
+    // * if image is provided, upload to S3 and get the URL
+    let imageUrl: string | undefined;
+    if (file) {
+      const uploadResult = await this.s3.uploadFiles([file]);
+      if (!uploadResult.success) {
+        throw new AppError(500, 'Failed to upload image');
+      }
+
+      imageUrl = uploadResult.data.files[0].url;
+    }
+
+    const updatedUser = await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        name: dto.name?.trim() ? dto.name.trim() : user.name,
+        avatarUrl: imageUrl ? imageUrl : user.avatarUrl,
+      },
+    });
+    return successResponse(
+      this.utils.sanitizedResponse(UserResponseDto, updatedUser),
+      'Profile updated successfully',
     );
   }
 }

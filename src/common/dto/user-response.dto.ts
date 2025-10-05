@@ -31,6 +31,9 @@ export class UserResponseDto {
   isVerified: boolean;
 
   @Expose()
+  isPhoneVerified: boolean;
+
+  @Expose()
   isLoggedIn: boolean;
 
   @Expose()
