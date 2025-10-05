@@ -9,6 +9,7 @@ import { getClientStats } from '../helper/client-stats.helper';
 import { computeLoadProgression } from '../helper/load-progression.helper';
 import { computeProgramCompletionAdmin } from '../helper/program-completion.helper';
 import { getProgramStats } from '../helper/program-stats.helper';
+import { getLastNDaysRpeTrends } from '../helper/rpe-trends.helper';
 import { computeWorkoutStatsAdmin } from '../helper/workout-stats.helper';
 
 @Injectable()
@@ -33,6 +34,7 @@ export class ProgressStatsService {
       this.prisma,
       admin?.timezone || 'UTC',
     );
+    const rpeTrends = await getLastNDaysRpeTrends(this.prisma);
 
     const data = {
       stats: {
@@ -43,6 +45,7 @@ export class ProgressStatsService {
       },
       graph: {
         loadProgression,
+        rpeTrends,
       },
     };
 
