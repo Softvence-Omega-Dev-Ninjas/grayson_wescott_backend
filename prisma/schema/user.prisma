@@ -19,7 +19,11 @@ model User {
   lastLogoutAt DateTime?
 
   // timezone
-  timezone String @default("UTC")
+  timezone String @default("UTC") // e.g., "America/New_York"
+
+  // Messaging Preferences
+  allowDirectMessages Boolean @default(true)
+  allowEmailMessages  Boolean @default(true)
 
   // OTP / Verification OR TFA
   otp          String? // hashed OTP

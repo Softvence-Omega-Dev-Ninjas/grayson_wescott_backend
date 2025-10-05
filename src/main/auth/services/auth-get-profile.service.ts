@@ -39,6 +39,7 @@ export class AuthGetProfileService {
         privateConversationParticipant: true,
         privateMessage: true,
         privateMessageStatus: true,
+        userPrograms: true,
       },
     });
 
@@ -55,6 +56,7 @@ export class AuthGetProfileService {
       privateConversationParticipant,
       privateMessage,
       privateMessageStatus,
+      userPrograms,
       ...mainUser
     } = user;
 
@@ -73,6 +75,7 @@ export class AuthGetProfileService {
       privateConversationParticipant,
       privateMessage,
       privateMessageStatus,
+      userPrograms,
     };
 
     return successResponse(data, 'User data fetched successfully');

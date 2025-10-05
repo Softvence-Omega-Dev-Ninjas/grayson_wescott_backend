@@ -16,6 +16,7 @@ import {
 import { VerifySocialProviderOtpDto } from '../dto/provider.dto';
 import { RegisterDto } from '../dto/register.dto';
 import { RequestTFA } from '../dto/tfa.dto';
+import { UpdateUserPreferencesDto } from '../dto/update-user-preferences.dto';
 import { VerifyTfaDto } from '../dto/verify-tfa.dto';
 import { AuthFacebookService } from '../services/auth-facebook.service';
 import { AuthGetProfileService } from '../services/auth-get-profile.service';
@@ -25,6 +26,7 @@ import { AuthOtpService } from '../services/auth-otp.service';
 import { AuthPasswordService } from '../services/auth-password.service';
 import { AuthRegisterService } from '../services/auth-register.service';
 import { AuthTfaService } from '../services/auth-tfa.service';
+import { UpdateProfileService } from '../services/update-profile.service';
 import { AuthLogoutService } from './../services/auth-logout.service';
 
 @ApiTags('Auth')
@@ -40,6 +42,7 @@ export class AuthController {
     private readonly authPasswordService: AuthPasswordService,
     private readonly authTfaService: AuthTfaService,
     private readonly authGetProfileService: AuthGetProfileService,
+    private readonly updateProfileService: UpdateProfileService,
   ) {}
 
   @ApiOperation({ summary: 'User Registration with Email' })
@@ -154,5 +157,16 @@ export class AuthController {
   @ValidateAuth()
   async getProfile(@GetUser('sub') userId: string) {
     return this.authGetProfileService.getProfile(userId);
+  }
+
+  @ApiOperation({ summary: 'Update User Preferences' })
+  @ApiBearerAuth()
+  @Post('update-preferences')
+  @ValidateAuth()
+  async updatePreferences(
+    @GetUser('sub') userId: string,
+    @Body() body: UpdateUserPreferencesDto,
+  ) {
+    return this.updateProfileService.manageUserPreferences(userId, body);
   }
 }

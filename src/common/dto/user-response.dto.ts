@@ -40,6 +40,15 @@ export class UserResponseDto {
   twoFAMethod?: string;
 
   @Expose()
+  timezone: string;
+
+  @Expose()
+  allowDirectMessages: boolean;
+
+  @Expose()
+  allowEmailMessages: boolean;
+
+  @Expose()
   createdAt: Date;
 
   @Expose()
