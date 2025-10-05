@@ -1,7 +1,7 @@
 export enum EventsEnum {
   // === Generic status events ===
-  ERROR = 'private:error', // Server -> Client: operation failed
-  SUCCESS = 'private:success', // Server -> Client: operation succeeded
+  ERROR = 'error', // Server -> Client: operation failed
+  SUCCESS = 'success', // Server -> Client: operation succeeded
 
   // === Messaging events ===
   SEND_MESSAGE_CLIENT = 'private:send_message_client', // Client -> Server: send new message by client to admins
