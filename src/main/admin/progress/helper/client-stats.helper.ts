@@ -6,7 +6,11 @@ export async function getClientStats(prisma: PrismaClient) {
   const startOfWeek = now.startOf('week').toJSDate();
   const startOfMonth = now.startOf('month').toJSDate();
 
-  const activeClients = await prisma.user.count();
+  const totalClients = await prisma.user.count({ where: { role: 'USER' } });
+
+  const activeClients = await prisma.user.count({
+    where: { role: 'USER', status: 'ACTIVE' },
+  });
 
   const addedThisMonth = await prisma.user.count({
     where: { createdAt: { gte: startOfMonth } },
@@ -17,6 +21,7 @@ export async function getClientStats(prisma: PrismaClient) {
   });
 
   return {
+    totalClients,
     activeClients,
     addedThisMonth,
     addedThisWeek,

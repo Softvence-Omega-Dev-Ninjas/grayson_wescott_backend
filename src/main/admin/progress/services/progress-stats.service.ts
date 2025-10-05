@@ -6,6 +6,7 @@ import {
 } from '@project/common/utils/response.util';
 import { PrismaService } from '@project/lib/prisma/prisma.service';
 import { getClientStats } from '../helper/client-stats.helper';
+import { computeLoadProgression } from '../helper/load-progression.helper';
 import { computeProgramCompletionAdmin } from '../helper/program-completion.helper';
 import { getProgramStats } from '../helper/program-stats.helper';
 import { computeWorkoutStatsAdmin } from '../helper/workout-stats.helper';
@@ -28,15 +29,23 @@ export class ProgressStatsService {
       this.prisma,
       admin?.timezone || 'UTC',
     );
+    const loadProgression = await computeLoadProgression(
+      this.prisma,
+      admin?.timezone || 'UTC',
+    );
 
-    return successResponse(
-      {
+    const data = {
+      stats: {
         clients,
         programs,
         workouts,
         programCompletion,
       },
-      'Progress stats fetched successfully',
-    );
+      graph: {
+        loadProgression,
+      },
+    };
+
+    return successResponse(data, 'Progress stats fetched successfully');
   }
 }
