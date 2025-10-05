@@ -39,7 +39,7 @@ export class ProgressTrackingService {
       include: {
         program: {
           include: {
-            exercises: true, // <-- template exercises (dayOfWeek, duration, reps, sets, etc.)
+            exercises: true, // template exercises (dayOfWeek, duration, reps, sets, etc.)
           },
         },
         userProgramExercise: {
@@ -51,18 +51,17 @@ export class ProgressTrackingService {
     const totalPrograms = userPrograms.length;
 
     // 3) globals
-    let totalAssignedExercises = 0; // total assigned (from templates)
+    let totalAssignedExercises = 0; // total planned across whole program (template * weeks)
     let totalCompletedExercises = 0; // completed logs
-    let scheduledExercisesToDate = 0; // computed from template calendar
-    let plannedLoadToDate = 0; // minutes planned from template calendar
+    let scheduledExercisesToDate = 0; // computed from template calendar up-to-today
+    let plannedLoadToDate = 0; // minutes planned from template calendar up-to-today
     let completedLoadToDate = 0; // minutes from completed logs
     let estimatedVolumeCompleted = 0; // sum reps*sets from completed logs (when both exist)
 
-    // helper: map Luxon weekday (1=Mon..7=Sun) to your DayOfWeek enum string
+    // helper: map Luxon weekday (1=Mon..7=Sun) to DayOfWeek enum string
     const weekdayToEnum = (weekday: number) => {
-      // Luxon: 1..7 (Mon..Sun)
       const map = [
-        '', // placeholder index 0
+        '', // 0
         'MONDAY',
         'TUESDAY',
         'WEDNESDAY',
@@ -83,34 +82,37 @@ export class ProgressTrackingService {
 
     // 4) per-program computation
     for (const up of userPrograms) {
-      // program meta & template exercises
       const program = up.program;
       const templateExercises = program?.exercises ?? [];
-      const programWeeks = program?.duration ?? 0;
-      const programTotalDays = Math.max(0, programWeeks * 7);
+      const templateCountPerWeek = templateExercises.length;
+
+      // program duration in weeks; if missing or 0, treat as 1 week (safe default)
+      const programWeeks =
+        program?.duration && program.duration > 0 ? program.duration : 1;
+      const programTotalDays = programWeeks * 7;
 
       // timezone-aware start date
       const startDate = DateTime.fromJSDate(up.startDate).setZone(userTimezone);
+
+      // how many calendar days passed since start (1-based dayNumberNow)
       const diffDays = now
         .startOf('day')
         .diff(startDate.startOf('day'), 'days').days;
-      const dayNumberNow = diffDays >= 0 ? Math.floor(diffDays) + 1 : 0; // 1-based; 0 means not started
-      const daysToCount =
-        dayNumberNow > 0
-          ? Math.min(dayNumberNow, programTotalDays || dayNumberNow)
-          : 0;
+      const dayNumberNow = diffDays >= 0 ? Math.floor(diffDays) + 1 : 0; // 0 => not started
 
-      // --- scheduledExercisesToDate & plannedLoadToDate come from the template calendar ---
+      // days to consider for scheduling (capped by programTotalDays)
+      const daysToCount =
+        dayNumberNow > 0 ? Math.min(dayNumberNow, programTotalDays) : 0;
+
+      // --- scheduledExercisesToDate & plannedLoadToDate from template calendar ---
       let scheduledCountForProgram = 0;
       let plannedLoadForProgram = 0;
 
-      // iterate each calendar day from startDate for daysToCount days
       for (let offset = 0; offset < daysToCount; offset++) {
         const date = startDate.plus({ days: offset });
-        const weekdayEnum = weekdayToEnum(date.weekday); // MONDAY..SUNDAY
+        const weekdayEnum = weekdayToEnum(date.weekday);
 
-        // count template exercises that match this weekday
-        // note: multiple exercises can be scheduled on same weekday
+        // count template exercises scheduled for this weekday
         for (const te of templateExercises) {
           if (!te || !te.dayOfWeek) continue;
           if (te.dayOfWeek === weekdayEnum) {
@@ -120,8 +122,10 @@ export class ProgressTrackingService {
         }
       }
 
+      // --- total planned across whole program (templateCountPerWeek * weeks) ---
+      const totalPlannedForProgram = templateCountPerWeek * programWeeks;
+
       // --- completed & completedLoad come from user logs (actual performed items) ---
-      const assignedExercise = up.program.exercises ?? [];
       const assignedLogs = up.userProgramExercise ?? [];
       const completedLogs = assignedLogs.filter(
         (e) => e.status === 'COMPLETED',
@@ -139,8 +143,8 @@ export class ProgressTrackingService {
         return s + (reps > 0 && sets > 0 ? reps * sets : 0);
       }, 0);
 
-      // accumulate to globals
-      totalAssignedExercises += assignedExercise.length;
+      // 5) accumulate to globals
+      totalAssignedExercises += totalPlannedForProgram;
       totalCompletedExercises += completedCountForProgram;
       scheduledExercisesToDate += scheduledCountForProgram;
       plannedLoadToDate += plannedLoadForProgram;
@@ -148,20 +152,33 @@ export class ProgressTrackingService {
       estimatedVolumeCompleted += volCompletedForProgram;
     }
 
-    // 5) derived metrics & guards
+    // 6) derived metrics & guards (cap percentages 0..100)
     const overallCompletionPercent =
       totalAssignedExercises > 0
-        ? Math.round((totalCompletedExercises / totalAssignedExercises) * 100)
+        ? Math.min(
+            100,
+            Math.round(
+              (totalCompletedExercises / totalAssignedExercises) * 100,
+            ),
+          )
         : 0;
 
     const adherencePercent =
       scheduledExercisesToDate > 0
-        ? Math.round((totalCompletedExercises / scheduledExercisesToDate) * 100)
+        ? Math.min(
+            100,
+            Math.round(
+              (totalCompletedExercises / scheduledExercisesToDate) * 100,
+            ),
+          )
         : 0;
 
     const loadCompletionPercent =
       plannedLoadToDate > 0
-        ? Math.round((completedLoadToDate / plannedLoadToDate) * 100)
+        ? Math.min(
+            100,
+            Math.round((completedLoadToDate / plannedLoadToDate) * 100),
+          )
         : 0;
 
     const averageSessionDuration =
@@ -169,15 +186,13 @@ export class ProgressTrackingService {
         ? Math.round(completedLoadToDate / totalCompletedExercises)
         : 0;
 
-    // 6) synchronized response
+    // 7) build final synchronized response
     const exercises = {
-      target:
-        scheduledExercisesToDate +
-        (totalAssignedExercises - totalCompletedExercises), // scheduled to date + future assigned (approx)
+      target: totalAssignedExercises,
       completed: totalCompletedExercises,
       percent: overallCompletionPercent,
       unit: 'exercises',
-      label: `${totalCompletedExercises} done`,
+      label: `${totalCompletedExercises}/${totalAssignedExercises} done`,
     };
 
     const load = {
@@ -206,7 +221,8 @@ export class ProgressTrackingService {
 
     const formatted = {
       totalPrograms,
-      trainingCompleted: totalCompletedExercises,
+      totalPlannedExercises: totalAssignedExercises,
+      trainingCompletedExercises: totalCompletedExercises,
       adherenceRate: adherencePercent,
       averageSessionDurationMins: averageSessionDuration,
       estimatedVolumeCompleted,
