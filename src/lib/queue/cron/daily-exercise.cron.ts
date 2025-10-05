@@ -18,9 +18,9 @@ export class DailyExerciseCron {
     private readonly eventEmitter: EventEmitter2,
   ) {}
 
-  // @Cron(CronExpression.EVERY_10_SECONDS) // For testing, change to every 10 seconds
+  @Cron(CronExpression.EVERY_10_SECONDS) // For testing, change to every 10 seconds
   // Runs every ten hours
-  @Cron(CronExpression.EVERY_10_HOURS) // For production, uncomment this line
+  // @Cron(CronExpression.EVERY_10_HOURS) // For production, uncomment this line
   async handleDailyExercises() {
     this.logger.log('Enqueueing daily exercise jobs (producer)...');
 
