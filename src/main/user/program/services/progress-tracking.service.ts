@@ -11,17 +11,9 @@ import { DateTime } from 'luxon';
 export class ProgressTrackingService {
   constructor(private readonly prisma: PrismaService) {}
 
-  /**
-   * Progress across all assigned programs for a user.
-   * Uses only fields available in ProgramExercise & UserProgramExercise:
-   * - duration (minutes)
-   * - reps, sets (optional) -> used to calculate estimated volume when available
-   *
-   * Returns minutes for trainingCompleted because schema lacks weight/PR data.
-   */
   @HandleError('Failed to get user progress', 'USER_PROGRAM')
   async getUserProgress(userId: string): Promise<TResponse<any>> {
-    // load user for timezone fallback
+    // 1) load user (for timezone)
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
       select: {
@@ -41,111 +33,130 @@ export class ProgressTrackingService {
     const userTimezone = user.timezone || 'UTC';
     const now = DateTime.now().setZone(userTimezone);
 
-    // Load all user programs with exercises + program meta
+    // 2) load all assigned programs with their userProgramExercise rows & program template exercises
     const userPrograms = await this.prisma.userProgram.findMany({
       where: { userId },
       include: {
-        program: { select: { id: true, name: true, duration: true } },
+        program: {
+          include: {
+            exercises: true, // <-- template exercises (dayOfWeek, duration, reps, sets, etc.)
+          },
+        },
         userProgramExercise: {
-          include: { programExercise: true }, // for duration / reps / sets
+          include: { programExercise: true }, // actual user logs (may be missing until created)
         },
       },
     });
 
     const totalPrograms = userPrograms.length;
 
-    // Global aggregates
-    let totalAssignedExercises = 0;
-    let totalCompletedExercises = 0;
-    let scheduledToDate = 0; // exercises that should have been done up-to-today across all programs
-    let plannedLoadToDate = 0; // sum of planned durations (mins) for scheduledToDate
-    let completedLoadToDate = 0; // sum of durations (mins) for completed exercises
-    let estimatedVolumeCompleted = 0; // sum of reps * sets for completed exercises where both exist
+    // 3) globals
+    let totalAssignedExercises = 0; // total assigned (from templates)
+    let totalCompletedExercises = 0; // completed logs
+    let scheduledExercisesToDate = 0; // computed from template calendar
+    let plannedLoadToDate = 0; // minutes planned from template calendar
+    let completedLoadToDate = 0; // minutes from completed logs
+    let estimatedVolumeCompleted = 0; // sum reps*sets from completed logs (when both exist)
 
-    const programSummaries: Array<any> = [];
+    // helper: map Luxon weekday (1=Mon..7=Sun) to your DayOfWeek enum string
+    const weekdayToEnum = (weekday: number) => {
+      // Luxon: 1..7 (Mon..Sun)
+      const map = [
+        '', // placeholder index 0
+        'MONDAY',
+        'TUESDAY',
+        'WEDNESDAY',
+        'THURSDAY',
+        'FRIDAY',
+        'SATURDAY',
+        'SUNDAY',
+      ];
+      return map[weekday] as
+        | 'MONDAY'
+        | 'TUESDAY'
+        | 'WEDNESDAY'
+        | 'THURSDAY'
+        | 'FRIDAY'
+        | 'SATURDAY'
+        | 'SUNDAY';
+    };
 
+    // 4) per-program computation
     for (const up of userPrograms) {
-      const programWeeks = up.program?.duration ?? 0;
+      // program meta & template exercises
+      const program = up.program;
+      const templateExercises = program?.exercises ?? [];
+      const programWeeks = program?.duration ?? 0;
       const programTotalDays = Math.max(0, programWeeks * 7);
 
+      // timezone-aware start date
       const startDate = DateTime.fromJSDate(up.startDate).setZone(userTimezone);
       const diffDays = now
         .startOf('day')
         .diff(startDate.startOf('day'), 'days').days;
-      const dayNumberNow = diffDays >= 0 ? Math.floor(diffDays) + 1 : 0; // 1-based or 0 if not started
-      const daysElapsedCapped =
-        programTotalDays > 0
-          ? Math.min(Math.max(dayNumberNow, 0), programTotalDays)
+      const dayNumberNow = diffDays >= 0 ? Math.floor(diffDays) + 1 : 0; // 1-based; 0 means not started
+      const daysToCount =
+        dayNumberNow > 0
+          ? Math.min(dayNumberNow, programTotalDays || dayNumberNow)
           : 0;
 
-      const assigned = up.userProgramExercise.length;
-      const completed = up.userProgramExercise.filter(
+      // --- scheduledExercisesToDate & plannedLoadToDate come from the template calendar ---
+      let scheduledCountForProgram = 0;
+      let plannedLoadForProgram = 0;
+
+      // iterate each calendar day from startDate for daysToCount days
+      for (let offset = 0; offset < daysToCount; offset++) {
+        const date = startDate.plus({ days: offset });
+        const weekdayEnum = weekdayToEnum(date.weekday); // MONDAY..SUNDAY
+
+        // count template exercises that match this weekday
+        // note: multiple exercises can be scheduled on same weekday
+        for (const te of templateExercises) {
+          if (!te || !te.dayOfWeek) continue;
+          if (te.dayOfWeek === weekdayEnum) {
+            scheduledCountForProgram += 1;
+            plannedLoadForProgram += te.duration ?? 0;
+          }
+        }
+      }
+
+      // --- completed & completedLoad come from user logs (actual performed items) ---
+      const assignedExercise = up.program.exercises ?? [];
+      const assignedLogs = up.userProgramExercise ?? [];
+      const completedLogs = assignedLogs.filter(
         (e) => e.status === 'COMPLETED',
-      ).length;
+      );
 
-      // scheduledToDate for this program: exercises with dayNumber <= dayNumberNow
-      const scheduled = up.userProgramExercise.filter(
-        (e) => dayNumberNow > 0 && e.dayNumber <= dayNumberNow,
-      ).length;
+      const completedCountForProgram = completedLogs.length;
+      const completedLoadForProgram = completedLogs.reduce(
+        (s, e) => s + (e.programExercise?.duration ?? 0),
+        0,
+      );
 
-      // planned load to date: sum durations for scheduled exercises (duration may be null)
-      const plannedLoad = up.userProgramExercise
-        .filter((e) => dayNumberNow > 0 && e.dayNumber <= dayNumberNow)
-        .reduce((sum, e) => sum + (e.programExercise?.duration ?? 0), 0);
+      const volCompletedForProgram = completedLogs.reduce((s, e) => {
+        const reps = e.programExercise?.reps ?? 0;
+        const sets = e.programExercise?.sets ?? 0;
+        return s + (reps > 0 && sets > 0 ? reps * sets : 0);
+      }, 0);
 
-      // completed load: sum durations for completed exercises
-      const completedLoad = up.userProgramExercise
-        .filter((e) => e.status === 'COMPLETED')
-        .reduce((sum, e) => sum + (e.programExercise?.duration ?? 0), 0);
-
-      // estimated volume from reps * sets for completed exercises (only when both present)
-      const volCompleted = up.userProgramExercise
-        .filter((e) => e.status === 'COMPLETED' && e.programExercise)
-        .reduce((sum, e) => {
-          const reps = e.programExercise?.reps ?? 0;
-          const sets = e.programExercise?.sets ?? 0;
-          if (reps > 0 && sets > 0) return sum + reps * sets;
-          return sum;
-        }, 0);
-
-      // accumulate global totals
-      totalAssignedExercises += assigned;
-      totalCompletedExercises += completed;
-      scheduledToDate += scheduled;
-      plannedLoadToDate += plannedLoad;
-      completedLoadToDate += completedLoad;
-      estimatedVolumeCompleted += volCompleted;
-
-      programSummaries.push({
-        userProgramId: up.id,
-        programId: up.program?.id ?? null,
-        programName: up.program?.name ?? null,
-        programDurationWeeks: programWeeks,
-        assignedExercises: assigned,
-        completedExercises: completed,
-        scheduledToDate: scheduled,
-        plannedLoadToDate: plannedLoad,
-        completedLoadToDate: completedLoad,
-        estimatedVolumeCompleted: volCompleted, // reps * sets
-        dayNumberNow,
-        daysElapsed: daysElapsedCapped,
-        daysRemaining:
-          programTotalDays > 0
-            ? Math.max(programTotalDays - daysElapsedCapped, 0)
-            : null,
-        status: up.status,
-      });
+      // accumulate to globals
+      totalAssignedExercises += assignedExercise.length;
+      totalCompletedExercises += completedCountForProgram;
+      scheduledExercisesToDate += scheduledCountForProgram;
+      plannedLoadToDate += plannedLoadForProgram;
+      completedLoadToDate += completedLoadForProgram;
+      estimatedVolumeCompleted += volCompletedForProgram;
     }
 
-    // derived metrics (safe / guarded)
+    // 5) derived metrics & guards
     const overallCompletionPercent =
       totalAssignedExercises > 0
         ? Math.round((totalCompletedExercises / totalAssignedExercises) * 100)
         : 0;
 
-    const adherenceRate =
-      scheduledToDate > 0
-        ? Math.round((totalCompletedExercises / scheduledToDate) * 100)
+    const adherencePercent =
+      scheduledExercisesToDate > 0
+        ? Math.round((totalCompletedExercises / scheduledExercisesToDate) * 100)
         : 0;
 
     const loadCompletionPercent =
@@ -153,45 +164,70 @@ export class ProgressTrackingService {
         ? Math.round((completedLoadToDate / plannedLoadToDate) * 100)
         : 0;
 
-    // average session duration (mins) for completed sessions
-    const completedSessionsCount = totalCompletedExercises;
     const averageSessionDuration =
-      completedSessionsCount > 0
-        ? Math.round(completedLoadToDate / completedSessionsCount)
+      totalCompletedExercises > 0
+        ? Math.round(completedLoadToDate / totalCompletedExercises)
         : 0;
 
-    // format trainingCompleted similar to UI: show numeric and human-friendly label
-    const trainingCompleted = {
-      value: completedLoadToDate,
+    // 6) synchronized response
+    const exercises = {
+      target:
+        scheduledExercisesToDate +
+        (totalAssignedExercises - totalCompletedExercises), // scheduled to date + future assigned (approx)
+      completed: totalCompletedExercises,
+      percent: overallCompletionPercent,
+      unit: 'exercises',
+      label: `${totalCompletedExercises} done`,
+    };
+
+    const load = {
+      target: plannedLoadToDate,
+      completed: completedLoadToDate,
+      percent: loadCompletionPercent,
       unit: 'mins',
-      label: `${completedLoadToDate} mins`,
+      label: `${this.formatMinutes(completedLoadToDate)} done`,
+    };
+
+    const exercisesAdherence = {
+      scheduled: scheduledExercisesToDate,
+      completed: totalCompletedExercises,
+      percent: adherencePercent,
+      unit: 'exercises',
+      label: `${adherencePercent}% adherence`,
+    };
+
+    const loadAdherence = {
+      planned: plannedLoadToDate,
+      completed: completedLoadToDate,
+      percent: loadCompletionPercent,
+      unit: 'mins',
+      label: `${loadCompletionPercent}% of planned`,
     };
 
     const formatted = {
+      totalPrograms,
+      trainingCompleted: totalCompletedExercises,
+      adherenceRate: adherencePercent,
+      averageSessionDurationMins: averageSessionDuration,
+      estimatedVolumeCompleted,
       summary: {
-        totalPrograms,
-        scheduledToDate, // exercises that should have been done up-to-today
-        trainingCompleted, // minutes-based
-        trainingPlannedToDate: {
-          value: plannedLoadToDate,
-          unit: 'mins',
-          label: `${plannedLoadToDate} mins`,
-        },
-        exercise: {
-          totalAssignedExercises,
-          totalCompletedExercises,
-          overallCompletionPercent,
-        },
-        adherenceRate, // completed / scheduled-to-date
-        plannedLoadToDate,
-        completedLoadToDate,
-        loadCompletionPercent,
-        averageSessionDuration, // mins per completed session
-        estimatedVolumeCompleted, // naive reps*sets sum when available
+        exercises,
+        load,
+        exercisesAdherence,
+        loadAdherence,
       },
-      programSummaries,
     };
 
     return successResponse(formatted, 'User progress retrieved successfully');
+  }
+
+  // Helper: convert minutes into "H hrs M mins" (or "Xm" when <60)
+  private formatMinutes(mins: number) {
+    if (!mins || mins <= 0) return '0 mins';
+    const hours = Math.floor(mins / 60);
+    const minutes = mins % 60;
+    if (hours === 0) return `${minutes} mins`;
+    if (minutes === 0) return `${hours} hrs`;
+    return `${hours} hrs ${minutes} mins`;
   }
 }
