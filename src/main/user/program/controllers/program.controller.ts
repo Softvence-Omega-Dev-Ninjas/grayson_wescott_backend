@@ -42,7 +42,7 @@ export class ProgramController {
   }
 
   @ApiOperation({ summary: 'Get User Progress' })
-  @Get('progress')
+  @Get('progress/tracking')
   async getUserProgress(@GetUser('sub') userId: string) {
     return this.progressTrackingService.getUserProgress(userId);
   }

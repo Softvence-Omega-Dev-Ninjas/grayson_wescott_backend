@@ -58,6 +58,7 @@ export class ProgressTrackingService {
     let plannedLoadToDate = 0; // minutes planned from template calendar up-to-today
     let completedLoadToDate = 0; // minutes from completed logs
     let estimatedVolumeCompleted = 0; // sum reps*sets from completed logs (when both exist)
+    let plannedVolumeToDate = 0; // sum reps*sets from template calendar up-to-today (when both exist)
 
     // helper: map Luxon weekday (1=Mon..7=Sun) to DayOfWeek enum string
     const weekdayToEnum = (weekday: number) => {
@@ -119,6 +120,11 @@ export class ProgressTrackingService {
           if (te.dayOfWeek === weekdayEnum) {
             scheduledCountForProgram += 1;
             plannedLoadForProgram += te.duration ?? 0;
+
+            // estimated volume from template if sets & reps exist
+            if (te.sets && te.reps) {
+              plannedVolumeToDate += te.sets * te.reps;
+            }
           }
         }
       }
@@ -187,6 +193,19 @@ export class ProgressTrackingService {
         ? Math.round(completedLoadToDate / totalCompletedExercises)
         : 0;
 
+    const volumeAdherencePercent =
+      plannedVolumeToDate > 0
+        ? Math.min(
+            100,
+            Math.round((estimatedVolumeCompleted / plannedVolumeToDate) * 100),
+          )
+        : 0;
+
+    const avgVolumePerSession =
+      totalCompletedExercises > 0
+        ? Math.round(estimatedVolumeCompleted / totalCompletedExercises)
+        : 0;
+
     // 7) build final synchronized response
     const exercises = {
       target: totalAssignedExercises,
@@ -220,6 +239,22 @@ export class ProgressTrackingService {
       label: `${loadCompletionPercent}% of planned`,
     };
 
+    const volume = {
+      planned: plannedVolumeToDate,
+      completed: estimatedVolumeCompleted,
+      percent: volumeAdherencePercent,
+      unit: 'reps', // reps-based volume
+      label: `${estimatedVolumeCompleted}/${plannedVolumeToDate} reps`,
+    };
+
+    const volumeAdherence = {
+      planned: plannedVolumeToDate,
+      completed: estimatedVolumeCompleted,
+      percent: volumeAdherencePercent,
+      unit: 'reps',
+      label: `${volumeAdherencePercent}% of planned`,
+    };
+
     const formatted = {
       totalPrograms,
       totalPlannedExercises: totalAssignedExercises,
@@ -229,9 +264,11 @@ export class ProgressTrackingService {
       estimatedVolumeCompleted,
       summary: {
         exercises,
-        load,
         exercisesAdherence,
+        load,
         loadAdherence,
+        volume,
+        volumeAdherence,
       },
     };
 
