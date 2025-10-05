@@ -1,6 +1,6 @@
 import { Controller, Get } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { ValidateAdmin } from '@project/common/jwt/jwt.decorator';
+import { GetUser, ValidateAdmin } from '@project/common/jwt/jwt.decorator';
 import { ProgressStatsService } from './services/progress-stats.service';
 
 @ApiTags('Admin --- Progress Tracking')
@@ -12,7 +12,7 @@ export class ProgressController {
 
   @ApiOperation({ summary: 'Get progress stats' })
   @Get('stats')
-  async getStats() {
-    return this.progressStatsService.getProgressStats();
+  async getStats(@GetUser('sub') adminId: string) {
+    return this.progressStatsService.getProgressStats(adminId);
   }
 }
