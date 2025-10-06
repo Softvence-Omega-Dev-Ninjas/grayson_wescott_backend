@@ -1,7 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { UserResponseDto } from '@project/common/dto/user-response.dto';
 import { HandleError } from '@project/common/error/handle-error.decorator';
-import { successResponse, TResponse } from '@project/common/utils/response.util';
+import {
+  successResponse,
+  TResponse,
+} from '@project/common/utils/response.util';
 import { PrismaService } from '@project/lib/prisma/prisma.service';
 import { UtilsService } from '@project/lib/utils/utils.service';
 import { AddAdminDto } from '../dto/add-admin.dto';
