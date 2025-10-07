@@ -15,16 +15,13 @@ export class ProgramService {
 
   @HandleError('Failed to get programs', 'PROGRAMS')
   async getPrograms(dto: GetProgramsDto): Promise<TPaginatedResponse<any>> {
-    const { page = 1, limit = 10, search, categories, userId, status } = dto;
+    const { page = 1, limit = 10, search, category, userId, status } = dto;
 
+    // Build the base where clause
     const where: any = {};
 
     if (search) {
       where.name = { contains: search, mode: 'insensitive' };
-    }
-
-    if (categories && categories.length > 0) {
-      where.categories = { hasSome: categories };
     }
 
     if (status) {
@@ -33,6 +30,13 @@ export class ProgramService {
 
     if (userId) {
       where.userPrograms = { some: { userId } };
+    }
+
+    // Handle category filter via join table
+    if (category) {
+      where.programCategories = {
+        some: { categoryId: category },
+      };
     }
 
     const [total, programs] = await this.prisma.$transaction([
@@ -58,6 +62,11 @@ export class ProgramService {
               },
             },
           },
+          programCategories: {
+            include: {
+              category: true,
+            },
+          },
         },
       }),
     ]);
@@ -79,6 +88,11 @@ export class ProgramService {
       where: { id },
       include: {
         exercises: true,
+        programCategories: {
+          include: {
+            category: true,
+          },
+        },
         userPrograms: {
           include: {
             user: {

@@ -1,5 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { ExerciseCategory, ProgramStatus } from '@prisma/client';
+import { ProgramStatus } from '@prisma/client';
 import { Type } from 'class-transformer';
 import {
   ArrayNotEmpty,
@@ -32,13 +32,16 @@ export class UpdateProgramDto {
   description?: string;
 
   @ApiPropertyOptional({
-    example: [ExerciseCategory.CARDIO, ExerciseCategory.STRENGTH],
-    enum: ExerciseCategory,
+    example: [
+      '550e8400-e29b-41d4-a716-446655440000',
+      '123e4567-e89b-12d3-a456-426614174000',
+    ],
+    description: 'Category UUID',
   })
   @IsOptional()
   @IsArray()
-  @IsEnum(ExerciseCategory, { each: true })
-  categories?: ExerciseCategory[];
+  @IsUUID('all', { each: true })
+  categories?: string[];
 
   @ApiPropertyOptional({ example: 'This is my program' })
   @IsOptional()
@@ -88,5 +91,6 @@ export class UpdateProgramDto {
   })
   @IsOptional()
   @IsArray()
+  @IsUUID('all', { each: true })
   userIds?: string[];
 }

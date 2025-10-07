@@ -24,26 +24,41 @@ export class UpdateProgramService {
     // Check if program exists
     const program = await this.prisma.program.findUniqueOrThrow({
       where: { id },
-      include: { exercises: true, userPrograms: true },
+      include: {
+        exercises: true,
+        userPrograms: true,
+        programCategories: true,
+      },
     });
 
     // Validate users
-    const users = await this.prisma.user.findMany({
-      where: { id: { in: dto.userIds } },
-    });
-    if (users.length !== dto?.userIds?.length) {
-      throw new AppError(404, 'Some users do not exist');
+    if (dto.userIds?.length) {
+      const users = await this.prisma.user.findMany({
+        where: { id: { in: dto.userIds } },
+      });
+      if (users.length !== dto.userIds.length) {
+        throw new AppError(404, 'Some users do not exist');
+      }
+    }
+
+    // Validate category
+    if (dto.categories?.length) {
+      const categories = await this.prisma.category.findMany({
+        where: { id: { in: dto.categories } },
+      });
+      if (categories.length !== dto.categories.length) {
+        throw new AppError(404, 'Some categories do not exist');
+      }
     }
 
     // Handle exercises
     const existingExerciseIds = program.exercises.map((e) => e.id);
 
-    // Map DTO exercises: if exercise has an `id` -> update, else create
     const exercisesToCreate: CreateProgramExerciseDto[] = [];
     const exercisesToUpdate: UpdateProgramExerciseDto[] = [];
 
     if (dto.exercises) {
-      dto.exercises?.forEach((e: any) => {
+      dto.exercises.forEach((e: any) => {
         if ('id' in e && existingExerciseIds.includes(e.id)) {
           exercisesToUpdate.push(e);
         } else {
@@ -52,28 +67,34 @@ export class UpdateProgramService {
       });
     }
 
-    // Delete exercises not in DTO
-    const dtoExerciseIds = dto?.exercises?.filter((e) => e.id).map((e) => e.id);
+    const dtoExerciseIds = dto.exercises?.filter((e) => e.id).map((e) => e.id);
     const exercisesToDelete = program.exercises
       .filter((e) => !dtoExerciseIds?.includes(e.id))
       .map((e) => e.id);
 
-    // Transaction: update program + exercises + users
+    // Transaction: update program + exercises + users + category
     const updatedProgram = await this.prisma.$transaction(async (tx) => {
       // Update basic program info
       await tx.program.update({
         where: { id },
         data: {
-          name: dto.name?.trim() ? dto.name : program.name,
-          description: dto.description?.trim()
-            ? dto.description
-            : program.description,
-          categories: dto.categories ? dto.categories : program.categories,
-          coachNote: dto.coachNote?.trim() ? dto.coachNote : program.coachNote,
-          duration: dto.duration ? dto.duration : program.duration,
-          status: dto.status ? dto.status : program.status,
+          name: dto.name?.trim() ?? program.name,
+          description: dto.description?.trim() ?? program.description,
+          coachNote: dto.coachNote?.trim() ?? program.coachNote,
+          duration: dto.duration ?? program.duration,
+          status: dto.status ?? program.status,
         },
       });
+
+      // Update program category
+      if (dto.categories?.length) {
+        await tx.programCategory.deleteMany({
+          where: { programId: id },
+        });
+        await tx.programCategory.createMany({
+          data: dto.categories.map((c) => ({ programId: id, categoryId: c })),
+        });
+      }
 
       // Delete removed exercises
       if (exercisesToDelete.length) {
@@ -121,40 +142,38 @@ export class UpdateProgramService {
       }
 
       // Update user associations
-      // Remove users not in DTO
-      const dtoUserIds = dto.userIds;
-      const currentUserIds = program.userPrograms.map((u) => u.userId);
-      const usersToRemove = currentUserIds.filter(
-        (id) => !dtoUserIds?.includes(id),
-      );
-      if (usersToRemove.length) {
-        await tx.userProgram.deleteMany({
-          where: { userId: { in: usersToRemove }, programId: id },
-        });
+      if (dto.userIds?.length) {
+        const currentUserIds = program.userPrograms.map((u) => u.userId);
+        const usersToRemove = currentUserIds.filter(
+          (id) => !dto.userIds?.includes(id),
+        );
+        if (usersToRemove.length) {
+          await tx.userProgram.deleteMany({
+            where: { userId: { in: usersToRemove }, programId: id },
+          });
+        }
+
+        const usersToAdd = dto.userIds.filter(
+          (id) => !currentUserIds.includes(id),
+        );
+        if (usersToAdd.length) {
+          const startDate = new Date();
+          const endDate = new Date(startDate);
+          endDate.setDate(startDate.getDate() + (program.duration ?? 0) * 7);
+
+          await tx.userProgram.createMany({
+            data: usersToAdd.map((userId) => ({
+              userId,
+              programId: id,
+              startDate: startDate.toISOString(),
+              endDate: endDate.toISOString(),
+            })),
+            skipDuplicates: true,
+          });
+        }
       }
 
-      // Add new users
-      const usersToAdd = dtoUserIds?.filter(
-        (id) => !currentUserIds.includes(id),
-      );
-
-      if (usersToAdd?.length) {
-        const startDate = new Date();
-        const endDate = new Date(startDate);
-        endDate.setDate(startDate.getDate() + (program.duration ?? 0) * 7);
-
-        await tx.userProgram.createMany({
-          data: usersToAdd.map((userId) => ({
-            userId,
-            programId: id,
-            startDate: startDate.toISOString(),
-            endDate: endDate.toISOString(),
-          })),
-          skipDuplicates: true,
-        });
-      }
-
-      // Return updated program with exercises and users
+      // Return updated program with exercises, users, and category
       return await tx.program.findUnique({
         where: { id },
         include: {
@@ -172,6 +191,9 @@ export class UpdateProgramService {
                 },
               },
             },
+          },
+          programCategories: {
+            include: { category: true },
           },
         },
       });
