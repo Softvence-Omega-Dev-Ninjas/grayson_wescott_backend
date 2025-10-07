@@ -1,10 +1,8 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { ExerciseCategory } from '@prisma/client';
 import { Type } from 'class-transformer';
 import {
   ArrayNotEmpty,
   IsArray,
-  IsEnum,
   IsInt,
   IsISO8601,
   IsNotEmpty,
@@ -33,13 +31,17 @@ export class AddProgramDto {
   coachNote?: string;
 
   @ApiProperty({
-    example: [ExerciseCategory.CARDIO, ExerciseCategory.STRENGTH],
-    enum: ExerciseCategory,
+    example: [
+      '550e8400-e29b-41d4-a716-446655440000',
+      '123e4567-e89b-12d3-a456-426614174000',
+    ],
+    description: 'List of category UUIDs',
     isArray: true,
   })
   @IsArray()
-  @IsEnum(ExerciseCategory, { each: true })
-  categories: ExerciseCategory[];
+  @ArrayNotEmpty()
+  @IsUUID('all', { each: true })
+  categories: string[];
 
   @ApiProperty({ example: 8, description: 'Duration in weeks' })
   @IsInt()

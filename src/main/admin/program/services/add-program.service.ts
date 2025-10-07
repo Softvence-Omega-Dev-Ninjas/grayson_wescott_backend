@@ -30,7 +30,6 @@ export class AddProgramService {
           name: dto.name,
           description: dto.description ?? null,
           coachNote: dto.coachNote ?? null,
-          categories: dto.categories ?? [],
           status: 'PUBLISHED',
           duration: dto.duration,
           exercises: {
@@ -65,11 +64,24 @@ export class AddProgramService {
         skipDuplicates: true,
       });
 
-      // 4. Return program with exercises + users
+      // 4. Assign categories to program
+      await tx.programCategory.createMany({
+        data: dto.categories.map((categoryId) => ({
+          programId: programme.id,
+          categoryId,
+        })),
+      });
+
+      // 5. Return program with exercises + users
       const updatedProgram = await tx.program.findUnique({
         where: { id: programme.id },
         include: {
           exercises: true,
+          programCategories: {
+            include: {
+              category: true,
+            },
+          },
           userPrograms: {
             include: {
               user: {

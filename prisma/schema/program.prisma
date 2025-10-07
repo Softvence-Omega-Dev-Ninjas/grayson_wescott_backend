@@ -5,9 +5,10 @@ model Program {
   description String?
   coachNote   String?
 
-  categories ExerciseCategory[]
-  status     ProgramStatus
+  // relation to categories table through join table
+  programCategories ProgramCategory[]
 
+  status   ProgramStatus
   duration Int // in weeks
 
   createdAt DateTime @default(now())
@@ -18,6 +19,32 @@ model Program {
   userPrograms UserProgram[]
 
   @@map("programs")
+}
+
+model Category {
+  id String @id @default(uuid())
+
+  name String @unique
+
+  description String?
+
+  // relation to programs through join table
+  programCategories ProgramCategory[]
+
+  @@map("categories")
+}
+
+model ProgramCategory {
+  id String @id @default(uuid())
+
+  program   Program @relation(fields: [programId], references: [id], onDelete: Cascade)
+  programId String
+
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  categoryId String
+
+  @@unique([programId, categoryId], map: "program_category_unique")
+  @@map("program_categories")
 }
 
 model UserProgram {
@@ -41,16 +68,6 @@ model UserProgram {
 
   @@unique([userId, programId], map: "user_programs_unique")
   @@map("user_programs")
-}
-
-enum ExerciseCategory {
-  UPERBODY
-  LOWERBODY
-  CORE
-  CARDIO
-  STRENGTH
-  YOGA
-  MEDITATION
 }
 
 enum ProgramStatus {

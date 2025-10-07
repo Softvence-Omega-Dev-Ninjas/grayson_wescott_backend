@@ -1,7 +1,7 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { ExerciseCategory, ProgramStatus } from '@prisma/client';
+import { ProgramStatus } from '@prisma/client';
 import { PaginationDto } from '@project/common/dto/pagination.dto';
-import { IsArray, IsEnum, IsOptional, IsString } from 'class-validator';
+import { IsEnum, IsOptional, IsString, IsUUID } from 'class-validator';
 
 export class GetProgramsDto extends PaginationDto {
   @ApiPropertyOptional({
@@ -13,14 +13,12 @@ export class GetProgramsDto extends PaginationDto {
   search?: string;
 
   @ApiPropertyOptional({
-    description: 'Filter by exercise categories',
-    isArray: true,
-    enum: ExerciseCategory,
+    description: 'Filter by category UUID',
+    example: '550e8400-e29b-41d4-a716-446655440000',
   })
   @IsOptional()
-  @IsArray()
-  @IsEnum(ExerciseCategory, { each: true })
-  categories?: ExerciseCategory[];
+  @IsUUID()
+  category?: string;
 
   @ApiPropertyOptional({
     description: 'Filter by assigned user ID',
