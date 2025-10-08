@@ -38,6 +38,12 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       throw new ForbiddenException('User is not logged in');
     }
 
+    // Update lastActiveAt
+    await this.prisma.user.update({
+      where: { id: payload.sub },
+      data: { lastActiveAt: new Date() },
+    });
+
     // return payload — this will be assigned to req.user
     return payload;
   }

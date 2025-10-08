@@ -10,5 +10,5 @@ export class CurrentlyAssignedProgramDto extends PaginationDto {
   })
   @IsOptional()
   @IsEnum(ProgramProgress)
-  status: ProgramProgress;
+  status?: ProgramProgress;
 }
