@@ -74,7 +74,7 @@ export class SingleClientAnalyticsService {
         },
         programExercise: true,
       },
-      orderBy: { createdAt: 'asc' },
+      orderBy: { createdAt: 'desc' },
     });
 
     // Weekly summary
@@ -125,7 +125,7 @@ export class SingleClientAnalyticsService {
         },
         dailyExerciseLogs: {
           date: targetDate,
-          data: dailyExerciseLogs,
+          data: dailyExerciseLogs.flatMap((log) => log.programExercise),
         },
         weeklySummary,
       },

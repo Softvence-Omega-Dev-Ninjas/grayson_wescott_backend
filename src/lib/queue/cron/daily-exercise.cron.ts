@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '@project/lib/prisma/prisma.service';
@@ -10,7 +10,7 @@ import {
 } from '../payload/daily-exercise.payload';
 
 @Injectable()
-export class DailyExerciseCron {
+export class DailyExerciseCron implements OnModuleInit {
   private readonly logger = new Logger(DailyExerciseCron.name);
 
   constructor(
@@ -78,5 +78,9 @@ export class DailyExerciseCron {
     this.logger.log(
       `Enqueued ${activeUserPrograms.length} daily exercise job(s).`,
     );
+  }
+
+  onModuleInit() {
+    this.handleDailyExercises();
   }
 }
