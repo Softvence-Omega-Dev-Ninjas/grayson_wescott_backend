@@ -56,7 +56,6 @@ export class AddProgramDto {
         title: 'My Exercise',
         description: 'This is my exercise',
         dayOfWeek: 'MONDAY',
-        order: 1,
         duration: 30,
         restSeconds: 10,
         reps: 10,

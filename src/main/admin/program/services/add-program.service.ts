@@ -39,7 +39,7 @@ export class AddProgramService {
               title: e.title,
               description: e.description ?? null,
               dayOfWeek: e.dayOfWeek,
-              order: e.order,
+              // order: e.order,
               duration: e.duration ?? null,
               rest: e.restSeconds ?? null,
               reps: e.reps ?? null,
