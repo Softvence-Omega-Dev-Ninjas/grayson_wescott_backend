@@ -19,6 +19,11 @@ export class GetAllClientsDto extends PaginationDto {
 }
 
 export class SingleClientAnalyticsDto extends PaginationDto {
+  @ApiPropertyOptional({ example: 'UTC' })
+  @IsOptional()
+  @IsString()
+  timezone?: string;
+
   @ApiPropertyOptional({
     example: ProgramProgress.IN_PROGRESS,
     enum: ProgramProgress,
@@ -35,8 +40,15 @@ export class SingleClientAnalyticsDto extends PaginationDto {
   @IsISO8601()
   dailyLogDate?: string;
 
-  @ApiPropertyOptional({ example: 'UTC' })
-  @IsOptional()
-  @IsString()
-  timezone?: string;
+  @ApiPropertyOptional({
+    description: 'Date of week start in ISO',
+    example: '2024-10-28T15:30:00.000Z',
+  })
+  weekStart?: string;
+
+  @ApiPropertyOptional({
+    description: 'Date of week end in ISO',
+    example: '2024-10-28T15:30:00.000Z',
+  })
+  weekEnd?: string;
 }

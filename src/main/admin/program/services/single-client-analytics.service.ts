@@ -18,14 +18,27 @@ export class SingleClientAnalyticsService {
     userId: string,
     query: SingleClientAnalyticsDto,
   ) {
-    const { dailyLogDate } = query;
+    const { dailyLogDate = new Date().toISOString() } = query;
     const userTimezone = query.timezone || 'UTC';
+
+    // Set target date
     const targetDate = dailyLogDate
       ? DateTime.fromISO(dailyLogDate).setZone(userTimezone)
       : DateTime.now().setZone(userTimezone);
 
     const startOfDay = targetDate.startOf('day').toJSDate();
     const endOfDay = targetDate.endOf('day').toJSDate();
+
+    // Weekly range
+    const weekStart = query.weekStart
+      ? DateTime.fromISO(query.weekStart).setZone(userTimezone)
+      : targetDate.startOf('week');
+    const weekEnd = query.weekEnd
+      ? DateTime.fromISO(query.weekEnd).setZone(userTimezone)
+      : targetDate.endOf('week');
+
+    const startOfWeek = weekStart.startOf('day').toJSDate();
+    const endOfWeek = weekEnd.endOf('day').toJSDate();
 
     // Fetch user info
     const user = await this.prisma.user.findUniqueOrThrow({
@@ -64,6 +77,45 @@ export class SingleClientAnalyticsService {
       orderBy: { createdAt: 'asc' },
     });
 
+    // Weekly summary
+    const weeklyExercises = await this.prisma.userProgramExercise.findMany({
+      where: {
+        userProgram: { userId },
+        createdAt: { gte: startOfWeek, lte: endOfWeek },
+      },
+      include: { programExercise: true },
+    });
+
+    const totalSets = weeklyExercises.reduce((acc, ex) => {
+      if (ex.status === 'COMPLETED' && ex.programExercise?.sets) {
+        return acc + ex.programExercise.sets;
+      }
+      return acc;
+    }, 0);
+
+    // lbs moved (if weight is stored in equipmentUsed, parse number)
+    const totalLbsMoved = weeklyExercises.reduce((acc, ex) => {
+      if (ex.status === 'COMPLETED' && ex.programExercise?.sets) {
+        const sets = ex.programExercise.sets || 0;
+        const weightMatch = ex.programExercise?.title.match(/(\d+)\s?lbs/i);
+        const weight = weightMatch ? parseInt(weightMatch[1], 10) : 0;
+        return acc + sets * weight;
+      }
+      return acc;
+    }, 0);
+
+    const newPRs = 0; // model doesn't track PRs
+    const missedReps = weeklyExercises.filter(
+      (ex) => ex.status === 'SKIPPED' || ex.status === 'PENDING',
+    ).length;
+
+    const weeklySummary = {
+      totalSets,
+      totalLbsMoved,
+      newPRs,
+      missedReps,
+    };
+
     return successResponse(
       {
         user,
@@ -71,7 +123,11 @@ export class SingleClientAnalyticsService {
           data: programs.data,
           metadata: programs.metadata,
         },
-        dailyExerciseLogs,
+        dailyExerciseLogs: {
+          date: targetDate,
+          data: dailyExerciseLogs,
+        },
+        weeklySummary,
       },
       'Client analytics fetched successfully',
     );
