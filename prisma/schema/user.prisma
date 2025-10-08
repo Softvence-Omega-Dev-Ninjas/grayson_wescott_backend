@@ -18,6 +18,7 @@ model User {
   isLoggedIn   Boolean   @default(false)
   lastLoginAt  DateTime?
   lastLogoutAt DateTime?
+  lastActiveAt DateTime?
 
   // timezone
   timezone String @default("UTC") // e.g., "America/New_York"
