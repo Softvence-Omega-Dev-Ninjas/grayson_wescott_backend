@@ -16,11 +16,13 @@ export class AddProgramService {
   async addProgramme(dto: AddProgramDto): Promise<TResponse<any>> {
     return this.prisma.$transaction(async (tx) => {
       // 1. Validate users
+      const userIds = [...new Set(dto?.userIds ?? [])];
+
       const users = await tx.user.findMany({
-        where: { id: { in: dto.userIds } },
+        where: { id: { in: userIds } },
       });
 
-      if (users.length !== dto.userIds.length) {
+      if (users.length !== userIds.length) {
         throw new AppError(404, 'Some users do not exist');
       }
 
@@ -39,7 +41,7 @@ export class AddProgramService {
               dayOfWeek: e.dayOfWeek,
               order: e.order,
               duration: e.duration ?? null,
-              rest: e.rest ?? null,
+              rest: e.restSeconds ?? null,
               reps: e.reps ?? null,
               sets: e.sets ?? null,
               tempo: e.tempo ?? null,

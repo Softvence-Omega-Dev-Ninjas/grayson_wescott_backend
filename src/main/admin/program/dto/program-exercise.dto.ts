@@ -29,11 +29,11 @@ export class CreateProgramExerciseDto {
   @IsEnum(DayOfWeek)
   dayOfWeek: DayOfWeek;
 
-  @ApiProperty({ example: 1 })
+  @ApiPropertyOptional({ example: 1 })
   @IsInt()
   @Type(() => Number)
   @Min(0)
-  order: number;
+  order?: number;
 
   @ApiPropertyOptional({ example: 30 })
   @IsOptional()
@@ -47,7 +47,7 @@ export class CreateProgramExerciseDto {
   @IsInt()
   @Type(() => Number)
   @Min(0)
-  rest?: number;
+  restSeconds?: number;
 
   @ApiPropertyOptional({ example: 10 })
   @IsOptional()

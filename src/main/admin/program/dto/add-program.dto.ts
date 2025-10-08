@@ -72,17 +72,17 @@ export class AddProgramDto {
   @Type(() => CreateProgramExerciseDto)
   exercises!: CreateProgramExerciseDto[];
 
-  @ApiProperty({
+  @ApiPropertyOptional({
     example: [
       '550e8400-e29b-41d4-a716-446655440000',
       '123e4567-e89b-12d3-a456-426614174000',
     ],
     description: 'Optional: list of user UUIDs to auto-assign to the program',
   })
+  @IsOptional()
   @IsArray()
-  @ArrayNotEmpty()
   @IsUUID('all', { each: true })
-  userIds: string[];
+  userIds?: string[];
 }
 
 export class AssignUsersToProgramDto {
