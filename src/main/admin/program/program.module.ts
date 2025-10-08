@@ -7,6 +7,7 @@ import { CategoriesService } from './services/categories.service';
 import { ClientAnalyticsService } from './services/client-analytics.service';
 import { ProgramService } from './services/program.service';
 import { UpdateProgramService } from './services/update-program.service';
+import { SingleClientAnalyticsService } from './services/single-client-analytics.service';
 
 @Module({
   controllers: [
@@ -20,6 +21,7 @@ import { UpdateProgramService } from './services/update-program.service';
     ProgramService,
     CategoriesService,
     ClientAnalyticsService,
+    SingleClientAnalyticsService,
   ],
 })
 export class ProgramModule {}
