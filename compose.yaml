@@ -28,7 +28,7 @@ services:
         max-file: '3'
 
   db:
-    image: postgres:16
+    image: postgres
     container_name: ${PACKAGE_NAME}_postgres
     restart: always
     environment:
@@ -47,7 +47,7 @@ services:
       start_period: 15s
 
   redis:
-    image: redis:7
+    image: redis
     container_name: ${PACKAGE_NAME}_redis
     restart: always
     ports:
