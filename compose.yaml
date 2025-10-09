@@ -13,11 +13,12 @@ services:
       redis:
         condition: service_healthy
     restart: always
-    healthcheck:
-      disable: true
     command: >
       sh -c "
-        npx prisma migrate deploy &&
+        echo '🏁 Waiting for DB...';
+        sleep 5;
+        npx prisma migrate deploy;
+        echo '🚀 Starting app...';
         pnpm start
       "
     logging:
@@ -27,29 +28,27 @@ services:
         max-file: '3'
 
   db:
-    image: postgres
-    container_name: ${PG_DATABASE}
+    image: postgres:16
+    container_name: ${PACKAGE_NAME}_postgres
     restart: always
     environment:
       POSTGRES_USER: ${PG_USERNAME}
       POSTGRES_PASSWORD: ${PG_PASSWORD}
       POSTGRES_DB: ${PG_DATABASE}
-      POSTGRES_SHARED_PRELOAD_LIBRARIES: pg_stat_statements
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
-      - '${PG_PORT}:${PG_PORT}'
+      - '${PG_PORT}:5432'
     healthcheck:
-      test:
-        ['CMD', 'pg_isready', '-U', '${PG_USERNAME}', '-d', '${PG_DATABASE}']
-      interval: 30s
-      timeout: 10s
+      test: ['CMD-SHELL', 'pg_isready -U ${PG_USERNAME} -d ${PG_DATABASE}']
+      interval: 10s
+      timeout: 5s
       retries: 5
       start_period: 15s
 
   redis:
-    image: redis
-    container_name: ${REDIS_CONTAINER}
+    image: redis:7
+    container_name: ${PACKAGE_NAME}_redis
     restart: always
     ports:
       - '${REDIS_PORT}:${REDIS_PORT}'
