@@ -18,69 +18,70 @@ export class DailyExerciseCron implements OnModuleInit {
     private readonly eventEmitter: EventEmitter2,
   ) {}
 
-  // @Cron(CronExpression.EVERY_10_SECONDS) // For testing, change to every 10 seconds
-  // Runs every ten hours
-  @Cron(CronExpression.EVERY_10_HOURS) // For production, uncomment this line
-  async handleDailyExercises() {
-    this.logger.log('Enqueueing daily exercise jobs (producer)...');
-
+  /** Helper function to send notifications */
+  private async notifyEarlyMorningUsers() {
     const nowUTC = DateTime.utc();
 
-    // * Fetch active user programs based on startDate and endDate
     const activeUserPrograms = await this.prisma.userProgram.findMany({
-      where: {
-        startDate: { lte: nowUTC.toJSDate() },
-        endDate: { gte: nowUTC.toJSDate() },
-        status: 'IN_PROGRESS',
-      },
+      where: { status: 'IN_PROGRESS' },
       select: {
         id: true,
-        userId: true,
         programId: true,
         user: {
-          select: {
-            timezone: true,
-            email: true,
-            phone: true,
-            avatarUrl: true,
-            name: true,
-          },
+          select: { timezone: true, email: true, phone: true, name: true },
         },
       },
     });
 
-    // * Check if there are any active user programs
-    if (!activeUserPrograms.length) {
-      this.logger.log('No active user programs found.');
-      return;
-    }
+    let count = 0;
 
-    // * Emit event for each user program
     activeUserPrograms.forEach((up) => {
-      const channels: Channel[] = ['socket', 'email'];
+      if (!up.user?.timezone) return;
 
-      if (up.user?.phone) {
-        channels.push('sms');
+      // Convert current UTC to user's local time
+      const userNow = nowUTC.setZone(up.user.timezone);
+
+      // Only send notifications if local time is between 5–7 AM
+      if (userNow.hour >= 5 && userNow.hour <= 7) {
+        const channels: Channel[] = ['socket', 'email'];
+        if (up.user.phone) channels.push('sms');
+
+        const payload: DailyExerciseJobPayload = {
+          event: QUEUE_EVENTS.DAILY_EXERCISE,
+          programId: up.programId,
+          recordType: 'userProgram',
+          recordId: up.id,
+          channels,
+        };
+
+        this.eventEmitter.emit(QUEUE_EVENTS.DAILY_EXERCISE, payload);
+        count++;
       }
-
-      const payload: DailyExerciseJobPayload = {
-        event: QUEUE_EVENTS.DAILY_EXERCISE,
-        programId: up.programId,
-        recordType: 'userProgram',
-        recordId: up.id,
-        channels,
-      };
-
-      this.eventEmitter.emit(QUEUE_EVENTS.DAILY_EXERCISE, payload);
     });
 
-    // * Log
-    this.logger.log(
-      `Enqueued ${activeUserPrograms.length} daily exercise job(s).`,
-    );
+    this.logger.log(`Enqueued ${count} early morning notifications`);
+  }
+
+  /** Cron for South Asia & EU users */
+  @Cron(CronExpression.EVERY_DAY_AT_MIDNIGHT) // 00:00 UTC
+  async handleDailyEarlyMorning1() {
+    await this.notifyEarlyMorningUsers();
+  }
+
+  /** Cron for North America users */
+  @Cron(CronExpression.EVERY_DAY_AT_NOON) // 12:00 UTC
+  async handleDailyEarlyMorning2() {
+    await this.notifyEarlyMorningUsers();
+  }
+
+  // fallback cron to run every 10 hours
+  @Cron(CronExpression.EVERY_10_HOURS)
+  async handleDailyEarlyMorning3() {
+    await this.notifyEarlyMorningUsers();
   }
 
   onModuleInit() {
-    this.handleDailyExercises();
+    this.handleDailyEarlyMorning1();
+    this.handleDailyEarlyMorning2();
   }
 }
