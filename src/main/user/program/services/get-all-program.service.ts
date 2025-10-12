@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { AppError } from '@project/common/error/handle-error.app';
 import { HandleError } from '@project/common/error/handle-error.decorator';
 import { successPaginatedResponse } from '@project/common/utils/response.util';
@@ -20,15 +21,23 @@ export class GetAllProgramService {
     const limit = query.limit && +query.limit > 0 ? +query.limit : 10;
     const skip = (page - 1) * limit;
 
+    const where: Prisma.UserProgramWhereInput = {
+      userId,
+    };
+
+    if (query.status) {
+      where.status = query.status;
+    }
+
     const [userPrograms, total] = await this.prisma.$transaction([
       this.prisma.userProgram.findMany({
-        where: { userId, ...(query.status && { status: query.status }) },
+        where,
         take: limit,
         skip,
         orderBy: { createdAt: 'desc' },
         include: { program: true },
       }),
-      this.prisma.userProgram.count({ where: { userId } }),
+      this.prisma.userProgram.count({ where }),
     ]);
 
     const userTimezone = user.timezone || 'UTC';
