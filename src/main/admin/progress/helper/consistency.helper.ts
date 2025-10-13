@@ -2,6 +2,7 @@ import { PrismaClient } from '@prisma/client';
 import { DateTime } from 'luxon';
 
 export interface WeeklyConsistency {
+  label: string;
   weekStart: string; // ISO date of week start (Monday)
   weekEnd: string; // ISO date of week end (Sunday)
   consistencyPercent: number; // 0-100
@@ -46,6 +47,7 @@ export async function getLastNWeeksConsistency(
         : 0;
 
     result.push({
+      label: `Week ${i + 1}`,
       weekStart: weekStart.toISODate(),
       weekEnd: weekEnd.toISODate(),
       consistencyPercent,
