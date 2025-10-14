@@ -233,6 +233,18 @@ export class MessageService {
   ) {
     return this.prisma.privateMessage.create({
       data: { conversationId, senderId, content, type, fileId },
+      include: {
+        file: true,
+        sender: {
+          select: {
+            id: true,
+            name: true,
+            avatarUrl: true,
+            email: true,
+            role: true,
+          },
+        },
+      },
     });
   }
 
