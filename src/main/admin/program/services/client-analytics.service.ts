@@ -21,10 +21,10 @@ export class ClientAnalyticsService {
     const skip = (page - 1) * limit;
     const { search, status } = query;
 
-    // Apply filters
+    // Filters
     const where: any = {
       role: 'USER',
-      userPrograms: { some: {} }, // Filter clients with at least one program
+      userPrograms: { some: {} }, // clients with at least one program
       ...(status && { status }),
       ...(search && {
         OR: [
@@ -44,7 +44,10 @@ export class ClientAnalyticsService {
           userPrograms: {
             orderBy: { startDate: 'desc' },
             take: 1,
-            include: { program: true },
+            include: {
+              program: { include: { exercises: true } }, // template exercises
+              userProgramExercise: true, // actual scheduled/completed rows
+            },
           },
         },
       }),
@@ -67,7 +70,31 @@ export class ClientAnalyticsService {
       const currentWeek = currentDay > 0 ? Math.ceil(currentDay / 7) : 0;
 
       const totalWeeks = latestProgram.program?.duration || 0;
+
+      // --- Workload-based totals (important change) ---
+      const exercisesPerWeek = latestProgram.program?.exercises?.length || 0;
+      const totalWorkouts = exercisesPerWeek * totalWeeks; // template length * duration
+      const completedWorkouts = latestProgram.userProgramExercise.filter(
+        (e) => e.status === 'COMPLETED',
+      ).length;
+
+      const scheduledToDate = latestProgram.userProgramExercise.filter(
+        (e) => e.dayNumber <= currentDay,
+      ).length;
+
+      // Percentages (workout-based)
       const completionPercentage =
+        totalWorkouts > 0
+          ? Math.round((completedWorkouts / totalWorkouts) * 100)
+          : 0;
+
+      const compliancePercentage =
+        scheduledToDate > 0
+          ? Math.round((completedWorkouts / scheduledToDate) * 100)
+          : 0;
+
+      // Keep the original time-based progress as a separate field
+      const timeProgressPercentage =
         totalWeeks > 0 && currentWeek > 0
           ? Math.min(100, Math.round((currentWeek / totalWeeks) * 100))
           : 0;
@@ -76,6 +103,7 @@ export class ClientAnalyticsService {
         userInfo: {
           id: client.id,
           avatarUrl: client.avatarUrl,
+          status: client.status,
           name: client.name,
           email: client.email,
           lastActiveAt: client.lastActiveAt ?? 'Not logged in',
@@ -91,7 +119,16 @@ export class ClientAnalyticsService {
           programDurationWeeks: totalWeeks,
           currentDayAsPerUser: currentDay,
           currentWeekAsPerUser: currentWeek,
-          completionPercentage,
+
+          // --- workload-based metrics ---
+          totalWorkouts, // template exercises * duration
+          completedWorkouts, // completed userProgramExercises
+          scheduledToDate, // scheduled up to current day
+          completionPercentage, // completed / totalWorkouts
+          compliancePercentage, // completed / scheduledToDate
+
+          // --- time-based metric (kept for reference) ---
+          timeProgressPercentage, // currentWeek / totalWeeks
         },
       };
     });
