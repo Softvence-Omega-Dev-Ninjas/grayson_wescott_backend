@@ -10,21 +10,19 @@ export interface WeeklyConsistency {
 
 export async function getLastNWeeksConsistency(
   prisma: PrismaClient,
-  weeks = 10,
+  weeks = 7, // default 7 weeks including current
 ): Promise<WeeklyConsistency[]> {
   const now = DateTime.now().startOf('day');
+  const results: WeeklyConsistency[] = [];
 
-  const result: WeeklyConsistency[] = [];
-
+  // oldest → newest (e.g., 6 weeks ago → current week)
   for (let i = weeks - 1; i >= 0; i--) {
-    // Determine start and end of the week
     const weekStart = now.minus({ weeks: i }).startOf('week'); // Monday
     const weekEnd = weekStart.endOf('week'); // Sunday
 
-    // Fetch user program exercises scheduled for this week (from userProgram)
     const scheduledExercises = await prisma.userProgramExercise.findMany({
       where: {
-        dayNumber: { gte: 1 }, // all assigned exercises
+        dayNumber: { gte: 1 },
         createdAt: { lte: weekEnd.toJSDate() },
       },
       include: { programExercise: true },
@@ -46,13 +44,16 @@ export async function getLastNWeeksConsistency(
         ? Math.min(100, Math.round((totalCompleted / totalScheduled) * 100))
         : 0;
 
-    result.push({
-      label: `Week ${i + 1}`,
+    // Label example: "Oct 7–13"
+    const label = `${weekStart.toFormat('MMM d')}–${weekEnd.toFormat('d')}`;
+
+    results.push({
+      label,
       weekStart: weekStart.toISODate(),
       weekEnd: weekEnd.toISODate(),
       consistencyPercent,
     });
   }
 
-  return result;
+  return results;
 }

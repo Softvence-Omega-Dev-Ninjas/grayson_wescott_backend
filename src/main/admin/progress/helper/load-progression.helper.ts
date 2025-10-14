@@ -7,10 +7,11 @@ export async function computeLoadProgression(
 ) {
   const now = DateTime.now().setZone(userTimezone);
 
-  const startWeek = now.startOf('week').minus({ weeks: 8 });
-  const endWeek = now.endOf('week').plus({ weeks: 1 });
+  // ✅ last 7 weeks including current (6 weeks ago → this week)
+  const startWeek = now.startOf('week').minus({ weeks: 6 });
+  const endWeek = now.endOf('week');
 
-  // load all userPrograms with program templates & logs
+  // Fetch all user programs with exercises & logs
   const userPrograms = await prisma.userProgram.findMany({
     include: {
       program: { include: { exercises: true } },
@@ -20,7 +21,6 @@ export async function computeLoadProgression(
     },
   });
 
-  // helper: map Luxon weekday to enum string
   const weekdayToEnum = (weekday: number) => {
     const map = [
       '',
@@ -35,9 +35,8 @@ export async function computeLoadProgression(
     return map[weekday] as string;
   };
 
-  // prepare buckets: weekStartISO => { planned, completed }
+  // Prepare week buckets (7 total)
   const weekBuckets = new Map<string, { planned: number; completed: number }>();
-
   for (
     let w = startWeek.startOf('week');
     w <= endWeek.startOf('week');
@@ -46,6 +45,7 @@ export async function computeLoadProgression(
     weekBuckets.set(w?.toISODate() ?? '', { planned: 0, completed: 0 });
   }
 
+  // Iterate user programs
   for (const up of userPrograms) {
     const program = up.program;
     if (!program || !up.startDate) continue;
@@ -56,33 +56,28 @@ export async function computeLoadProgression(
       program.duration && program.duration > 0 ? program.duration : 1;
     const endDate = startDate.plus({ weeks }).minus({ days: 1 });
 
-    // iterate each day in program window
+    // Planned load
     for (
       let d = startDate.startOf('day');
       d <= endDate.startOf('day');
       d = d.plus({ days: 1 })
     ) {
       const weekdayEnum = weekdayToEnum(d.weekday);
-      const bucketKey = d.startOf('week')?.toISODate() || '';
-
+      const bucketKey = d.startOf('week').toISODate() as string;
       for (const ex of template) {
-        if (!ex?.dayOfWeek) continue;
-        if (ex.dayOfWeek === weekdayEnum) {
-          if (weekBuckets.has(bucketKey)) {
-            weekBuckets.get(bucketKey)!.planned += ex.duration ?? 0;
-          }
+        if (ex?.dayOfWeek === weekdayEnum && weekBuckets.has(bucketKey)) {
+          weekBuckets.get(bucketKey)!.planned += ex.duration ?? 0;
         }
       }
     }
 
-    // logs
-    const logs = up.userProgramExercise ?? [];
-    for (const log of logs) {
+    // Completed load
+    for (const log of up.userProgramExercise ?? []) {
       if (log.status !== 'COMPLETED' || !log.completedAt) continue;
       const completedAt = DateTime.fromJSDate(log.completedAt).setZone(
         userTimezone,
       );
-      const bucketKey = completedAt.startOf('week').toISODate() || '';
+      const bucketKey = completedAt.startOf('week').toISODate() as string;
       if (weekBuckets.has(bucketKey)) {
         weekBuckets.get(bucketKey)!.completed +=
           log.programExercise?.duration ?? 0;
@@ -90,14 +85,16 @@ export async function computeLoadProgression(
     }
   }
 
-  // format output sorted by week
+  // ✅ Format output sorted oldest → newest
   const chartData = Array.from(weekBuckets.entries())
     .sort(([a], [b]) => (a < b ? -1 : 1))
-    .map(([weekStart, { planned, completed }], i) => {
-      const weekLabel = `Week ${i + 1}`;
+    .map(([weekStart, { planned, completed }]) => {
+      const weekStartDT = DateTime.fromISO(weekStart).setZone(userTimezone);
+      const weekEndDT = weekStartDT.endOf('week');
+      const label = `${weekStartDT.toFormat('MMM d')}–${weekEndDT.toFormat('d')}`;
       return {
         weekStart,
-        label: weekLabel,
+        label,
         planned,
         completed,
       };
