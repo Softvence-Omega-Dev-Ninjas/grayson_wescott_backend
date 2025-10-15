@@ -18,31 +18,41 @@ export class DailyExerciseCron implements OnModuleInit {
     private readonly eventEmitter: EventEmitter2,
   ) {}
 
-  /** Helper function to send notifications */
+  /**
+   * Helper to send early morning notifications
+   * @param region Optional filter for timezones by region (e.g., 'Asia', 'Europe', 'America')
+   */
   private async notifyEarlyMorningUsers() {
     const nowUTC = DateTime.utc();
 
+    // Fetch only active user programs with timezones
     const activeUserPrograms = await this.prisma.userProgram.findMany({
       where: { status: 'IN_PROGRESS' },
       select: {
         id: true,
         programId: true,
         user: {
-          select: { timezone: true, email: true, phone: true, name: true },
+          select: {
+            timezone: true,
+            email: true,
+            phone: true,
+            name: true,
+          },
         },
       },
     });
 
     let count = 0;
 
-    activeUserPrograms.forEach((up) => {
-      if (!up.user?.timezone) return;
+    // Iterate through user programs
+    for (const up of activeUserPrograms) {
+      const tz = up.user?.timezone;
+      if (!tz) continue;
 
-      // Convert current UTC to user's local time
-      const userNow = nowUTC.setZone(up.user.timezone);
+      const userNow = nowUTC.setZone(tz);
 
-      // Only send notifications if local time is between 5–7 AM
-      if (userNow.hour >= 5 && userNow.hour <= 7) {
+      // Target window: 1 AM – 12 PM local time
+      if (userNow.hour >= 1 && userNow.hour <= 12) {
         const channels: Channel[] = ['socket', 'email'];
         if (up.user.phone) channels.push('sms');
 
@@ -54,34 +64,43 @@ export class DailyExerciseCron implements OnModuleInit {
           channels,
         };
 
-        this.eventEmitter.emit(QUEUE_EVENTS.DAILY_EXERCISE, payload);
+        // Emit asynchronously to avoid blocking event loop
+        await this.eventEmitter.emitAsync(QUEUE_EVENTS.DAILY_EXERCISE, payload);
         count++;
       }
-    });
+    }
 
-    this.logger.log(`Enqueued ${count} early morning notifications`);
+    this.logger.log(`Sent early morning notifications to ${count} users`);
   }
 
-  /** Cron for South Asia & EU users */
-  @Cron(CronExpression.EVERY_DAY_AT_MIDNIGHT) // 00:00 UTC
-  async handleDailyEarlyMorning1() {
+  /**
+   * 🕐 Asia region (UTC+5 → UTC+9)
+   * Runs daily at 1:00 UTC (~6:00–10:00 AM local)
+   */
+  @Cron(CronExpression.EVERY_DAY_AT_1AM)
+  async handleAsiaMorningCron() {
     await this.notifyEarlyMorningUsers();
   }
 
-  /** Cron for North America users */
-  @Cron(CronExpression.EVERY_DAY_AT_NOON) // 12:00 UTC
-  async handleDailyEarlyMorning2() {
+  /**
+   * 🕑 Europe region (UTC+0 → UTC+3)
+   * Runs daily at 2:00 UTC (~2:00–5:00 AM local)
+   */
+  @Cron(CronExpression.EVERY_DAY_AT_2AM)
+  async handleEuropeMorningCron() {
     await this.notifyEarlyMorningUsers();
   }
 
-  // fallback cron to run every 10 hours
-  @Cron(CronExpression.EVERY_10_HOURS)
-  async handleDailyEarlyMorning3() {
+  /**
+   * 🕛 North America region (UTC-5 → UTC-8)
+   * Runs daily at 12:00 UTC (~4:00–7:00 AM local)
+   */
+  @Cron(CronExpression.EVERY_DAY_AT_NOON)
+  async handleAmericaMorningCron() {
     await this.notifyEarlyMorningUsers();
   }
 
-  onModuleInit() {
-    this.handleDailyEarlyMorning1();
-    this.handleDailyEarlyMorning2();
+  async onModuleInit() {
+    await this.notifyEarlyMorningUsers();
   }
 }
