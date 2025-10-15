@@ -1,10 +1,9 @@
 import { Injectable } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { AuthProvider } from '@prisma/client';
 import { UserResponseDto } from '@project/common/dto/user-response.dto';
-import { ENVEnum } from '@project/common/enum/env.enum';
 import { AppError } from '@project/common/error/handle-error.app';
 import { HandleError } from '@project/common/error/handle-error.decorator';
+import { SocialLoginEmailPayload } from '@project/common/jwt/jwt.interface';
 import {
   successResponse,
   TResponse,
@@ -25,7 +24,6 @@ export class AuthSocialService {
     private readonly prisma: PrismaService,
     private readonly utils: UtilsService,
     private readonly mailService: AuthMailService,
-    private readonly configService: ConfigService,
   ) {}
 
   @HandleError('Social login failed', 'User')
@@ -37,10 +35,13 @@ export class AuthSocialService {
     const profile = await this.getProviderProfile(provider, accessToken);
     const { id: providerId, email, name, avatarUrl } = profile;
 
+    // try find user by providerId first
     let user = await this.findUserByProviderId(provider, providerId);
 
     if (!user) {
+      // no user with this provider id
       if (!email) {
+        // provider didn't return email -> caller must ask user for email
         return successResponse(
           {
             needsEmail: true,
@@ -54,18 +55,60 @@ export class AuthSocialService {
         );
       }
 
-      user = await this.createOrLinkUserByEmail(email, {
-        provider,
-        providerId,
-        name,
-        avatarUrl,
-        isVerified: false,
+      // provider returned email -> attempt to find existing user by email
+      const normalizedEmail = email.toLowerCase();
+      const existing = await this.prisma.user.findUnique({
+        where: { email: normalizedEmail },
+        include: { authProviders: true },
       });
 
-      if (!user.isVerified) {
-        return this.handleUnverifiedUser(user, provider, providerId);
+      if (!existing) {
+        // no existing user -> create a new user and attach provider
+        user = await this.prisma.user.create({
+          data: {
+            email: normalizedEmail,
+            isVerified: true, // email from provider considered verified
+            name: name || '',
+            isLoggedIn: true,
+            lastLoginAt: new Date(),
+            avatarUrl: avatarUrl || '',
+            authProviders: {
+              create: {
+                provider,
+                providerId,
+              },
+            },
+          },
+          include: { authProviders: true },
+        });
+      } else {
+        // existing user found by email
+        const hasProvider = existing.authProviders.some(
+          (ap) => ap.provider === provider && ap.providerId === providerId,
+        );
+
+        if (!hasProvider) {
+          // not linked yet -> send OTP so user can verify+link provider
+          const { otp, expiryTime } = this.utils.generateOtpAndExpiry();
+          const payload: SocialLoginEmailPayload = {
+            email: normalizedEmail,
+            otp: otp.toString(),
+            provider,
+            providerId,
+          };
+
+          await this.mailService.sendSocialProviderLinkEmail(payload);
+          await this.prisma.user.update({
+            where: { id: existing.id },
+            data: { otp: otp.toString(), otpExpiresAt: expiryTime },
+          });
+        }
+
+        // update profile fields (last login / avatar / name...)
+        user = await this.updateUserProfile(existing, name, avatarUrl);
       }
     } else {
+      // user found by providerId -> just update profile and treat as login
       user = await this.updateUserProfile(user, name, avatarUrl);
     }
 
@@ -84,20 +127,74 @@ export class AuthSocialService {
     const profile = await this.getProviderProfile(provider, accessToken);
     const providerId = profile.id;
 
-    const user = await this.createOrLinkUserByEmail(email, {
-      provider,
-      providerId,
-      name: profile.name || '',
-      avatarUrl: profile.avatarUrl || '',
-      isVerified: false,
+    const normalizedEmail = email.toLowerCase();
+
+    // Try to find user by email
+    let user = await this.prisma.user.findUnique({
+      where: { email: normalizedEmail },
+      include: { authProviders: true },
     });
 
-    if (!user.isVerified) {
-      return this.handleUnverifiedUser(user, provider, providerId);
+    if (!user) {
+      // create user and attach provider (email provided by user => not verified)
+      user = await this.prisma.user.create({
+        data: {
+          email: normalizedEmail,
+          isVerified: false,
+          name: profile.name || '',
+          isLoggedIn: false,
+          avatarUrl: profile.avatarUrl || '',
+          authProviders: {
+            create: {
+              provider,
+              providerId,
+            },
+          },
+        },
+        include: { authProviders: true },
+      });
+    } else {
+      // user exists: if provider not linked, create a provider record
+      const hasProvider = user.authProviders.some(
+        (ap) => ap.provider === provider && ap.providerId === providerId,
+      );
+
+      if (!hasProvider) {
+        // create the provider entry now (you can also require OTP flow instead;
+        // original flow sent an OTP after createOrLink — we will keep the same pattern)
+        await this.prisma.userAuthProvider.create({
+          data: { userId: user.id, provider, providerId },
+        });
+      }
+
+      // update profile fields
+      user = await this.updateUserProfile(
+        user,
+        profile.name || '',
+        profile.avatarUrl || '',
+      );
     }
 
-    const token = this.generateUserToken(user);
-    return this.buildSuccessResponse(user, token);
+    // Send OTP for verification (email)
+    const { otp, expiryTime } = this.utils.generateOtpAndExpiry();
+
+    const payload: SocialLoginEmailPayload = {
+      email: user.email,
+      otp: otp.toString(),
+      provider,
+      providerId,
+    };
+
+    await this.mailService.sendSocialProviderLinkEmail(payload);
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: { otp: otp.toString(), otpExpiresAt: expiryTime },
+    });
+
+    return successResponse(
+      { needsVerification: true, email: user.email },
+      'Verification email sent. Please verify your email to continue.',
+    );
   }
 
   @HandleError('Social OTP verification failed', 'User')
@@ -136,6 +233,7 @@ export class AuthSocialService {
         otp: null,
         otpExpiresAt: null,
         isVerified: true,
+        lastActiveAt: new Date(),
       },
       include: { authProviders: true },
     });
@@ -220,82 +318,6 @@ export class AuthSocialService {
     });
   }
 
-  private async createOrLinkUserByEmail(
-    email: string,
-    options: {
-      provider: AuthProvider;
-      providerId: string;
-      name?: string;
-      avatarUrl?: string;
-      isVerified: boolean;
-    },
-  ) {
-    email = email.toLowerCase();
-    let user = await this.prisma.user.findUnique({
-      where: { email },
-      include: { authProviders: true },
-    });
-
-    if (!user) {
-      user = await this.prisma.user.create({
-        data: {
-          email,
-          isVerified: options.isVerified,
-          name: options.name || '',
-          isLoggedIn: true,
-          lastLoginAt: new Date(),
-          avatarUrl: options.avatarUrl || '',
-          authProviders: {
-            create: {
-              provider: options.provider,
-              providerId: options.providerId,
-            },
-          },
-        },
-        include: { authProviders: true },
-      });
-    } else {
-      const hasProvider = user.authProviders.some(
-        (ap) =>
-          ap.provider === options.provider &&
-          ap.providerId === options.providerId,
-      );
-      if (!hasProvider) {
-        const { otp, expiryTime } = this.utils.generateOtpAndExpiry();
-        const link = `${this.configService.getOrThrow<string>(ENVEnum.FRONTEND_SOCIAL_EMAIL_URL)}?email=${email}&otp=${otp}&provider=${options.provider}&providerId=${options.providerId}`;
-        await this.mailService.sendSocialProviderLinkEmail(email, link);
-        await this.prisma.user.update({
-          where: { id: user.id },
-          data: { otp: otp.toString(), otpExpiresAt: expiryTime },
-        });
-      }
-      user = await this.updateUserProfile(
-        user,
-        options.name,
-        options.avatarUrl,
-      );
-    }
-    return user;
-  }
-
-  private async handleUnverifiedUser(
-    user: any,
-    provider: AuthProvider,
-    providerId: string,
-  ) {
-    const { otp, expiryTime } = this.utils.generateOtpAndExpiry();
-    const link = `${this.configService.getOrThrow<string>(ENVEnum.FRONTEND_SOCIAL_EMAIL_URL)}?email=${user.email}&otp=${otp}&provider=${provider}&providerId=${providerId}`;
-    await this.mailService.sendSocialProviderLinkEmail(user.email, link);
-    await this.prisma.user.update({
-      where: { id: user.id },
-      data: { otp: otp.toString(), otpExpiresAt: expiryTime },
-    });
-    return successResponse(
-      { needsVerification: true, email: user.email },
-      'Verification email sent. Please verify your email to continue.',
-    );
-  }
-
   private async updateUserProfile(
     user: any,
     name?: string,
@@ -308,6 +330,7 @@ export class AuthSocialService {
         avatarUrl: avatarUrl || user.avatarUrl,
         lastLoginAt: new Date(),
         isLoggedIn: true,
+        lastActiveAt: new Date(),
       },
       include: { authProviders: true },
     });
