@@ -98,6 +98,11 @@ enum AuthProvider {
   GOOGLE
   FACEBOOK
   TWITTER
+  INSTAGRAM
+  LINKEDIN
+  GITHUB
+  APPLE
+  TIKTOK
 }
 
 enum SignUpMethod {
@@ -106,6 +111,11 @@ enum SignUpMethod {
   GOOGLE
   FACEBOOK
   TWITTER
+  INSTAGRAM
+  LINKEDIN
+  GITHUB
+  APPLE
+  TIKTOK
 }
 
 enum TwoFAMethod {

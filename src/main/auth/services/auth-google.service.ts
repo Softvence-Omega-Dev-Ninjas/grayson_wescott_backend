@@ -12,7 +12,7 @@ import {
 import { PrismaService } from '@project/lib/prisma/prisma.service';
 import { UtilsService } from '@project/lib/utils/utils.service';
 import { OAuth2Client, TokenPayload } from 'google-auth-library';
-import { GoogleLoginDto } from '../dto/google-login.dto';
+import { GoogleLoginDto } from '../dto/login.dto';
 
 @Injectable()
 export class AuthGoogleService {

@@ -16,26 +16,19 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { GetUser, ValidateAuth } from '@project/common/jwt/jwt.decorator';
-import {
-  FacebookLoginCompleteDto,
-  FacebookLoginDto,
-} from '../dto/facebook-login.dto';
-import { GoogleLoginDto } from '../dto/google-login.dto';
-import { LoginDto } from '../dto/login.dto';
+import { GoogleLoginDto, LoginDto } from '../dto/login.dto';
 import { ResendOtpDto, VerifyOTPDto } from '../dto/otp.dto';
 import {
   ChangePasswordDto,
   ForgotPasswordDto,
   ResetPasswordDto,
 } from '../dto/password.dto';
-import { VerifySocialProviderOtpDto } from '../dto/provider.dto';
 import { RegisterDto } from '../dto/register.dto';
 import { SetPhoneDto } from '../dto/set-phone.dto';
 import { RequestTFA } from '../dto/tfa.dto';
 import { UpdateProfileDto } from '../dto/update-profile.dto';
 import { UpdateUserPreferencesDto } from '../dto/update-user-preferences.dto';
 import { VerifyTfaDto } from '../dto/verify-tfa.dto';
-import { AuthFacebookService } from '../services/auth-facebook.service';
 import { AuthGetProfileService } from '../services/auth-get-profile.service';
 import { AuthGoogleService } from '../services/auth-google.service';
 import { AuthLoginService } from '../services/auth-login.service';
@@ -52,7 +45,6 @@ export class AuthController {
   constructor(
     private readonly authRegisterService: AuthRegisterService,
     private readonly authGoogleService: AuthGoogleService,
-    private readonly authFacebookService: AuthFacebookService,
     private readonly authLoginService: AuthLoginService,
     private readonly authLogoutService: AuthLogoutService,
     private readonly authOtpService: AuthOtpService,
@@ -148,24 +140,6 @@ export class AuthController {
   @Post('google-login')
   async googleLogin(@Body() body: GoogleLoginDto) {
     return this.authGoogleService.googleLogin(body);
-  }
-
-  @ApiOperation({ summary: 'Facebook Login or Sign Up' })
-  @Post('facebook-login')
-  async facebookLogin(@Body() body: FacebookLoginDto) {
-    return this.authFacebookService.facebookLogin(body);
-  }
-
-  @ApiOperation({ summary: 'Facebook Login Complete' })
-  @Post('facebook-login-complete')
-  async facebookLoginComplete(@Body() body: FacebookLoginCompleteDto) {
-    return this.authFacebookService.facebookLoginComplete(body);
-  }
-
-  @ApiOperation({ summary: 'Verify Social Provider OTP' })
-  @Post('verify-social-provider-otp')
-  async verifySocialProviderOtp(@Body() body: VerifySocialProviderOtpDto) {
-    return this.authFacebookService.verifySocialProviderOtp(body);
   }
 
   @ApiOperation({ summary: 'Get User Profile' })

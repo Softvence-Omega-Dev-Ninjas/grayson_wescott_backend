@@ -37,8 +37,8 @@ export class UtilsService {
 
   generateToken(payload: JWTPayload): string {
     const token = this.jwtService.sign(payload, {
-      secret: this.configService.getOrThrow<string>(ENVEnum.JWT_SECRET),
-      expiresIn: this.configService.getOrThrow<string>(ENVEnum.JWT_EXPIRES_IN),
+      secret: this.configService.getOrThrow(ENVEnum.JWT_SECRET),
+      expiresIn: this.configService.getOrThrow(ENVEnum.JWT_EXPIRES_IN),
     });
 
     return token;
