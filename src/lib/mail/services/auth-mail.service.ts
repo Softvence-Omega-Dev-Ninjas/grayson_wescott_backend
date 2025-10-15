@@ -7,6 +7,7 @@ import * as nodemailer from 'nodemailer';
 import { MailService } from '../mail.service';
 import { passwordResetConfirmationTemplate } from '../templates/reset-password-confirm.template';
 import { resetPasswordTemplate } from '../templates/reset-password.template';
+import { socialLoginWithOtpTemplate } from '../templates/social-media.template';
 import { verificationTemplate } from '../templates/verification.template';
 
 @Injectable()
@@ -82,28 +83,21 @@ export class AuthMailService {
     const link = `${frontendUrl}?email=${encodeURIComponent(payload.email)}&otp=${encodeURIComponent(payload.otp)}&provider=${encodeURIComponent(payload.provider)}&providerId=${encodeURIComponent(payload.providerId)}`;
 
     const safeLink = he.encode(link);
-    const safeMessage = he.encode(message || 'Click the link below to login.');
+    const safeOtp = he.encode(payload.otp);
+    const safeMessage = he.encode(
+      message || 'Click the link below or use the OTP to login.',
+    );
 
-    const mailOptions = {
+    return this.mailService.sendMail({
       to: payload.email,
       subject: subject || 'Social Login Request',
-      text: `${safeMessage}\n\nLogin using this link: ${safeLink}\n\nIf you did not request a social login, please ignore this email.`,
-      html: `
-      <div style="font-family: Arial, sans-serif; background-color: #f9f9f9; padding: 20px;">
-        <div style="max-width: 500px; margin: auto; background-color: #ffffff; padding: 30px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
-          <h3 style="color: #333; margin-bottom: 15px;">Social Login Request</h3>
-          <p style="font-size: 16px; color: #555; margin-bottom: 20px;">${safeMessage}</p>
-          <div style="margin: 20px 0;">
-            <a href="${safeLink}" style="display:inline-block; background-color:#DC3545; color:#fff; text-decoration:none; padding:12px 20px; border-radius:6px; font-size:16px;">
-              Login
-            </a>
-          </div>
-          <p style="font-size: 14px; color: #888; margin-top: 20px;">If you did not request a social login, please ignore this email.</p>
-        </div>
-      </div>
-    `,
-    };
-
-    return this.mailService.sendMail(mailOptions);
+      text: `${safeMessage}\n\nOTP: ${safeOtp}\nLogin using this link: ${safeLink}\n\nIf you did not request a social login, please ignore this email.`,
+      html: socialLoginWithOtpTemplate(
+        safeLink,
+        safeOtp,
+        safeMessage,
+        payload.provider,
+      ),
+    });
   }
 }
