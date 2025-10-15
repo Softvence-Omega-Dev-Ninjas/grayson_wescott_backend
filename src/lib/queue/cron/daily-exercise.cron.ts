@@ -27,7 +27,11 @@ export class DailyExerciseCron implements OnModuleInit {
 
     // Fetch only active user programs with timezones
     const activeUserPrograms = await this.prisma.userProgram.findMany({
-      where: { status: 'IN_PROGRESS' },
+      where: {
+        startDate: { lte: nowUTC.toJSDate() },
+        endDate: { gte: nowUTC.toJSDate() },
+        status: 'IN_PROGRESS',
+      },
       select: {
         id: true,
         programId: true,
