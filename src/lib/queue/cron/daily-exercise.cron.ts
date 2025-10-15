@@ -77,10 +77,10 @@ export class DailyExerciseCron implements OnModuleInit {
    * 🕐 Asia region (UTC+5 → UTC+9)
    * Runs daily at 1:00 UTC (~6:00–10:00 AM local)
    */
-  @Cron(CronExpression.EVERY_DAY_AT_1AM)
-  async handleAsiaMorningCron() {
-    await this.notifyEarlyMorningUsers();
-  }
+  // @Cron(CronExpression.EVERY_DAY_AT_1AM)
+  // async handleAsiaMorningCron() {
+  //   await this.notifyEarlyMorningUsers();
+  // }
 
   /**
    * 🕑 Europe region (UTC+0 → UTC+3)
