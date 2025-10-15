@@ -1,10 +1,9 @@
 import { Injectable } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { AuthProvider } from '@prisma/client';
 import { UserResponseDto } from '@project/common/dto/user-response.dto';
-import { ENVEnum } from '@project/common/enum/env.enum';
 import { AppError } from '@project/common/error/handle-error.app';
 import { HandleError } from '@project/common/error/handle-error.decorator';
+import { SocialLoginEmailPayload } from '@project/common/jwt/jwt.interface';
 import {
   successResponse,
   TResponse,
@@ -25,7 +24,6 @@ export class AuthSocialService {
     private readonly prisma: PrismaService,
     private readonly utils: UtilsService,
     private readonly mailService: AuthMailService,
-    private readonly configService: ConfigService,
   ) {}
 
   @HandleError('Social login failed', 'User')
@@ -262,8 +260,14 @@ export class AuthSocialService {
       );
       if (!hasProvider) {
         const { otp, expiryTime } = this.utils.generateOtpAndExpiry();
-        const link = `${this.configService.getOrThrow<string>(ENVEnum.FRONTEND_SOCIAL_EMAIL_URL)}?email=${email}&otp=${otp}&provider=${options.provider}&providerId=${options.providerId}`;
-        await this.mailService.sendSocialProviderLinkEmail(email, link);
+        const payload: SocialLoginEmailPayload = {
+          email,
+          otp: otp.toString(),
+          provider: options.provider,
+          providerId: options.providerId,
+        };
+
+        await this.mailService.sendSocialProviderLinkEmail(payload);
         await this.prisma.user.update({
           where: { id: user.id },
           data: { otp: otp.toString(), otpExpiresAt: expiryTime },
@@ -284,8 +288,15 @@ export class AuthSocialService {
     providerId: string,
   ) {
     const { otp, expiryTime } = this.utils.generateOtpAndExpiry();
-    const link = `${this.configService.getOrThrow<string>(ENVEnum.FRONTEND_SOCIAL_EMAIL_URL)}?email=${user.email}&otp=${otp}&provider=${provider}&providerId=${providerId}`;
-    await this.mailService.sendSocialProviderLinkEmail(user.email, link);
+
+    const payload: SocialLoginEmailPayload = {
+      email: user.email,
+      otp: otp.toString(),
+      provider,
+      providerId,
+    };
+
+    await this.mailService.sendSocialProviderLinkEmail(payload);
     await this.prisma.user.update({
       where: { id: user.id },
       data: { otp: otp.toString(), otpExpiresAt: expiryTime },
