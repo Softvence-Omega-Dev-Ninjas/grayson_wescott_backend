@@ -13,7 +13,7 @@ import { PrismaService } from '@project/lib/prisma/prisma.service';
 import { UtilsService } from '@project/lib/utils/utils.service';
 import axios from 'axios';
 import {
-  SocialLoginCompleteDto,
+  FacebookLoginDto,
   SocialLoginDto,
   VerifySocialProviderOtpDto,
 } from '../dto/social-login.dto';
@@ -27,99 +27,89 @@ export class AuthSocialService {
   ) {}
 
   @HandleError('Social login failed', 'User')
-  async socialLogin(dto: SocialLoginDto): Promise<TResponse<any>> {
-    const { provider, accessToken } = dto;
-    if (!provider || !accessToken)
-      throw new AppError(400, 'Provider and access token are required');
+  async facebookLogin(dto: FacebookLoginDto): Promise<TResponse<any>> {
+    const { accessToken } = dto;
+    const provider = AuthProvider.FACEBOOK;
+
+    if (!accessToken) throw new AppError(400, 'Access token is required');
 
     const profile = await this.getProviderProfile(provider, accessToken);
     const { id: providerId, email, name, avatarUrl } = profile;
 
-    // try find user by providerId first
-    let user = await this.findUserByProviderId(provider, providerId);
+    // 1) If a user already exists for this providerId -> update + return
+    const providerUser = await this.findUserByProviderId(provider, providerId);
+    if (providerUser) {
+      const updated = await this.updateUserProfile(
+        providerUser,
+        name,
+        avatarUrl,
+      );
+      const token = this.generateUserToken(updated);
+      return this.buildSuccessResponse(updated, token);
+    }
 
-    if (!user) {
-      // no user with this provider id
-      if (!email) {
-        // provider didn't return email -> caller must ask user for email
-        return successResponse(
-          {
-            needsEmail: true,
-            provider,
-            providerId,
-            accessToken,
-            name: name || '',
-            avatarUrl: avatarUrl || '',
+    // 2) No provider-linked user. If provider didn't give email, ask frontend for it.
+    if (!email) {
+      return successResponse(
+        {
+          needsEmail: true,
+          provider,
+          providerId,
+          accessToken,
+          name: name || '',
+          avatarUrl: avatarUrl || '',
+        },
+        `${provider} did not return an email. Please provide one to continue.`,
+      );
+    }
+
+    const normalizedEmail = email.toLowerCase();
+
+    // 3) Try to find existing user by email
+    const existing = await this.prisma.user.findUnique({
+      where: { email: normalizedEmail },
+      include: { authProviders: true },
+    });
+
+    let user;
+    if (!existing) {
+      // 3a) Create new user and attach provider
+      user = await this.prisma.user.create({
+        data: {
+          email: normalizedEmail,
+          isVerified: true, // Facebook email considered verified
+          name: name || '',
+          isLoggedIn: true,
+          lastLoginAt: new Date(),
+          avatarUrl: avatarUrl || '',
+          authProviders: {
+            create: { provider, providerId },
           },
-          `${provider} did not return an email. Please provide one to continue.`,
-        );
-      }
-
-      // provider returned email -> attempt to find existing user by email
-      const normalizedEmail = email.toLowerCase();
-      const existing = await this.prisma.user.findUnique({
-        where: { email: normalizedEmail },
+        },
         include: { authProviders: true },
       });
-
-      if (!existing) {
-        // no existing user -> create a new user and attach provider
-        user = await this.prisma.user.create({
-          data: {
-            email: normalizedEmail,
-            isVerified: true, // email from provider considered verified
-            name: name || '',
-            isLoggedIn: true,
-            lastLoginAt: new Date(),
-            avatarUrl: avatarUrl || '',
-            authProviders: {
-              create: {
-                provider,
-                providerId,
-              },
-            },
-          },
-          include: { authProviders: true },
-        });
-      } else {
-        // existing user found by email
-        const hasProvider = existing.authProviders.some(
-          (ap) => ap.provider === provider && ap.providerId === providerId,
-        );
-
-        if (!hasProvider) {
-          // not linked yet -> send OTP so user can verify+link provider
-          const { otp, expiryTime } = this.utils.generateOtpAndExpiry();
-          const payload: SocialLoginEmailPayload = {
-            email: normalizedEmail,
-            otp: otp.toString(),
-            provider,
-            providerId,
-          };
-
-          await this.mailService.sendSocialProviderLinkEmail(payload);
-          await this.prisma.user.update({
-            where: { id: existing.id },
-            data: { otp: otp.toString(), otpExpiresAt: expiryTime },
-          });
-        }
-
-        // update profile fields (last login / avatar / name...)
-        user = await this.updateUserProfile(existing, name, avatarUrl);
-      }
     } else {
-      // user found by providerId -> just update profile and treat as login
-      user = await this.updateUserProfile(user, name, avatarUrl);
+      // 3b) Existing user found by email -> link provider if needed
+      const hasProvider = existing.authProviders.some(
+        (ap) => ap.provider === provider && ap.providerId === providerId,
+      );
+
+      if (!hasProvider) {
+        await this.prisma.userAuthProvider.create({
+          data: { userId: existing.id, provider, providerId },
+        });
+      }
+
+      // keep profile updated and treat as login
+      user = await this.updateUserProfile(existing, name, avatarUrl);
     }
 
     const token = this.generateUserToken(user);
     return this.buildSuccessResponse(user, token);
   }
 
-  @HandleError('Social login completion failed', 'User')
-  async socialLoginComplete(
-    data: SocialLoginCompleteDto,
-  ): Promise<TResponse<any>> {
+  @HandleError('Social login failed', 'User')
+  async socialLogin(data: SocialLoginDto): Promise<TResponse<any>> {
     const { accessToken, email, provider } = data;
     if (!accessToken || !email || !provider)
       throw new AppError(400, 'accessToken, provider and email are required');
