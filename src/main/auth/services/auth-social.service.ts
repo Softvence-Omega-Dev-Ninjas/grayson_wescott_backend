@@ -321,6 +321,7 @@ export class AuthSocialService {
         lastLoginAt: new Date(),
         isLoggedIn: true,
         lastActiveAt: new Date(),
+        isVerified: true,
       },
       include: { authProviders: true },
     });
