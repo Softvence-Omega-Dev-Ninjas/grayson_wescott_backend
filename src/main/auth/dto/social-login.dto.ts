@@ -2,11 +2,7 @@ import { ApiProperty } from '@nestjs/swagger';
 import { AuthProvider } from '@prisma/client';
 import { IsEmail, IsEnum, IsNotEmpty, IsString } from 'class-validator';
 
-export class SocialLoginDto {
-  @ApiProperty({ enum: AuthProvider, example: AuthProvider.FACEBOOK })
-  @IsEnum(AuthProvider)
-  provider: AuthProvider;
-
+export class FacebookLoginDto {
   @ApiProperty({
     description: 'Access token from the social login provider',
     example: 'token',
@@ -15,7 +11,7 @@ export class SocialLoginDto {
   accessToken: string;
 }
 
-export class SocialLoginCompleteDto {
+export class SocialLoginDto {
   @ApiProperty({ enum: AuthProvider, example: AuthProvider.FACEBOOK })
   @IsEnum(AuthProvider)
   provider: AuthProvider;

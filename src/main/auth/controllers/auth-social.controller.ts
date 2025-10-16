@@ -1,7 +1,7 @@
 import { Body, Controller, Post } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import {
-  SocialLoginCompleteDto,
+  FacebookLoginDto,
   SocialLoginDto,
   VerifySocialProviderOtpDto,
 } from '../dto/social-login.dto';
@@ -12,16 +12,16 @@ import { AuthSocialService } from '../services/auth-social.service';
 export class AuthSocialController {
   constructor(private readonly authSocialService: AuthSocialService) {}
 
-  @ApiOperation({ summary: 'Social login init' })
-  @Post('init-login')
-  async socialLogin(@Body() body: SocialLoginDto) {
-    return this.authSocialService.socialLogin(body);
+  @ApiOperation({ summary: 'Facebook login' })
+  @Post('facebook-login')
+  async facebookLogin(@Body() body: FacebookLoginDto) {
+    return this.authSocialService.facebookLogin(body);
   }
 
-  @ApiOperation({ summary: 'Social login complete' })
-  @Post('complete-login')
-  async socialLoginComplete(@Body() body: SocialLoginCompleteDto) {
-    return this.authSocialService.socialLoginComplete(body);
+  @ApiOperation({ summary: 'Social login' })
+  @Post('social-login')
+  async socialLogin(@Body() body: SocialLoginDto) {
+    return this.authSocialService.socialLogin(body);
   }
 
   @ApiOperation({ summary: 'Social login OTP verification' })
