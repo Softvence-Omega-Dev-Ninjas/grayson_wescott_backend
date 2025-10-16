@@ -1,4 +1,4 @@
-import { Controller, Get, Query } from '@nestjs/common';
+import { Controller, Delete, Get, Param, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { ValidateAdmin } from '@project/common/jwt/jwt.decorator';
 import { GetClientsForProgramDto } from '../dto/get-clients.dto';
@@ -15,5 +15,11 @@ export class UserController {
   @Get('clients')
   findAllClient(@Query() query: GetClientsForProgramDto) {
     return this.userService.findAllClientForProgram(query);
+  }
+
+  @ApiOperation({ summary: 'Delete a client' })
+  @Delete('clients/:userId')
+  deleteAClient(@Param('userId') userId: string) {
+    return this.userService.deleteAClient(userId);
   }
 }

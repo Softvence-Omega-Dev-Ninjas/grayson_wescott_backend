@@ -4,6 +4,7 @@ import { UserResponseDto } from '@project/common/dto/user-response.dto';
 import { HandleError } from '@project/common/error/handle-error.decorator';
 import {
   successPaginatedResponse,
+  successResponse,
   TPaginatedResponse,
 } from '@project/common/utils/response.util';
 import { PrismaService } from '@project/lib/prisma/prisma.service';
@@ -59,5 +60,14 @@ export class UserService {
       { page, limit, total },
       'Users fetched successfully',
     );
+  }
+
+  @HandleError('Failed to delete client', 'USER')
+  async deleteAClient(userId: string) {
+    await this.prisma.user.findUniqueOrThrow({ where: { id: userId } });
+
+    await this.prisma.user.delete({ where: { id: userId } });
+
+    return successResponse(null, 'Client deleted successfully');
   }
 }
