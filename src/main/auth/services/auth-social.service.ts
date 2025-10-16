@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AuthProvider } from '@prisma/client';
 import { UserResponseDto } from '@project/common/dto/user-response.dto';
+import { ENVEnum } from '@project/common/enum/env.enum';
 import { AppError } from '@project/common/error/handle-error.app';
 import { HandleError } from '@project/common/error/handle-error.decorator';
 import {
@@ -120,19 +121,18 @@ export class AuthSocialService {
 
     if (!code) throw new AppError(400, 'Authorization code is required');
 
+    if (!codeVerifier) throw new AppError(400, 'Code verifier is required');
+
     // Exchange code for access token (PKCE flow)
-    const body = new URLSearchParams();
-    body.append(
-      'client_id',
-      this.configService.getOrThrow('TWITTER_CLIENT_ID'),
-    );
-    body.append(
-      'redirect_uri',
-      this.configService.getOrThrow('TWITTER_REDIRECT_URI'),
-    );
-    body.append('grant_type', 'authorization_code');
-    body.append('code', code);
-    if (codeVerifier) body.append('code_verifier', codeVerifier);
+    const body = new URLSearchParams({
+      client_secret: this.configService.getOrThrow(
+        ENVEnum.TWITTER_CLIENT_SECRET,
+      ),
+      code_verifier: codeVerifier,
+      grant_type: 'authorization_code',
+      redirect_uri: this.configService.getOrThrow(ENVEnum.TWITTER_REDIRECT_URL),
+      code,
+    });
 
     const tokenRes = await axios.post(
       'https://api.twitter.com/2/oauth2/token',
