@@ -12,6 +12,7 @@ import {
 import { PrismaService } from '@project/lib/prisma/prisma.service';
 import { UtilsService } from '@project/lib/utils/utils.service';
 import axios from 'axios';
+import { TwitterApi } from 'twitter-api-v2';
 import { FacebookLoginDto, TwitterLoginDto } from '../dto/social-login.dto';
 
 @Injectable()
@@ -115,54 +116,36 @@ export class AuthSocialService {
   }
 
   @HandleError('Twitter login failed', 'User')
-  async twitterLogin(dto: TwitterLoginDto): Promise<TResponse<any>> {
-    const { code, codeVerifier } = dto;
+  async twitterLogin(data: TwitterLoginDto): Promise<TResponse<any>> {
     const provider = AuthProvider.TWITTER;
 
-    if (!code) throw new AppError(400, 'Authorization code is required');
+    if (!data.oauthToken || !data.oauthVerifier)
+      throw new AppError(400, 'Missing OAuth token or verifier');
 
-    if (!codeVerifier) throw new AppError(400, 'Code verifier is required');
-
-    // Exchange code for access token (PKCE flow)
-    const body = new URLSearchParams({
-      client_id: this.configService.getOrThrow(ENVEnum.TWITTER_CLIENT_ID),
-      client_secret: this.configService.getOrThrow(
-        ENVEnum.TWITTER_CLIENT_SECRET,
-      ),
-      code_verifier: codeVerifier,
-      grant_type: 'authorization_code',
-      redirect_uri: this.configService.getOrThrow(ENVEnum.TWITTER_REDIRECT_URL),
-      code,
+    const twitterClient = new TwitterApi({
+      appKey: this.configService.getOrThrow(ENVEnum.TWITTER_CONSUMER_KEY),
+      appSecret: this.configService.getOrThrow(ENVEnum.TWITTER_CONSUMER_SECRET),
+      accessToken: data.oauthToken,
+      accessSecret: data.oauthVerifier,
     });
 
-    const tokenRes = await axios.post(
-      'https://api.twitter.com/2/oauth2/token',
-      body.toString(),
-      {
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      },
+    // 1️⃣ Exchange request token for access token
+    const { client: loggedClient } = await twitterClient.login(
+      data.oauthVerifier,
     );
 
-    const accessToken = tokenRes?.data?.access_token;
-    if (!accessToken)
-      throw new AppError(400, 'Failed to obtain access token from Twitter');
-
-    // Fetch Twitter profile (try to request email; may be null)
-    const profileRes = await axios.get('https://api.twitter.com/2/users/me', {
-      headers: { Authorization: `Bearer ${accessToken}` },
-      params: { 'user.fields': 'id,name,username,profile_image_url,email' },
+    // 2️⃣ Fetch the user’s profile (with email)
+    const user = await loggedClient.v1.verifyCredentials({
+      include_email: true,
+      include_entities: true,
     });
 
-    if (!profileRes?.data?.data)
-      throw new AppError(400, 'Failed to obtain user profile from Twitter');
+    const providerId = user.id_str;
+    const email = user.email ?? null;
+    const name = user.name ?? user.screen_name ?? null;
+    const avatarUrl = user.profile_image_url_https ?? null;
 
-    const d = profileRes.data?.data;
-    const providerId = d?.id;
-    const email = d?.email ?? null;
-    const name = d?.name ?? d?.username ?? null;
-    const avatarUrl = d?.profile_image_url ?? null;
-
-    // 1) Check if provider-linked user exists
+    // 3️⃣ If we already have a user for this provider
     const providerUser = await this.findUserByProviderId(provider, providerId);
     if (providerUser) {
       const updated = await this.updateUserProfile(
@@ -174,7 +157,7 @@ export class AuthSocialService {
       return this.buildSuccessResponse(updated, token);
     }
 
-    // 2) If provider did not return email
+    // 4️⃣ If email not returned (rare but possible)
     if (!email) {
       return successResponse(
         {
@@ -190,16 +173,16 @@ export class AuthSocialService {
 
     const normalizedEmail = email.toLowerCase();
 
-    // 3) Try to find existing user by email
+    // 5️⃣ Try finding user by email
     const existing = await this.prisma.user.findUnique({
       where: { email: normalizedEmail },
       include: { authProviders: true },
     });
 
-    let user;
+    let newUser;
     if (!existing) {
-      // 3a) Create new user
-      user = await this.prisma.user.create({
+      // 5a) Create new user
+      newUser = await this.prisma.user.create({
         data: {
           email: normalizedEmail,
           isVerified: true,
@@ -214,7 +197,7 @@ export class AuthSocialService {
         include: { authProviders: true },
       });
     } else {
-      // 3b) Link provider if needed
+      // 5b) Link provider if not linked yet
       const hasProvider = existing.authProviders.some(
         (ap) => ap.provider === provider && ap.providerId === providerId,
       );
@@ -225,11 +208,11 @@ export class AuthSocialService {
         });
       }
 
-      user = await this.updateUserProfile(existing, name, avatarUrl);
+      newUser = await this.updateUserProfile(existing, name, avatarUrl);
     }
 
-    const token = this.generateUserToken(user);
-    return this.buildSuccessResponse(user, token);
+    const token = this.generateUserToken(newUser);
+    return this.buildSuccessResponse(newUser, token);
   }
 
   // -------------------------

@@ -12,16 +12,16 @@ export class FacebookLoginDto {
 
 export class TwitterLoginDto {
   @ApiProperty({
-    description: 'Authorization code received from Twitter OAuth',
-    example: 'AQABAAIAAA...etc',
+    description: 'Access token from the social login provider',
+    example: 'token',
   })
   @IsString()
-  code: string;
+  oauthToken: string;
 
   @ApiProperty({
-    description: 'Code verifier for PKCE',
-    example: 'random_generated_string_for_pkce',
+    description: 'Access token from the social login provider',
+    example: 'token',
   })
   @IsString()
-  codeVerifier: string;
+  oauthVerifier: string;
 }
