@@ -1,10 +1,6 @@
 import { Body, Controller, Post } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
-import {
-  FacebookLoginDto,
-  SocialLoginDto,
-  VerifySocialProviderOtpDto,
-} from '../dto/social-login.dto';
+import { FacebookLoginDto, TwitterLoginDto } from '../dto/social-login.dto';
 import { AuthSocialService } from '../services/auth-social.service';
 
 @ApiTags('Auth Social')
@@ -18,15 +14,9 @@ export class AuthSocialController {
     return this.authSocialService.facebookLogin(body);
   }
 
-  @ApiOperation({ summary: 'Social login' })
-  @Post('social-login')
-  async socialLogin(@Body() body: SocialLoginDto) {
-    return this.authSocialService.socialLogin(body);
-  }
-
-  @ApiOperation({ summary: 'Social login OTP verification' })
-  @Post('verify-login')
-  async verifySocialProviderOtp(@Body() body: VerifySocialProviderOtpDto) {
-    return this.authSocialService.verifySocialProviderOtp(body);
+  @ApiOperation({ summary: 'Twitter login' })
+  @Post('twitter-login')
+  async twitterLogin(@Body() body: TwitterLoginDto) {
+    return this.authSocialService.twitterLogin(body);
   }
 }
