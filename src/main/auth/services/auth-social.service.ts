@@ -125,6 +125,7 @@ export class AuthSocialService {
 
     // Exchange code for access token (PKCE flow)
     const body = new URLSearchParams({
+      client_id: this.configService.getOrThrow(ENVEnum.TWITTER_CLIENT_ID),
       client_secret: this.configService.getOrThrow(
         ENVEnum.TWITTER_CLIENT_SECRET,
       ),
