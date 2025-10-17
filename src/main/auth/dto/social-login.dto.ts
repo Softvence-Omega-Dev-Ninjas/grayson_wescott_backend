@@ -19,7 +19,14 @@ export class TwitterLoginDto {
   oauthToken: string;
 
   @ApiProperty({
-    description: 'Access token from the social login provider',
+    description: 'Access token secret from the social login provider',
+    example: 'token',
+  })
+  @IsString()
+  oauthTokenSecret: string;
+
+  @ApiProperty({
+    description: 'Verifier from the social login provider',
     example: 'token',
   })
   @IsString()

@@ -116,25 +116,45 @@ export class AuthSocialService {
   }
 
   @HandleError('Twitter login failed', 'User')
+  async requestTwitterLogin(): Promise<TResponse<any>> {
+    const twitterClient = new TwitterApi({
+      appKey: this.configService.getOrThrow(ENVEnum.TWITTER_CONSUMER_KEY),
+      appSecret: this.configService.getOrThrow(ENVEnum.TWITTER_CONSUMER_SECRET),
+    });
+
+    const { url, oauth_token, oauth_token_secret } =
+      await twitterClient.generateAuthLink(
+        this.configService.getOrThrow(ENVEnum.TWITTER_REDIRECT_URL),
+        { linkMode: 'authorize' },
+      );
+
+    return successResponse({
+      url,
+      oauthToken: oauth_token,
+      oauthTokenSecret: oauth_token_secret,
+    });
+  }
+
+  @HandleError('Twitter login failed', 'User')
   async twitterLogin(data: TwitterLoginDto): Promise<TResponse<any>> {
     const provider = AuthProvider.TWITTER;
 
-    if (!data.oauthToken || !data.oauthVerifier)
+    if (!data.oauthToken || !data.oauthTokenSecret || !data.oauthVerifier)
       throw new AppError(400, 'Missing OAuth token or verifier');
 
     const twitterClient = new TwitterApi({
       appKey: this.configService.getOrThrow(ENVEnum.TWITTER_CONSUMER_KEY),
       appSecret: this.configService.getOrThrow(ENVEnum.TWITTER_CONSUMER_SECRET),
       accessToken: data.oauthToken,
-      accessSecret: data.oauthVerifier,
+      accessSecret: data.oauthTokenSecret,
     });
 
-    // 1️⃣ Exchange request token for access token
+    // 1️ Exchange request token for access token
     const { client: loggedClient } = await twitterClient.login(
       data.oauthVerifier,
     );
 
-    // 2️⃣ Fetch the user’s profile (with email)
+    // 2️ Fetch the user’s profile (with email)
     const user = await loggedClient.v1.verifyCredentials({
       include_email: true,
       include_entities: true,
@@ -145,7 +165,7 @@ export class AuthSocialService {
     const name = user.name ?? user.screen_name ?? null;
     const avatarUrl = user.profile_image_url_https ?? null;
 
-    // 3️⃣ If we already have a user for this provider
+    // 3 If we already have a user for this provider
     const providerUser = await this.findUserByProviderId(provider, providerId);
     if (providerUser) {
       const updated = await this.updateUserProfile(
@@ -157,7 +177,7 @@ export class AuthSocialService {
       return this.buildSuccessResponse(updated, token);
     }
 
-    // 4️⃣ If email not returned (rare but possible)
+    // 4 If email not returned (rare but possible)
     if (!email) {
       return successResponse(
         {
@@ -173,7 +193,7 @@ export class AuthSocialService {
 
     const normalizedEmail = email.toLowerCase();
 
-    // 5️⃣ Try finding user by email
+    // 5️ Try finding user by email
     const existing = await this.prisma.user.findUnique({
       where: { email: normalizedEmail },
       include: { authProviders: true },
