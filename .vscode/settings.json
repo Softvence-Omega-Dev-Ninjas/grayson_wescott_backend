@@ -31,6 +31,7 @@
   "prettier.resolveGlobalModules": false,
   "cSpell.words": [
     "certbot",
+    "Grayson",
     "LOWERBODY",
     "Millis",
     "qrcode",

@@ -4,8 +4,8 @@
 ENV_FILE=".env.production"
 
 # Static values
-DOCKER_USERNAME="sajibsv"
-EMAIL="sajib.softvence@gmail.com"
+DOCKER_USERNAME="softvence"
+EMAIL="grayson@carbonengines.com"
 
 # Get values from package.json
 PACKAGE_NAME=$(node -p "require('./package.json').name || 'empty_name'")

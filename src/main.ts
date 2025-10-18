@@ -31,10 +31,13 @@ async function bootstrap() {
     credentials: true,
   });
 
+  // * Global validation
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
 
+  // * Global error handler
   app.useGlobalFilters(new AllExceptionsFilter());
 
+  // * Global prefix
   app.setGlobalPrefix('api');
 
   // * Swagger config with Bearer Auth
