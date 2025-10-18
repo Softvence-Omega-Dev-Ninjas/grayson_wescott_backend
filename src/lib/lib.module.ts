@@ -4,6 +4,7 @@ import { MailModule } from './mail/mail.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { QueueModule } from './queue/queue.module';
 import { SeedModule } from './seed/seed.module';
+import { StripeModule } from './stripe/stripe.module';
 import { TwilioModule } from './twilio/twilio.module';
 import { UtilsModule } from './utils/utils.module';
 
@@ -16,6 +17,7 @@ import { UtilsModule } from './utils/utils.module';
     QueueModule,
     ChatModule,
     TwilioModule,
+    StripeModule,
   ],
   exports: [],
   providers: [],
