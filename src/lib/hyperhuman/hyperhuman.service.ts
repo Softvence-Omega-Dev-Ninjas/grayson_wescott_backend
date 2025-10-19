@@ -29,10 +29,11 @@ export class HyperhumanService {
       },
     });
 
-    this.logger.debug(`Response: from hyperhuman:`, response);
-
     if (response.status !== 200) {
-      this.logger.error(`Failed to get URLs for workout ${workoutId}`);
+      this.logger.error(
+        `Failed to get URLs for workout ${workoutId}`,
+        response.data,
+      );
 
       // 422 invalid workout id
       if (response.status === 422) {
@@ -53,7 +54,7 @@ export class HyperhumanService {
       );
     }
 
-    const data = response.data;
+    const data = response.data.data;
     if (!data) {
       throw new AppError(
         HttpStatus.INTERNAL_SERVER_ERROR,
@@ -61,11 +62,28 @@ export class HyperhumanService {
       );
     }
 
-    this.logger.log(`Getting URLs for workout ${workoutId}`);
+    const endpoint = `${this.baseUrl}/workouts/${workoutId}/export/video/stream_url`;
+    const fullVideoUrlResponse = await axios.get(endpoint, {
+      headers: {
+        'X-Api-Key': this.x_api_key,
+      },
+    });
+
+    if (fullVideoUrlResponse.status !== 200) {
+      this.logger.error(
+        `Failed to get full video url for workout ${workoutId}`,
+        fullVideoUrlResponse.data,
+      );
+      throw new AppError(
+        HttpStatus.NOT_FOUND,
+        'This workout does not have a full video',
+      );
+    }
 
     return {
       id: data.id,
       preview: data.preview,
+      fullVideoUrl: fullVideoUrlResponse.data,
     };
   }
 }

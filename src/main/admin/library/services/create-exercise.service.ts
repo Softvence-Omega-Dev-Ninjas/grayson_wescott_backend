@@ -21,11 +21,6 @@ export class CreateExerciseService {
   async createExercise(
     data: CreateLibraryExerciseDto,
   ): Promise<TResponse<any>> {
-    this.logger.log(
-      `Creating exercise for library ${data.workoutId} with data`,
-      data,
-    );
-
     const workoutId = data.workoutId;
 
     const urls = await this.hyperhuman.getURLsByWorkOutId(workoutId);
