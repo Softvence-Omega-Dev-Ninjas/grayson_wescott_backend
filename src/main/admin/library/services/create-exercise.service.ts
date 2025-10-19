@@ -23,9 +23,9 @@ export class CreateExerciseService {
   ): Promise<TResponse<any>> {
     const workoutId = data.workoutId;
 
-    const urls = await this.hyperhuman.getURLsByWorkOutId(workoutId);
+    const response = await this.hyperhuman.getURLsByWorkOutId(workoutId);
 
-    this.logger.log(`Got URLs for workout ${workoutId} from hyperhuman:`, urls);
+    this.logger.log(`Workout Response for Hyperhuman`, response.videoData);
 
     return successResponse(null, 'Library Exercise created successfully');
   }

@@ -1,8 +1,8 @@
-import { HttpStatus, Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ENVEnum } from '@project/common/enum/env.enum';
-import { AppError } from '@project/common/error/handle-error.app';
 import axios from 'axios';
+import queryString from 'query-string';
 
 @Injectable()
 export class HyperhumanService {
@@ -29,38 +29,9 @@ export class HyperhumanService {
       },
     });
 
-    if (response.status !== 200) {
-      this.logger.error(
-        `Failed to get URLs for workout ${workoutId}`,
-        response.data,
-      );
-
-      // 422 invalid workout id
-      if (response.status === 422) {
-        throw new AppError(
-          HttpStatus.UNPROCESSABLE_ENTITY,
-          'The workout id is invalid',
-        );
-      }
-
-      // 404 not found
-      if (response.status === 404) {
-        throw new AppError(HttpStatus.NOT_FOUND, 'Workout not found');
-      }
-
-      throw new AppError(
-        HttpStatus.INTERNAL_SERVER_ERROR,
-        'Failed to get URLs for workout',
-      );
-    }
-
     const data = response.data.data;
-    if (!data) {
-      throw new AppError(
-        HttpStatus.INTERNAL_SERVER_ERROR,
-        'Failed to get URLs for workout',
-      );
-    }
+    const previewUrl = data.preview.url;
+    const thumbnailUrl = data.preview.thumbnail;
 
     const endpoint = `${this.baseUrl}/workouts/${workoutId}/export/video/stream_url`;
     const fullVideoUrlResponse = await axios.get(endpoint, {
@@ -69,21 +40,45 @@ export class HyperhumanService {
       },
     });
 
-    if (fullVideoUrlResponse.status !== 200) {
-      this.logger.error(
-        `Failed to get full video url for workout ${workoutId}`,
-        fullVideoUrlResponse.data,
-      );
-      throw new AppError(
-        HttpStatus.NOT_FOUND,
-        'This workout does not have a full video',
-      );
-    }
+    const videoUrl = fullVideoUrlResponse.data;
 
     return {
-      id: data.id,
-      preview: data.preview,
-      fullVideoUrl: fullVideoUrlResponse.data,
+      videoData: {
+        workoutId: data.id,
+        previewUrl,
+        previewUrlExpiresAt: this.extractExpiry(previewUrl),
+        thumbnailUrl,
+        thumbnailUrlExpiresAt: this.extractExpiry(thumbnailUrl),
+        videoUrl,
+        videoUrlExpiresAt: this.extractExpiry(videoUrl),
+      },
+      hyperhumanData: data,
     };
+  }
+
+  private extractExpiry(url: string): Date | null {
+    const query = url.split('?')[1];
+    if (!query) return null;
+
+    const params = queryString.parse(query);
+    const expiresInSec = params['X-Amz-Expires']
+      ? Number(params['X-Amz-Expires'])
+      : null;
+    const amzDate = params['X-Amz-Date'] ? String(params['X-Amz-Date']) : null;
+
+    if (!expiresInSec || !amzDate) return null;
+
+    // Convert X-Amz-Date (e.g. 20251019T224719Z) to Date
+    const startDate = new Date(
+      `${amzDate.slice(0, 4)}-${amzDate.slice(4, 6)}-${amzDate.slice(
+        6,
+        8,
+      )}T${amzDate.slice(9, 11)}:${amzDate.slice(
+        11,
+        13,
+      )}:${amzDate.slice(13, 15)}Z`,
+    );
+
+    return new Date(startDate.getTime() + expiresInSec * 1000);
   }
 }
