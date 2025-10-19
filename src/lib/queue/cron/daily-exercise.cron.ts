@@ -52,11 +52,15 @@ export class DailyExerciseCron implements OnModuleInit {
     for (const up of activeUserPrograms) {
       const tz = up.user?.timezone;
       if (!tz) continue;
+      this.logger.log(`Processing ${up.user.name} (${up.user.email})`);
 
       const userNow = nowUTC.setZone(tz);
 
       // Target window: 1 AM – 12 PM local time
       if (userNow.hour >= 1 && userNow.hour <= 12) {
+        this.logger.log(
+          `Sending early morning notifications to ${up.user.name} (${up.user.email})`,
+        );
         const channels: Channel[] = ['socket', 'email'];
         if (up.user.phone) channels.push('sms');
 
