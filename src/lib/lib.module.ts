@@ -7,6 +7,7 @@ import { SeedModule } from './seed/seed.module';
 import { StripeModule } from './stripe/stripe.module';
 import { TwilioModule } from './twilio/twilio.module';
 import { UtilsModule } from './utils/utils.module';
+import { HyperhumanModule } from './hyperhuman/hyperhuman.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { UtilsModule } from './utils/utils.module';
     ChatModule,
     TwilioModule,
     StripeModule,
+    HyperhumanModule,
   ],
   exports: [],
   providers: [],

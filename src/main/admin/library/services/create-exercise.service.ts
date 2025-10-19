@@ -22,6 +22,10 @@ export class CreateExerciseService {
       data,
     );
 
+    const workoutId = data.workoutId;
+
+    // validate workout id by fetching the details along with full exercise video url
+
     return successResponse(null, 'Library Exercise created successfully');
   }
 }
