@@ -1,0 +1,72 @@
+model LibraryExercise {
+  id String @id @default(uuid())
+
+  // From hyperhuman
+  workoutId    String // Selected in frontend
+  previewUrl   String // get by backend during adding workout by workoutId
+  thumbnailUrl String // get by backend during adding workout by workoutId
+  videoUrl     String // get by backend during adding workout by workoutId
+
+  // From Form
+  // basic info
+  title       String
+  duration    Int?
+  description String?
+
+  // workout info
+  difficulty    DifficultyLevel @default(BEGINNER)
+  bodyPartTags  BodyPart[]
+  equipmentTags Equipment[]
+
+  // array data
+  steps          String[]
+  keyBenefits    String[]
+  commonMistakes String[]
+
+  // exercise details
+  equipment       String
+  type            String
+  primaryMuscle   String
+  secondaryMuscle String
+  caloriesBurned  String
+
+  // Setting
+  isDeletedFromHyperhuman Boolean @default(false)
+
+  // Metadata
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  @@map("library_exercises")
+}
+
+enum DifficultyLevel {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+}
+
+enum BodyPart {
+  LEGS
+  CHEST
+  CORE
+  BACK
+  ARMS
+  SHOULDERS
+  ABS
+  FULLBODY
+  GRIP
+  GLUTES
+  CALVES
+}
+
+enum Equipment {
+  DUMBBELL
+  BARBELL
+  KETTLEBELL
+  BODYWEIGHT
+  RESISTANCEBAND
+  CABLE
+  DIPSTATION
+  SQUATRACK
+}
