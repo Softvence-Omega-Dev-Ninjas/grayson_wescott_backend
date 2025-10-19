@@ -1,14 +1,21 @@
 model LibraryExercise {
   id String @id @default(uuid())
 
-  // From hyperhuman
-  workoutId    String // Selected in frontend
-  previewUrl   String // get by backend during adding workout by workoutId
-  thumbnailUrl String // get by backend during adding workout by workoutId
-  videoUrl     String // get by backend during adding workout by workoutId
+  // From Hyperhuman
+  workoutId String // Permanent until deleted from organization
 
-  // From Form
-  // basic info
+  previewUrl          String
+  previewUrlExpiresAt DateTime? // Track expiration
+
+  thumbnailUrl          String
+  thumbnailUrlExpiresAt DateTime?
+
+  videoUrl          String?
+  videoUrlExpiresAt DateTime?
+
+  hyperhumanData Json? // Optional full workout JSON backup
+
+  // From Form / app
   title       String
   duration    Int?
   description String?
@@ -30,8 +37,9 @@ model LibraryExercise {
   secondaryMuscle String
   caloriesBurned  String
 
-  // Setting
-  isDeletedFromHyperhuman Boolean @default(false)
+  // Settings
+  isDeletedFromHyperhuman Boolean @default(false) // True if deleted from Hyperhuman
+  isArchived              Boolean @default(false) // soft-delete in your DB
 
   // Metadata
   createdAt DateTime @default(now())
