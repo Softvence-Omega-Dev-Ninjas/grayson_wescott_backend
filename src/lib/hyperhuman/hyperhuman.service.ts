@@ -1,6 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ENVEnum } from '@project/common/enum/env.enum';
+import { HandleError } from '@project/common/error/handle-error.decorator';
+import { GetWorkoutsFromHyperhumanDto } from '@project/main/admin/library/dto/get-workouts-from-hyperhuman.dto';
 import axios from 'axios';
 import queryString from 'query-string';
 
@@ -18,6 +20,21 @@ export class HyperhumanService {
     this.org_id = this.configService.getOrThrow<string>(
       ENVEnum.HYPERHUMAN_ORGANIZATION_ID,
     );
+  }
+
+  @HandleError('Failed to get workouts from Hyperhuman', 'Library Exercise')
+  async getWorkoutsFromHyperhuman(query: GetWorkoutsFromHyperhumanDto) {
+    const url = `${this.baseUrl}/orgs/${this.org_id}/workouts?${queryString.stringify(query)}`;
+
+    const response = await axios.get(url, {
+      headers: {
+        'X-Api-Key': this.x_api_key,
+      },
+    });
+
+    this.logger.log(`Workouts from Hyperhuman`, response.data);
+
+    return response.data;
   }
 
   async getURLsByWorkOutId(workoutId: string) {
