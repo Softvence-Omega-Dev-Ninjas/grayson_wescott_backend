@@ -113,6 +113,9 @@ jobs:
           DOCKER_USERNAME=${{ secrets.DOCKER_USERNAME }}
           DOCKER_PASSWORD=${{ secrets.DOCKER_PASSWORD }}
 
+          HYPERHUMAN_X_API_KEY=${{ secrets.HYPERHUMAN_X_API_KEY }}
+          HYPERHUMAN_ORGANIZATION_ID=${{ secrets.HYPERHUMAN_ORGANIZATION_ID }}
+
           GIT_TOKEN=${{ secrets.GIT_TOKEN }}
 
           VPS_USER=${{ secrets.VPS_USER }}

@@ -136,6 +136,9 @@ jobs:
           AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}
           AWS_S3_BUCKET_NAME=${{ secrets.AWS_S3_BUCKET_NAME }}
 
+          HYPERHUMAN_X_API_KEY=${{ secrets.HYPERHUMAN_X_API_KEY }}
+          HYPERHUMAN_ORGANIZATION_ID=${{ secrets.HYPERHUMAN_ORGANIZATION_ID }}
+
           VPS_USER=${{ secrets.VPS_USER }}
           VPS_HOST=${{ secrets.VPS_HOST }}
           VPS_HOST_IP=${{ secrets.VPS_HOST_IP }}

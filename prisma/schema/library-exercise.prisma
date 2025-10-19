@@ -1,0 +1,80 @@
+model LibraryExercise {
+  id String @id @default(uuid())
+
+  // From Hyperhuman
+  workoutId String // Permanent until deleted from organization
+
+  previewUrl          String
+  previewUrlExpiresAt DateTime? // Track expiration
+
+  thumbnailUrl          String
+  thumbnailUrlExpiresAt DateTime?
+
+  videoUrl          String?
+  videoUrlExpiresAt DateTime?
+
+  hyperhumanData Json? // Optional full workout JSON backup
+
+  // From Form / app
+  title       String
+  duration    Int?
+  description String?
+
+  // workout info
+  difficulty    DifficultyLevel @default(BEGINNER)
+  bodyPartTags  BodyPart[]
+  equipmentTags Equipment[]
+
+  // array data
+  steps          String[]
+  keyBenefits    String[]
+  commonMistakes String[]
+
+  // exercise details
+  equipment       String
+  type            String
+  primaryMuscle   String
+  secondaryMuscle String
+  caloriesBurned  String
+
+  // Settings
+  isDeletedFromHyperhuman Boolean @default(false) // True if deleted from Hyperhuman
+  isArchived              Boolean @default(false) // soft-delete in your DB
+
+  // Metadata
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  @@map("library_exercises")
+}
+
+enum DifficultyLevel {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+}
+
+enum BodyPart {
+  LEGS
+  CHEST
+  CORE
+  BACK
+  ARMS
+  SHOULDERS
+  ABS
+  FULLBODY
+  GRIP
+  GLUTES
+  CALVES
+}
+
+enum Equipment {
+  DUMBBELL
+  BARBELL
+  KETTLEBELL
+  BODYWEIGHT
+  RESISTANCEBAND
+  CABLE
+  DIPSTATION
+  SQUATRACK
+}
