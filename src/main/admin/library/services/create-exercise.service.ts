@@ -4,6 +4,7 @@ import {
   successResponse,
   TResponse,
 } from '@project/common/utils/response.util';
+import { HyperhumanService } from '@project/lib/hyperhuman/hyperhuman.service';
 import { PrismaService } from '@project/lib/prisma/prisma.service';
 import { CreateLibraryExerciseDto } from '../dto/create-library-exercise.dto';
 
@@ -11,7 +12,10 @@ import { CreateLibraryExerciseDto } from '../dto/create-library-exercise.dto';
 export class CreateExerciseService {
   private readonly logger = new Logger(CreateExerciseService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly hyperhuman: HyperhumanService,
+  ) {}
 
   @HandleError('Failed to create exercise', 'Library Exercise')
   async createExercise(
@@ -24,7 +28,9 @@ export class CreateExerciseService {
 
     const workoutId = data.workoutId;
 
-    // validate workout id by fetching the details along with full exercise video url
+    const urls = await this.hyperhuman.getURLsByWorkOutId(workoutId);
+
+    this.logger.log(`Got URLs for workout ${workoutId} from hyperhuman:`, urls);
 
     return successResponse(null, 'Library Exercise created successfully');
   }
