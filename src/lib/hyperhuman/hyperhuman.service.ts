@@ -2,9 +2,14 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ENVEnum } from '@project/common/enum/env.enum';
 import { HandleError } from '@project/common/error/handle-error.decorator';
+import {
+  successPaginatedResponse,
+  TPaginatedResponse,
+} from '@project/common/utils/response.util';
 import { GetWorkoutsFromHyperhumanDto } from '@project/main/admin/library/dto/get-workouts-from-hyperhuman.dto';
 import axios from 'axios';
 import queryString from 'query-string';
+import { WorkoutListResponse } from './types/workout.types';
 
 @Injectable()
 export class HyperhumanService {
@@ -23,7 +28,12 @@ export class HyperhumanService {
   }
 
   @HandleError('Failed to get workouts from Hyperhuman', 'Library Exercise')
-  async getWorkoutsFromHyperhuman(query: GetWorkoutsFromHyperhumanDto) {
+  async getWorkoutsFromHyperhuman(
+    query: GetWorkoutsFromHyperhumanDto,
+  ): Promise<TPaginatedResponse<any>> {
+    const page = query.page && +query.page > 0 ? +query.page : 1;
+    const limit = query.limit && +query.limit > 0 ? +query.limit : 10;
+
     const url = `${this.baseUrl}/orgs/${this.org_id}/workouts?${queryString.stringify(query)}`;
 
     const response = await axios.get(url, {
@@ -32,9 +42,19 @@ export class HyperhumanService {
       },
     });
 
-    this.logger.log(`Workouts from Hyperhuman`, response.data);
+    const data: WorkoutListResponse = response.data;
 
-    return response.data;
+    this.logger.log(`Workouts from Hyperhuman`, data);
+
+    return successPaginatedResponse(
+      data.data,
+      {
+        page,
+        limit,
+        total: data.links.total,
+      },
+      data.explanation,
+    );
   }
 
   async getURLsByWorkOutId(workoutId: string) {
