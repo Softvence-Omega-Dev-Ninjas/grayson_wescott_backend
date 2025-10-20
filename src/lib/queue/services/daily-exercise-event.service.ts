@@ -20,6 +20,9 @@ export class DailyExerciseEventService {
    */
   @OnEvent(QUEUE_EVENTS.DAILY_EXERCISE)
   async handleDailyExerciseCreate(payload: DailyExerciseJobPayload) {
+    this.logger.log(
+      `Enqueuing job for ${payload.recordType} ${payload.recordId}`,
+    );
     try {
       await this.queue.add(QUEUE_EVENTS.DAILY_EXERCISE, payload, {
         // Automatically remove successful jobs to save Redis memory

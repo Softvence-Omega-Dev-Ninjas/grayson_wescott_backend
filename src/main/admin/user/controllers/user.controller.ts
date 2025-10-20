@@ -2,6 +2,7 @@ import { Controller, Delete, Get, Param, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { ValidateAdmin } from '@project/common/jwt/jwt.decorator';
 import { GetClientsForProgramDto } from '../dto/get-clients.dto';
+import { NotificationService } from '../services/notification.service';
 import { UserService } from '../services/user.service';
 
 @ApiTags('Admin --- User')
@@ -9,7 +10,10 @@ import { UserService } from '../services/user.service';
 @ValidateAdmin()
 @Controller('user')
 export class UserController {
-  constructor(private readonly userService: UserService) {}
+  constructor(
+    private readonly userService: UserService,
+    private readonly notificationService: NotificationService,
+  ) {}
 
   @ApiOperation({ summary: 'Get all clients for program' })
   @Get('clients')
@@ -21,5 +25,11 @@ export class UserController {
   @Delete('clients/:userId')
   deleteAClient(@Param('userId') userId: string) {
     return this.userService.deleteAClient(userId);
+  }
+
+  @ApiOperation({ summary: 'Get all notifications for user' })
+  @Get('clients/notifications')
+  getNotifications() {
+    return this.notificationService.getAllNotifications();
   }
 }

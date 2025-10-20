@@ -26,6 +26,9 @@ export class DailyExerciseWorker extends WorkerHost {
   // This is the job handler
   async process(job: Job<DailyExerciseJobPayload>): Promise<void> {
     const payload = job.data;
+    this.logger.log(
+      `Processing job for ${payload.recordType} ${payload.recordId}`,
+    );
 
     try {
       // 1) Fetch userProgram + user + program.exercises
@@ -116,8 +119,12 @@ export class DailyExerciseWorker extends WorkerHost {
             performedBy: 'Automation System',
           },
           users: {
-            createMany: {
-              data: [{ userId: userProgram.user.id }],
+            create: {
+              user: {
+                connect: {
+                  id: userProgram.user.id,
+                },
+              },
             },
           },
         },

@@ -23,7 +23,7 @@ build:
 
 # Start containers
 up:
-	docker compose -f $(COMPOSE_FILE) up -d --build
+	docker compose -f $(COMPOSE_FILE) up
 
 # Stop containers
 down:

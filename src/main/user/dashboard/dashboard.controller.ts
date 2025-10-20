@@ -6,7 +6,7 @@ import { DashboardStatsService } from './services/dashboard-stats.service';
 import { ExerciseLibraryService } from './services/exercise-library.service';
 import { GetNotificationService } from './services/get-notification.service';
 
-@ApiTags('Client --- Dashboard & Exercises Library')
+@ApiTags('Client --- Stats, Notifications & Exercises Library')
 @ApiBearerAuth()
 @ValidateAuth()
 @Controller('dashboard')
