@@ -1,13 +1,8 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { PaginationDto } from '@project/common/dto/pagination.dto';
+import { Difficulty } from '@project/lib/hyperhuman/types/workout.types';
 import { Transform } from 'class-transformer';
 import { IsEnum, IsOptional } from 'class-validator';
-
-enum difficulty {
-  BEGINNER = 'beginner',
-  INTERMEDIATE = 'intermediate',
-  ADVANCED = 'advanced',
-}
 
 export class GetWorkoutsFromHyperhumanDto extends PaginationDto {
   @ApiPropertyOptional({
@@ -17,19 +12,19 @@ export class GetWorkoutsFromHyperhumanDto extends PaginationDto {
   q?: string;
 
   @ApiPropertyOptional({
-    example: 'Beginner',
-    enum: difficulty,
+    example: Difficulty.BEGINNER,
+    enum: Difficulty,
   })
   @IsOptional()
   @Transform(({ value }) => {
     if (typeof value === 'string') {
-      if (value === 'beginner') return difficulty.BEGINNER;
-      if (value === 'intermediate') return difficulty.INTERMEDIATE;
-      if (value === 'advanced') return difficulty.ADVANCED;
+      if (value === 'beginner') return Difficulty.BEGINNER;
+      if (value === 'intermediate') return Difficulty.INTERMEDIATE;
+      if (value === 'advanced') return Difficulty.ADVANCED;
       return undefined;
     }
     return undefined;
   })
-  @IsEnum(difficulty)
-  difficulty?: difficulty;
+  @IsEnum(Difficulty)
+  difficulty?: Difficulty;
 }

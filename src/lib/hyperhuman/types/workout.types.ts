@@ -42,6 +42,13 @@ export interface Preview {
   thumbnail: string;
 }
 
-export type Difficulty = 'beginner' | 'intermediate' | 'advanced';
+export enum Visibility {
+  PUBLIC = 'public',
+  PRIVATE = 'private',
+}
 
-export type Visibility = 'private' | 'public';
+export enum Difficulty {
+  BEGINNER = 'beginner',
+  INTERMEDIATE = 'intermediate',
+  ADVANCED = 'advanced',
+}
