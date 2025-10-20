@@ -1,5 +1,4 @@
 import { Body, Controller, Get, Post } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { FacebookLoginDto, TwitterLoginDto } from '../dto/social-login.dto';
 import { AuthSocialService } from '../services/auth-social.service';
@@ -7,10 +6,7 @@ import { AuthSocialService } from '../services/auth-social.service';
 @ApiTags('Auth Social')
 @Controller('auth-social')
 export class AuthSocialController {
-  constructor(
-    private readonly authSocialService: AuthSocialService,
-    private readonly configService: ConfigService,
-  ) {}
+  constructor(private readonly authSocialService: AuthSocialService) {}
 
   @ApiOperation({ summary: 'Facebook login' })
   @Post('facebook-login')

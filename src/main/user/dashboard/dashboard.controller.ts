@@ -46,4 +46,10 @@ export class DashboardController {
   async getNotifications(@GetUser('sub') userId: string) {
     return this.getNotificationService.getAUserNotification(userId);
   }
+
+  @ApiOperation({ summary: 'Get messages notifications' })
+  @Get('messages/notifications/me')
+  async getMessagesNotifications(@GetUser('sub') userId: string) {
+    return this.getNotificationService.getAUsersMessagesNotifications(userId);
+  }
 }

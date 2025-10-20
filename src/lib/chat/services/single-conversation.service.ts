@@ -1,10 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { ConversationParticipantType, MessageType } from '@prisma/client';
+import { EventsEnum } from '@project/common/enum/events.enum';
 import { HandleError } from '@project/common/error/handle-error.decorator';
 import { errorResponse, TResponse } from '@project/common/utils/response.util';
 import { PrismaService } from '@project/lib/prisma/prisma.service';
 import { Socket } from 'socket.io';
-import { EventsEnum } from '../../../common/enum/events.enum';
 import {
   InitConversationWithClientDto,
   LoadSingleConversationDto,

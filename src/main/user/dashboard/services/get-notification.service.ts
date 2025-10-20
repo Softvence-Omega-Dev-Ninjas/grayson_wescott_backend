@@ -5,6 +5,7 @@ import {
   TResponse,
 } from '@project/common/utils/response.util';
 import { PrismaService } from '@project/lib/prisma/prisma.service';
+import { QUEUE_EVENTS } from '@project/lib/queue/interface/queue-events';
 
 @Injectable()
 export class GetNotificationService {
@@ -41,5 +42,41 @@ export class GetNotificationService {
     }));
 
     return successResponse(formatted, 'Notifications found successfully');
+  }
+
+  @HandleError('Failed to get messages notifications', 'Messages')
+  async getAUsersMessagesNotifications(userId: string) {
+    const messages = await this.prisma.notification.findMany({
+      where: {
+        type: {
+          mode: 'insensitive',
+          contains: QUEUE_EVENTS.MESSAGES,
+        },
+        users: {
+          some: { userId },
+        },
+      },
+      include: {
+        users: {
+          where: { userId },
+          select: { read: true },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 10,
+    });
+
+    const formatted = messages.map((n) => ({
+      id: n.id,
+      type: n.type,
+      title: n.title,
+      message: n.message,
+      meta: n.meta,
+      read: n.users[0]?.read ?? false, // the current user's read status
+      createdAt: n.createdAt,
+      updatedAt: n.updatedAt,
+    }));
+
+    return successResponse(formatted, 'Messages found successfully');
   }
 }
