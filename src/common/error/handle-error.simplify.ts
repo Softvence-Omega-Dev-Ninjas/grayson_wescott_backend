@@ -5,8 +5,10 @@ import {
   InternalServerErrorException,
   NotFoundException,
   UnauthorizedException,
+  UnprocessableEntityException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { AxiosError } from 'axios';
 import { AppError } from './handle-error.app';
 
 export function simplifyError(
@@ -115,6 +117,32 @@ export function simplifyError(
         throw new ConflictException(error.message);
       default:
         throw new InternalServerErrorException(error.message);
+    }
+  }
+
+  if (error instanceof AxiosError) {
+    const status = error.response?.status || 500;
+    const message =
+      error.response?.data?.message ||
+      error.response?.data?.error ||
+      error.message ||
+      'Axios request failed';
+
+    switch (status) {
+      case 400:
+        throw new BadRequestException(message);
+      case 401:
+        throw new UnauthorizedException(message);
+      case 403:
+        throw new ForbiddenException(message);
+      case 404:
+        throw new NotFoundException(message);
+      case 409:
+        throw new ConflictException(message);
+      case 422:
+        throw new UnprocessableEntityException(message);
+      default:
+        throw new InternalServerErrorException(message);
     }
   }
 

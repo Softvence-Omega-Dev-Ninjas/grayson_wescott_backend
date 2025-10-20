@@ -21,17 +21,28 @@ export class CreateExerciseService {
   async createExercise(
     data: CreateLibraryExerciseDto,
   ): Promise<TResponse<any>> {
-    this.logger.log(
-      `Creating exercise for library ${data.workoutId} with data`,
-      data,
-    );
-
     const workoutId = data.workoutId;
 
-    const urls = await this.hyperhuman.getURLsByWorkOutId(workoutId);
+    const response = await this.hyperhuman.getURLsByWorkOutId(workoutId);
 
-    this.logger.log(`Got URLs for workout ${workoutId} from hyperhuman:`, urls);
+    this.logger.log(`Workout Response for Hyperhuman`, response.videoData);
 
-    return successResponse(null, 'Library Exercise created successfully');
+    const libraryExercise = await this.prisma.libraryExercise.create({
+      data: {
+        ...data,
+        videoUrl: response.videoData.videoUrl,
+        videoUrlExpiresAt: response.videoData.videoUrlExpiresAt,
+        previewUrl: response.videoData.previewUrl,
+        previewUrlExpiresAt: response.videoData.previewUrlExpiresAt,
+        thumbnailUrl: response.videoData.thumbnailUrl,
+        thumbnailUrlExpiresAt: response.videoData.thumbnailUrlExpiresAt,
+        // hyperhumanData: response.hyperhumanData, // TODO: Add this if needed
+      },
+    });
+
+    return successResponse(
+      libraryExercise,
+      'Library Exercise created successfully',
+    );
   }
 }
