@@ -4,6 +4,7 @@ import { GetUser, ValidateAuth } from '@project/common/jwt/jwt.decorator';
 import { GetLibraryExerciseDto } from '@project/main/admin/library/dto/get-library-exercise.dto';
 import { DashboardStatsService } from './services/dashboard-stats.service';
 import { ExerciseLibraryService } from './services/exercise-library.service';
+import { GetNotificationService } from './services/get-notification.service';
 
 @ApiTags('Client --- Dashboard & Exercises Library')
 @ApiBearerAuth()
@@ -13,6 +14,7 @@ export class DashboardController {
   constructor(
     private readonly dashboardStatsService: DashboardStatsService,
     private readonly exerciseLibraryService: ExerciseLibraryService,
+    private readonly getNotificationService: GetNotificationService,
   ) {}
 
   @ApiOperation({ summary: 'Get dashboard stats' })
@@ -37,5 +39,11 @@ export class DashboardController {
     @Param('id') id: string,
   ) {
     return this.exerciseLibraryService.getSingleExerciseFromLibrary(userId, id);
+  }
+
+  @ApiOperation({ summary: 'Get notifications' })
+  @Get('notifications/me')
+  async getNotifications(@GetUser('sub') userId: string) {
+    return this.getNotificationService.getAUserNotification(userId);
   }
 }

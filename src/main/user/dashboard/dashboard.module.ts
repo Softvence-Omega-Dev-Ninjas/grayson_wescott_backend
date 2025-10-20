@@ -3,6 +3,7 @@ import { GetLibraryExerciseService } from '@project/main/admin/library/services/
 import { DashboardController } from './dashboard.controller';
 import { DashboardStatsService } from './services/dashboard-stats.service';
 import { ExerciseLibraryService } from './services/exercise-library.service';
+import { GetNotificationService } from './services/get-notification.service';
 
 @Module({
   controllers: [DashboardController],
@@ -10,6 +11,7 @@ import { ExerciseLibraryService } from './services/exercise-library.service';
     DashboardStatsService,
     ExerciseLibraryService,
     GetLibraryExerciseService,
+    GetNotificationService,
   ],
 })
 export class DashboardModule {}
