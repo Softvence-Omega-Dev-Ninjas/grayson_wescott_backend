@@ -56,7 +56,7 @@ export class GetLibraryExerciseService {
     );
   }
 
-  @HandleError('Failed to get library exercise', 'LibraryExercise')
+  @HandleError('Failed to get single library exercise', 'LibraryExercise')
   async getSingleExercise(id: string): Promise<TResponse<any>> {
     const exercise = await this.prisma.libraryExercise.findUniqueOrThrow({
       where: { id },

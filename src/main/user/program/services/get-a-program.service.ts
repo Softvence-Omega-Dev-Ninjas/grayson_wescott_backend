@@ -66,6 +66,7 @@ export class GetAProgramService {
         dayNumber,
       },
       include: { programExercise: true },
+      orderBy: { createdAt: 'desc' },
     });
 
     // load all userProgramExercise rows for this userProgram (we'll aggregate in JS)
