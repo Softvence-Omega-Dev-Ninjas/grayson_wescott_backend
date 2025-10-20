@@ -2,13 +2,14 @@ import { ApiPropertyOptional } from '@nestjs/swagger';
 import { PaginationDto } from '@project/common/dto/pagination.dto';
 import { Difficulty } from '@project/lib/hyperhuman/types/workout.types';
 import { Transform } from 'class-transformer';
-import { IsEnum, IsOptional } from 'class-validator';
+import { IsEnum, IsOptional, IsString } from 'class-validator';
 
 export class GetWorkoutsFromHyperhumanDto extends PaginationDto {
   @ApiPropertyOptional({
     example: 'My Workout',
   })
   @IsOptional()
+  @IsString()
   q?: string;
 
   @ApiPropertyOptional({
