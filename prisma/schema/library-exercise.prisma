@@ -41,6 +41,8 @@ model LibraryExercise {
   isDeletedFromHyperhuman Boolean @default(false) // True if deleted from Hyperhuman
   isArchived              Boolean @default(false) // soft-delete in your DB
 
+  views Int @default(0)
+
   // Metadata
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now()) @updatedAt

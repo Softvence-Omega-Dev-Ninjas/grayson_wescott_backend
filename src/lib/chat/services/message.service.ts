@@ -11,6 +11,7 @@ import {
   TResponse,
 } from '@project/common/utils/response.util';
 import { PrismaService } from '@project/lib/prisma/prisma.service';
+import { QUEUE_EVENTS } from '@project/lib/queue/interface/queue-events';
 import { Socket } from 'socket.io';
 import { EventsEnum } from '../../../common/enum/events.enum';
 import { ChatGateway } from '../chat.gateway';
@@ -158,8 +159,28 @@ export class MessageService {
       .to(clientId)
       .emit(
         EventsEnum.NEW_MESSAGE,
-        successResponse(message, 'New message from admin'),
+        successResponse(message, 'New message from trainer'),
       );
+
+    // Store the message as notification
+    if (payload.type === MessageType.TEXT && payload.content) {
+      await this.prisma.notification.create({
+        data: {
+          users: {
+            connect: {
+              id: clientId,
+            },
+          },
+          title: 'New message from trainer',
+          message: payload.content,
+          type: QUEUE_EVENTS.MESSAGES,
+          meta: {
+            conversationId: conversation.id,
+            messageId: message.id,
+          },
+        },
+      });
+    }
 
     const admins = await this.getAllAdminParticipants();
     this.emitToAdmins(

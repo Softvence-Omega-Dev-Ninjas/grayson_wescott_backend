@@ -52,7 +52,6 @@ export class DailyExerciseCron implements OnModuleInit {
     for (const up of activeUserPrograms) {
       const tz = up.user?.timezone;
       if (!tz) continue;
-      this.logger.log(`Processing ${up.user.name} (${up.user.email})`);
 
       const userNow = nowUTC.setZone(tz);
 
@@ -78,7 +77,7 @@ export class DailyExerciseCron implements OnModuleInit {
       }
     }
 
-    this.logger.log(`Sent early morning notifications to ${count} users`);
+    this.logger.log(`Processed early morning notifications to ${count} users`);
   }
 
   /**

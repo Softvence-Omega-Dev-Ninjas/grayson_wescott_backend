@@ -53,6 +53,14 @@ export class ProgressStatsService {
         rpeTrends,
         consistency,
       },
+      overViewStats: {
+        totalClients: clients.totalClients,
+        addedThisMonth: clients.addedThisMonthPercentage,
+        activeClients: clients.activeClients,
+        activeClientThisMonth: clients.activeClientsThisMonthPercentage,
+        totalRevenue: 0, // TODO: dynamic in next version
+        revenueThisMonth: 0, // TODO: dynamic in next version
+      },
     };
 
     return successResponse(data, 'Progress stats fetched successfully');

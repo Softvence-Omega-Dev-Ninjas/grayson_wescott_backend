@@ -332,14 +332,14 @@ export class ProgressTrackingService {
       averageSessionDurationMins: averageSessionDuration,
       estimatedVolumeCompleted,
       averageVolumePerSession: avgVolumePerSession,
-      summary: {
-        exercises,
-        exercisesAdherence,
-        load,
-        loadAdherence,
-        volume,
-        volumeAdherence,
-      },
+      summary: [
+        { ...exercises, name: 'Exercises' },
+        { ...exercisesAdherence, name: 'Exercises adherence' },
+        { ...load, name: 'Load completed' },
+        { ...loadAdherence, name: 'Load adherence' },
+        { ...volume, name: 'Volume completed' },
+        { ...volumeAdherence, name: 'Volume adherence' },
+      ],
       perProgram,
     };
 
