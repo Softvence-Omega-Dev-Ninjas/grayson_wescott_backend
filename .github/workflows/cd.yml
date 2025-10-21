@@ -93,11 +93,6 @@ jobs:
           PACKAGE_VERSION=${{ secrets.PACKAGE_VERSION }}
           DOCKER_USERNAME=${{ secrets.DOCKER_USERNAME }}
 
-          PG_USERNAME=${{ secrets.PG_USERNAME }}
-          PG_PASSWORD=${{ secrets.PG_PASSWORD }}
-          PG_DATABASE=${{ secrets.PG_DATABASE }}
-          PG_PORT=${{ secrets.PG_PORT }}
-          PG_HOST=${{ secrets.PG_HOST }}
           DATABASE_URL=${{ secrets.DATABASE_URL }}
 
           JWT_SECRET=${{ secrets.JWT_SECRET }}
@@ -111,8 +106,6 @@ jobs:
 
           REDIS_HOST=${{ secrets.REDIS_HOST }}
           REDIS_PORT=${{ secrets.REDIS_PORT }}
-          REDIS_CONTAINER=${{ secrets.REDIS_CONTAINER }}
-          REDIS_URL=${{ secrets.REDIS_URL }}
 
           TWILIO_ACCOUNT_SID=${{ secrets.TWILIO_ACCOUNT_SID }}
           TWILIO_AUTH_TOKEN=${{ secrets.TWILIO_AUTH_TOKEN }}
