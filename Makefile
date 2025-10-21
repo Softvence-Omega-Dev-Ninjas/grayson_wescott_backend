@@ -1,5 +1,5 @@
 # Docker image name
-APP_IMAGE := sajibsv/grayson-server:latest
+APP_IMAGE := softvence/grayson_wescott:latest
 
 # Compose file
 COMPOSE_FILE := compose.yaml
@@ -38,7 +38,6 @@ logs:
 
 # Cleanup everything
 clean: down
-	docker volume rm grayson_db files || true
 	docker rmi $(APP_IMAGE) || true
 
 # Push to Docker Hub
