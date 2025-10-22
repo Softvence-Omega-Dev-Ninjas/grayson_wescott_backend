@@ -6,6 +6,7 @@ import { AppError } from '@project/common/error/handle-error.app';
 import { JWTPayload } from '@project/common/jwt/jwt.interface';
 import * as bcrypt from 'bcrypt';
 import { plainToInstance } from 'class-transformer';
+import { DateTime } from 'luxon';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
@@ -71,5 +72,27 @@ export class UtilsService {
     const user = await this.prisma.user.findUnique({ where: { email } });
     if (!user) throw new AppError(404, 'User not found');
     return user;
+  }
+
+  formatLastActive(lastActiveAt: Date | null, userTimezone: string): string {
+    if (!lastActiveAt) return 'Not logged in';
+
+    const now = DateTime.now().setZone(userTimezone);
+    const lastActive = DateTime.fromJSDate(lastActiveAt).setZone(userTimezone);
+
+    const diff = now.diff(lastActive, ['days', 'hours', 'minutes']).toObject();
+    const days = Math.floor(diff.days || 0);
+    const hours = Math.floor(diff.hours || 0);
+    const minutes = Math.floor(diff.minutes || 0);
+
+    if (days <= 0 && hours <= 0 && minutes < 1) return 'Just now';
+    if (days <= 0 && hours > 0)
+      return `${hours} hour${hours > 1 ? 's' : ''} ago`;
+    if (days <= 0 && hours <= 0 && minutes >= 1)
+      return `${minutes} minute${minutes > 1 ? 's' : ''} ago`;
+
+    return `${days} day${days > 1 ? 's' : ''}${
+      hours > 0 ? ` ${hours} hour${hours > 1 ? 's' : ''}` : ''
+    } ago`;
   }
 }

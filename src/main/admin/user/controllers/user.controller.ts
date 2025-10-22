@@ -1,6 +1,6 @@
 import { Controller, Delete, Get, Param, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { ValidateAdmin } from '@project/common/jwt/jwt.decorator';
+import { GetUser, ValidateAdmin } from '@project/common/jwt/jwt.decorator';
 import { GetClientsForProgramDto } from '../dto/get-clients.dto';
 import { NotificationService } from '../services/notification.service';
 import { UserService } from '../services/user.service';
@@ -29,7 +29,7 @@ export class UserController {
 
   @ApiOperation({ summary: 'Get all notifications for user' })
   @Get('clients/notifications')
-  getNotifications() {
-    return this.notificationService.getAllNotifications();
+  getNotifications(@GetUser('sub') userId: string) {
+    return this.notificationService.getAllNotifications(userId);
   }
 }
