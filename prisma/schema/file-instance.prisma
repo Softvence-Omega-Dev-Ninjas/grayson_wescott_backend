@@ -10,6 +10,7 @@ model FileInstance {
   size             Int // File size in bytes
 
   privateMessage PrivateMessage[]
+  contactForm    ContactForm[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now()) @updatedAt
