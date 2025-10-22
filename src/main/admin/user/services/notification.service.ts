@@ -5,13 +5,22 @@ import {
   TResponse,
 } from '@project/common/utils/response.util';
 import { PrismaService } from '@project/lib/prisma/prisma.service';
+import { UtilsService } from '@project/lib/utils/utils.service';
 
 @Injectable()
 export class NotificationService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly utilsService: UtilsService,
+  ) {}
 
   @HandleError('Failed to get all notifications', 'Notifications')
-  async getAllNotifications(): Promise<TResponse<any>> {
+  async getAllNotifications(userId: string): Promise<TResponse<any>> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { timezone: true },
+    });
+
     const notifications = await this.prisma.notification.findMany({
       orderBy: { createdAt: 'desc' },
       take: 50,
@@ -27,6 +36,7 @@ export class NotificationService {
                 role: true,
                 avatarUrl: true,
                 phone: true,
+                timezone: true,
               },
             },
           },
@@ -43,6 +53,10 @@ export class NotificationService {
       meta: n.meta,
       createdAt: n.createdAt,
       updatedAt: n.updatedAt,
+      sent: this.utilsService.formatLastActive(
+        n.createdAt,
+        user?.timezone ?? 'UTC',
+      ),
       recipients: n.users.map((u) => ({
         id: u.user.id,
         name: u.user.name,

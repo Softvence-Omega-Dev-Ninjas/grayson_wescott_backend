@@ -6,10 +6,14 @@ import {
 } from '@project/common/utils/response.util';
 import { PrismaService } from '@project/lib/prisma/prisma.service';
 import { QUEUE_EVENTS } from '@project/lib/queue/interface/queue-events';
+import { UtilsService } from '@project/lib/utils/utils.service';
 
 @Injectable()
 export class GetNotificationService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly utils: UtilsService,
+  ) {}
 
   @HandleError('Failed to get notifications', 'Notifications')
   async getAUserNotification(userId: string): Promise<TResponse<any>> {
@@ -22,7 +26,7 @@ export class GetNotificationService {
       include: {
         users: {
           where: { userId },
-          select: { read: true },
+          select: { read: true, user: { select: { timezone: true } } },
         },
       },
       orderBy: { createdAt: 'desc' },
@@ -39,6 +43,10 @@ export class GetNotificationService {
       read: n.users[0]?.read ?? false, // the current user's read status
       createdAt: n.createdAt,
       updatedAt: n.updatedAt,
+      sent: this.utils.formatLastActive(
+        n.createdAt,
+        n.users[0].user.timezone ?? 'UTC',
+      ),
     }));
 
     return successResponse(formatted, 'Notifications found successfully');
@@ -59,7 +67,7 @@ export class GetNotificationService {
       include: {
         users: {
           where: { userId },
-          select: { read: true },
+          select: { read: true, user: { select: { timezone: true } } },
         },
       },
       orderBy: { createdAt: 'desc' },
@@ -75,6 +83,10 @@ export class GetNotificationService {
       read: n.users[0]?.read ?? false, // the current user's read status
       createdAt: n.createdAt,
       updatedAt: n.updatedAt,
+      sent: this.utils.formatLastActive(
+        n.createdAt,
+        n.users[0].user.timezone ?? 'UTC',
+      ),
     }));
 
     return successResponse(formatted, 'Messages found successfully');

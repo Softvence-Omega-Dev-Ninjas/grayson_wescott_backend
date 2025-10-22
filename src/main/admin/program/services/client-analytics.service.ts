@@ -5,12 +5,16 @@ import {
   TPaginatedResponse,
 } from '@project/common/utils/response.util';
 import { PrismaService } from '@project/lib/prisma/prisma.service';
+import { UtilsService } from '@project/lib/utils/utils.service';
 import { DateTime } from 'luxon';
 import { GetAllClientsDto } from '../dto/get-client.dto';
 
 @Injectable()
 export class ClientAnalyticsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly utilsService: UtilsService,
+  ) {}
 
   @HandleError('Failed to get client analytics', 'USER')
   async getAllClientAnalytics(
@@ -106,7 +110,7 @@ export class ClientAnalyticsService {
           status: client.status,
           name: client.name,
           email: client.email,
-          lastActiveAt: this.formatLastActive(
+          lastActiveAt: this.utilsService.formatLastActive(
             client.lastActiveAt,
             userTimezone,
           ),
@@ -141,30 +145,5 @@ export class ClientAnalyticsService {
       { page, limit, total },
       'Clients fetched successfully',
     );
-  }
-
-  private formatLastActive(
-    lastActiveAt: Date | null,
-    userTimezone: string,
-  ): string {
-    if (!lastActiveAt) return 'Not logged in';
-
-    const now = DateTime.now().setZone(userTimezone);
-    const lastActive = DateTime.fromJSDate(lastActiveAt).setZone(userTimezone);
-
-    const diff = now.diff(lastActive, ['days', 'hours', 'minutes']).toObject();
-    const days = Math.floor(diff.days || 0);
-    const hours = Math.floor(diff.hours || 0);
-    const minutes = Math.floor(diff.minutes || 0);
-
-    if (days <= 0 && hours <= 0 && minutes < 1) return 'Just now';
-    if (days <= 0 && hours > 0)
-      return `${hours} hour${hours > 1 ? 's' : ''} ago`;
-    if (days <= 0 && hours <= 0 && minutes >= 1)
-      return `${minutes} minute${minutes > 1 ? 's' : ''} ago`;
-
-    return `${days} day${days > 1 ? 's' : ''}${
-      hours > 0 ? ` ${hours} hour${hours > 1 ? 's' : ''}` : ''
-    } ago`;
   }
 }
