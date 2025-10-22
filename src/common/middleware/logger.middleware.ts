@@ -14,28 +14,49 @@ function safeStringify(obj: unknown): string {
 export class LoggerMiddleware implements NestMiddleware {
   use(req: Request, res: Response, next: NextFunction) {
     const startTime = Date.now();
+    const { method, originalUrl, body, query, params } = req;
 
-    const { method, originalUrl } = req;
-    console.group(chalk.bgGreen.black.bold('📥 Incoming Request'));
-    console.info(`${chalk.cyan('🔗 URL:')} ${chalk.white(originalUrl)}`);
-    console.info(`${chalk.yellow('📬 Method:')} ${chalk.white(method)}`);
-    console.groupEnd();
-
-    // * Capture response
+    // Capture original methods
     const oldJson = res.json.bind(res);
+    const oldSend = res.send.bind(res);
+
+    // Helper to log only error responses
+    const logError = (responseBody: unknown) => {
+      if (res.statusCode >= 400) {
+        const duration = Date.now() - startTime;
+
+        console.group(chalk.bgRed.white.bold('❌ Error Response'));
+        console.info(`${chalk.cyan('🔗 URL:')} ${chalk.white(originalUrl)}`);
+        console.info(`${chalk.yellow('📬 Method:')} ${chalk.white(method)}`);
+        console.info(
+          `${chalk.magenta('📥 Request Body:')} ${chalk.gray(safeStringify(body))}`,
+        );
+        console.info(
+          `${chalk.magenta('🔍 Query Params:')} ${chalk.gray(safeStringify(query))}`,
+        );
+        console.info(
+          `${chalk.magenta('⚙️ Route Params:')} ${chalk.gray(safeStringify(params))}`,
+        );
+        console.info(`${chalk.green('📨 Status Code:')} ${res.statusCode}`);
+        console.info(
+          `${chalk.cyan('📦 Response Body:')} ${chalk.gray(safeStringify(responseBody))}`,
+        );
+        console.info(`${chalk.blue('🕒 Response Time:')} ${duration} ms`);
+        console.groupEnd();
+        console.info(chalk.gray('-'.repeat(60)));
+      }
+    };
+
+    // Override res.json
     res.json = (data: unknown) => {
-      const duration = Date.now() - startTime;
-
-      console.group(chalk.bgCyan.white.bold('📤 Outgoing Response'));
-      console.info(`${chalk.green('📨 Status Code:')} ${res.statusCode}`);
-      console.info(`${chalk.blue('🕒 Response Time:')} ${duration} ms`);
-      console.info(
-        `${chalk.cyan('📦 Response Body:')} ${chalk.gray(safeStringify(data))}`,
-      );
-      console.groupEnd();
-      console.info(chalk.gray('-'.repeat(60)));
-
+      logError(data);
       return oldJson(data);
+    };
+
+    // Override res.send (for non-json responses)
+    res.send = (data: unknown) => {
+      logError(data);
+      return oldSend(data);
     };
 
     next();

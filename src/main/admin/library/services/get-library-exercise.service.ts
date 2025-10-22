@@ -66,15 +66,48 @@ export class GetLibraryExerciseService {
     const isThumbnailExpired = this.isExpired(exercise.thumbnailUrlExpiresAt);
     const isVideoExpired = this.isExpired(exercise.videoUrlExpiresAt);
 
+    let finalExercise = exercise;
+
+    // URL refresh if expired
     if (isPreviewExpired || isThumbnailExpired || isVideoExpired) {
-      const updated = await this.refreshExerciseUrls(exercise);
-      return successResponse(
-        updated,
-        'Library exercise fetched successfully (urls refreshed)',
-      );
+      finalExercise = await this.refreshExerciseUrls(exercise);
     }
 
-    return successResponse(exercise, 'Library exercise fetched successfully');
+    // Increment exercise views (analytics)
+    await this.prisma.libraryExercise.update({
+      where: { id },
+      data: { views: { increment: 1 } },
+    });
+
+    // Fetch related exercises (only needed fields)
+    const relatedExercisesRaw = await this.prisma.libraryExercise.findMany({
+      where: {
+        id: { not: id },
+        bodyPartTags: { hasSome: finalExercise.bodyPartTags },
+        isArchived: false,
+      },
+      take: 5,
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        title: true,
+        thumbnailUrl: true,
+        views: true,
+        difficulty: true,
+        bodyPartTags: true,
+        equipmentTags: true,
+      },
+    });
+
+    const responsePayload = {
+      ...finalExercise,
+      relatedExercises: relatedExercisesRaw,
+    };
+
+    return successResponse(
+      responsePayload,
+      'Library exercise fetched successfully',
+    );
   }
 
   private isExpired(expireDate?: Date | null): boolean {
