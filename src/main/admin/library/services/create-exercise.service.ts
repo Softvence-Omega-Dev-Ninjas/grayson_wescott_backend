@@ -45,4 +45,15 @@ export class CreateExerciseService {
       'Library Exercise created successfully',
     );
   }
+
+  @HandleError('Failed to delete exercise', 'Library Exercise')
+  async deleteALibraryExercise(id: string): Promise<TResponse<any>> {
+    await this.prisma.libraryExercise.findUniqueOrThrow({
+      where: { id },
+    });
+
+    await this.prisma.libraryExercise.delete({ where: { id } });
+
+    return successResponse(null, 'Library Exercise deleted successfully');
+  }
 }

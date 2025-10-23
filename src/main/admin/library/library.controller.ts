@@ -47,4 +47,12 @@ export class LibraryController {
   ): Promise<TResponse<any>> {
     return this.createExerciseService.createExercise(data);
   }
+
+  @ApiOperation({ summary: 'Delete a library exercise' })
+  @Post(':id')
+  async deleteLibraryExercise(
+    @Param('id') id: string,
+  ): Promise<TResponse<any>> {
+    return this.createExerciseService.deleteALibraryExercise(id);
+  }
 }

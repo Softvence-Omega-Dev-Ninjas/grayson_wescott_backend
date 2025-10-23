@@ -52,7 +52,12 @@ export class CategoriesService {
     }
 
     const [categories, total] = await this.prisma.$transaction([
-      this.prisma.category.findMany({ where, take: limit, skip }),
+      this.prisma.category.findMany({
+        where,
+        take: limit,
+        skip,
+        orderBy: { createdAt: 'desc' },
+      }),
       this.prisma.category.count(),
     ]);
 
