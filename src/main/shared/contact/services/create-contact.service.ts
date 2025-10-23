@@ -6,6 +6,7 @@ import {
   successResponse,
   TResponse,
 } from '@project/common/utils/response.util';
+import { ContactMailService } from '@project/lib/mail/services/contact-mail.service';
 import { PrismaService } from '@project/lib/prisma/prisma.service';
 import { S3Service } from '@project/main/s3/s3.service';
 
@@ -16,6 +17,7 @@ export class CreateContactService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly s3: S3Service,
+    private readonly contactMailService: ContactMailService,
   ) {}
 
   @HandleError('Failed to send message', 'ContactForm')
@@ -49,6 +51,8 @@ export class CreateContactService {
       },
       include: { file: true },
     });
+
+    await this.contactMailService.notifySuperAdmin(contact, fileInstance);
 
     return successResponse(contact, 'Contact created successfully');
   }
