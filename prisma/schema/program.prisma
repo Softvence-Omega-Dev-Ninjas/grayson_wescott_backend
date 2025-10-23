@@ -28,6 +28,9 @@ model Category {
 
   description String?
 
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
   // relation to programs through join table
   programCategories ProgramCategory[]
 
@@ -42,6 +45,9 @@ model ProgramCategory {
 
   category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
   categoryId String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
 
   @@unique([programId, categoryId], map: "program_category_unique")
   @@map("program_categories")

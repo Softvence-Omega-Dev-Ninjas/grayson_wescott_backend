@@ -1,0 +1,20 @@
+model ContactForm {
+  id String @id @default(uuid())
+
+  name    String
+  email   String
+  phone   String
+  message String
+
+  street   String?
+  city     String?
+  postcode String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  fileId String?
+  file   FileInstance? @relation(fields: [fileId], references: [id], onDelete: SetNull)
+
+  @@map("contact_forms")
+}
