@@ -92,7 +92,7 @@ jobs:
           key: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
           script: |
             cd ~/${{ secrets.PACKAGE_NAME }}
-            sudo docker-compose pull
-            sudo docker-compose down --remove-orphans
-            sudo docker-compose up -d
-            sudo docker image prune -f
+            docker compose pull
+            docker compose down --remove-orphans
+            docker compose up
+            docker image prune -f
