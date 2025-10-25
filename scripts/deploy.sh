@@ -92,9 +92,6 @@ deploy() {
   # Recreate service with compose
   docker compose up -d --remove-orphans
 
-  # Cleanup unused containers/images (but keep volumes)
-  docker system prune -a -f
-
   sleep 5
   if health_check; then
     save_version "$PACKAGE_VERSION"
