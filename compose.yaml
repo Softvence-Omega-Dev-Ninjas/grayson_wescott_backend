@@ -28,7 +28,7 @@ services:
         max-file: '3'
 
   db:
-    image: postgres
+    image: postgres:17
     container_name: ${PACKAGE_NAME}_postgres
     restart: always
     environment:
