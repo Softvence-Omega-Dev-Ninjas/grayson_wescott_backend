@@ -174,7 +174,7 @@ export class AuthController {
 
   @ApiOperation({ summary: 'Update profile' })
   @ApiBearerAuth()
-  @Patch(':id')
+  @Patch('update-profile')
   @ValidateAuth()
   @ApiConsumes('multipart/form-data')
   @UseInterceptors(
