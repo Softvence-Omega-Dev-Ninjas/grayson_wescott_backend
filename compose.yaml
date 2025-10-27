@@ -7,6 +7,14 @@ services:
       - '${PORT}:${PORT}'
     env_file:
       - .env
+    environment:
+      NODE_ENV: production
+      PORT: 5010
+
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/grayson_db?schema=public
+
+      REDIS_HOST: redis-master
+      REDIS_PORT: 6379
     depends_on:
       db:
         condition: service_healthy

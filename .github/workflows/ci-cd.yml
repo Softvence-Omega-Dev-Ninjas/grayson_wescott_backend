@@ -58,7 +58,7 @@ jobs:
         with:
           context: .
           push: true
-          tags: ${{ secrets.IMAGE_TAG }}
+          tags: ${{ secrets.DOCKER_USERNAME }}/${{ secrets.PACKAGE_NAME }}:${{ secrets.PACKAGE_VERSION }}
 
   deploy:
     name: Deploy
@@ -84,6 +84,15 @@ jobs:
           source: 'compose.yaml'
           target: '/home/${{ secrets.VPS_USER }}/${{ secrets.PACKAGE_NAME}}'
 
+      - name: Copy Makefile
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
+          source: 'Makefile'
+          target: '/home/${{ secrets.VPS_USER }}/${{ secrets.PACKAGE_NAME}}'
+
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -94,5 +103,5 @@ jobs:
             cd ~/${{ secrets.PACKAGE_NAME }}
             docker compose pull
             docker compose down --remove-orphans
-            docker compose up
+            docker compose up -d
             docker image prune -f
