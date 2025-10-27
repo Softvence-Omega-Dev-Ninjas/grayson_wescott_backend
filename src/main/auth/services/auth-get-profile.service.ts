@@ -1,6 +1,5 @@
 import { Injectable } from '@nestjs/common';
 import { UserResponseDto } from '@project/common/dto/user-response.dto';
-import { AppError } from '@project/common/error/handle-error.app';
 import { HandleError } from '@project/common/error/handle-error.decorator';
 import {
   successResponse,
@@ -29,55 +28,10 @@ export class AuthGetProfileService {
     const where: any = {};
     where[key] = value;
 
-    const user = await this.prisma.user.findUnique({
-      where,
-      include: {
-        authProviders: true,
-        notifications: true,
-        privateCallInitiator: true,
-        privateCallParticipant: true,
-        privateConversationParticipant: true,
-        privateMessage: true,
-        privateMessageStatus: true,
-        userPrograms: true,
-      },
-    });
+    const user = await this.prisma.user.findUniqueOrThrow({ where });
 
-    if (!user) {
-      throw new AppError(404, 'User not found');
-    }
+    const sanitizedUser = this.utils.sanitizedResponse(UserResponseDto, user);
 
-    // Extract only the main user fields
-    const {
-      authProviders,
-      notifications,
-      privateCallInitiator,
-      privateCallParticipant,
-      privateConversationParticipant,
-      privateMessage,
-      privateMessageStatus,
-      userPrograms,
-      ...mainUser
-    } = user;
-
-    const sanitizedUser = this.utils.sanitizedResponse(
-      UserResponseDto,
-      mainUser,
-    );
-
-    // Rebuild the full object: sanitized user + full raw relations
-    const data = {
-      ...sanitizedUser,
-      authProviders,
-      notifications,
-      privateCallInitiator,
-      privateCallParticipant,
-      privateConversationParticipant,
-      privateMessage,
-      privateMessageStatus,
-      userPrograms,
-    };
-
-    return successResponse(data, 'User data fetched successfully');
+    return successResponse(sanitizedUser, 'User data fetched successfully');
   }
 }
