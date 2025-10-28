@@ -65,9 +65,18 @@ export class ConversationService {
 
     // Emit directly to the requesting socket (most reliable)
     try {
-      this.chatGateway.server
-        .to(client.data.userId)
-        .emit(EventsEnum.CONVERSATION_LIST, outputData);
+      this.chatGateway.server.to(client.data.userId).emit(
+        EventsEnum.CONVERSATION_LIST,
+        successPaginatedResponse(
+          outputData,
+          {
+            limit,
+            page,
+            total: conversations.length,
+          },
+          'Conversations loaded successfully',
+        ),
+      );
     } catch (err) {
       this.logger.error(
         `Failed to emit conversation list to ${client.id}: ${err?.message}`,
