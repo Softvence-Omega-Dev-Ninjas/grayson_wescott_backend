@@ -46,7 +46,7 @@ export class S3Controller {
   @UseInterceptors(
     FilesInterceptor('files', 5, {
       storage: multer.memoryStorage(),
-      limits: { files: 5 },
+      limits: { files: 5, fileSize: 50 * 1024 * 1024 },
     }),
   )
   async upload(@UploadedFiles() files: Express.Multer.File[]) {

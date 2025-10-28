@@ -6,9 +6,9 @@ import {
 } from '@project/common/utils/response.util';
 import { PrismaService } from '@project/lib/prisma/prisma.service';
 import { Socket } from 'socket.io';
-import { EventsEnum } from '../../../common/enum/events.enum';
 import { ChatGateway } from '../chat.gateway';
 import { LoadConversationsDto } from '../dto/conversation.dto';
+import { EventsEnum } from '@project/common/enum/events.enum';
 
 @Injectable()
 export class ConversationService {
@@ -52,6 +52,9 @@ export class ConversationService {
           avatarUrl: conversation.participants[0].user?.avatarUrl,
           role: conversation.participants[0].user?.role,
           email: conversation.participants[0].user?.email,
+          isOnline: this.isClientOnline(
+            conversation.participants[0].user?.id ?? '',
+          ),
         },
       };
     });
@@ -80,5 +83,10 @@ export class ConversationService {
       },
       'Conversations loaded successfully',
     );
+  }
+
+  private isClientOnline(clientId: string): boolean {
+    const sockets = this.chatGateway.server.sockets.adapter.rooms.get(clientId);
+    return !!sockets?.size;
   }
 }
