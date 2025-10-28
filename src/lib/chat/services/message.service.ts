@@ -83,20 +83,25 @@ export class MessageService {
       ...conversation.participants.map((p) => p.userId!),
     ]);
 
+    const formattedMessage = this.formatMessageForClient(message, senderId);
+
     // Notify admins + client
     this.emitToAdmins(
       admins,
       EventsEnum.NEW_MESSAGE,
-      message,
+      formattedMessage,
       'New message received from client',
     );
-    client.emit(
+
+    this.emitToClient(
+      client.id,
       EventsEnum.NEW_MESSAGE,
-      successResponse(message, 'Message sent successfully'),
+      formattedMessage,
+      'New message received from admin',
     );
 
     return successResponse(
-      { conversationId: conversation.id, message },
+      { conversationId: conversation.id, message: formattedMessage },
       'Message sent successfully',
     );
   }
@@ -154,14 +159,6 @@ export class MessageService {
       newAdmin,
     );
 
-    // Notify client + admins
-    this.chatGateway.server
-      .to(clientId)
-      .emit(
-        EventsEnum.NEW_MESSAGE,
-        successResponse(message, 'New message from trainer'),
-      );
-
     // Store the message as notification
     if (payload.type === MessageType.TEXT && payload.content) {
       await this.prisma.notification.create({
@@ -182,14 +179,21 @@ export class MessageService {
       });
     }
 
+    const formattedMessage = this.formatMessageForClient(message, clientId);
+
+    // Notify client + admins
+    this.emitToClient(
+      clientId,
+      EventsEnum.NEW_MESSAGE,
+      formattedMessage,
+      'New message from admin',
+    );
+
     const admins = await this.getAllAdminParticipants();
     this.emitToAdmins(
       admins,
       EventsEnum.NEW_MESSAGE,
-      {
-        message,
-        fromAdmin: true,
-      },
+      formattedMessage,
       'New message from admin',
     );
 
@@ -199,7 +203,7 @@ export class MessageService {
     }
 
     return successResponse(
-      { conversationId: conversation.id, message },
+      { conversationId: conversation.id, message: formattedMessage },
       'Message sent successfully',
     );
   }
@@ -323,6 +327,17 @@ export class MessageService {
     );
   }
 
+  private emitToClient(
+    clientId: string,
+    event: EventsEnum,
+    payload: any,
+    message: string,
+  ) {
+    this.chatGateway.server
+      .to(clientId)
+      .emit(event, successResponse(payload, message));
+  }
+
   private isClientOnline(clientId: string): boolean {
     const sockets = this.chatGateway.server.sockets.adapter.rooms.get(clientId);
     return !!sockets?.size;
@@ -352,5 +367,34 @@ export class MessageService {
       payload,
       'Your message has been delivered',
     );
+  }
+
+  private formatMessageForClient(message: any, clientId: string) {
+    return {
+      id: message.id,
+      type: 'MESSAGE',
+      createdAt: message.createdAt,
+      content: message.content,
+      messageType: message.type,
+      sender: message.sender
+        ? {
+            id: message.sender.id,
+            name: message.sender.name,
+            avatarUrl: message.sender.avatarUrl,
+            role: message.sender.role,
+            email: message.sender.email,
+          }
+        : null,
+      file: message.file
+        ? {
+            id: message.file.id,
+            url: message.file.url,
+            type: message.file.fileType,
+            mimeType: message.file.mimeType,
+          }
+        : null,
+      isMine: message.sender?.id === clientId,
+      isSentByClient: message.sender?.id === clientId,
+    };
   }
 }
