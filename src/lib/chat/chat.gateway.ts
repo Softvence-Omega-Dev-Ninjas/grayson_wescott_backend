@@ -56,6 +56,10 @@ export class ChatGateway
   private readonly logger = new Logger(ChatGateway.name);
   private readonly clients = new Map<string, Set<Socket>>();
 
+  isOnline(userId: string) {
+    return this.clients.has(userId);
+  }
+
   constructor(
     private readonly messageService: MessageService,
     private readonly conversationService: ConversationService,
@@ -209,6 +213,7 @@ export class ChatGateway
     @ConnectedSocket() client: Socket,
     @MessageBody() payload: LoadConversationsDto,
   ) {
+    this.logger.log(payload, 'LOAD_CONVERSATION_LIST');
     return await this.conversationService.handleLoadConversationsByAdmin(
       client,
       payload,

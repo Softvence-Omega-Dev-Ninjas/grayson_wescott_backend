@@ -52,8 +52,8 @@ export class ConversationService {
         avatarUrl: conversation.participants[0].user?.avatarUrl,
         role: conversation.participants[0].user?.role,
         email: conversation.participants[0].user?.email,
-        isOnline: this.isClientOnline(
-          conversation.participants[0].user?.id ?? '',
+        isOnline: this.chatGateway.isOnline(
+          conversation.participants[0].user?.id as string,
         ),
       },
     }));
@@ -65,14 +65,9 @@ export class ConversationService {
 
     // Emit directly to the requesting socket (most reliable)
     try {
-      client.emit(
-        EventsEnum.CONVERSATION_LIST,
-        successPaginatedResponse(
-          outputData,
-          { limit, page, total: conversations.length },
-          'Conversations loaded successfully',
-        ),
-      );
+      this.chatGateway.server
+        .to(client.data.userId)
+        .emit(EventsEnum.CONVERSATION_LIST, outputData);
     } catch (err) {
       this.logger.error(
         `Failed to emit conversation list to ${client.id}: ${err?.message}`,
@@ -85,10 +80,5 @@ export class ConversationService {
       { limit, page, total: conversations.length },
       'Conversations loaded successfully',
     );
-  }
-
-  private isClientOnline(clientId: string): boolean {
-    const sockets = this.chatGateway.server.sockets.adapter.rooms.get(clientId);
-    return !!sockets?.size;
   }
 }
