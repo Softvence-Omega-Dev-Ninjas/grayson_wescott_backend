@@ -164,8 +164,8 @@ export class MessageService {
       await this.prisma.notification.create({
         data: {
           users: {
-            connect: {
-              id: clientId,
+            createMany: {
+              data: participantIds.map((id) => ({ userId: id })),
             },
           },
           title: 'New message from trainer',
@@ -369,6 +369,7 @@ export class MessageService {
   private formatMessageForClient(message: any, clientId: string) {
     return {
       id: message.id,
+      conversationId: message.conversationId,
       type: 'MESSAGE',
       createdAt: message.createdAt,
       content: message.content,
