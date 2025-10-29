@@ -11,6 +11,7 @@ import {
   WebSocketGateway,
   WebSocketServer,
 } from '@nestjs/websockets';
+import { ConversationParticipantType } from '@prisma/client';
 import { PaginationDto } from '@project/common/dto/pagination.dto';
 import { ENVEnum } from '@project/common/enum/env.enum';
 import { JWTPayload } from '@project/common/jwt/jwt.interface';
@@ -27,12 +28,7 @@ import {
   LoadConversationsDto,
   LoadSingleConversationDto,
 } from './dto/conversation.dto';
-import {
-  AdminMessageDto,
-  ClientMessageDto,
-  MarkReadDto,
-  MessageDeliveryStatusDto,
-} from './dto/message.dto';
+import { AdminMessageDto, ClientMessageDto } from './dto/message.dto';
 import {
   RTCAnswerDto,
   RTCIceCandidateDto,
@@ -173,8 +169,56 @@ export class ChatGateway
   }
 
   public emitError(client: Socket, message: string) {
-    client.emit(EventsEnum.ERROR, errorResponse(null, message));
+    this.server
+      .to(client.data.userId)
+      .emit(EventsEnum.ERROR, errorResponse(null, message));
     return errorResponse(null, message);
+  }
+
+  /** ----------------- Common Helpers ----------------- **/
+  public async getAllAdminParticipants() {
+    const admins = await this.prisma.user.findMany({
+      where: { role: { in: ['ADMIN', 'SUPER_ADMIN'] } },
+      select: { id: true },
+    });
+    return admins.map((a) => ({
+      userId: a.id,
+      type: ConversationParticipantType.ADMIN_GROUP,
+    }));
+  }
+
+  public formatMessageForClient(
+    message: any,
+    viewerId: string,
+    type: 'MESSAGE' | 'CALL',
+  ) {
+    return {
+      id: message.id,
+      conversationId: message.conversationId,
+      type,
+      createdAt: message.createdAt,
+      content: message.content,
+      messageType: message.type,
+      sender: message.sender
+        ? {
+            id: message.sender.id,
+            name: message.sender.name,
+            avatarUrl: message.sender.avatarUrl,
+            role: message.sender.role,
+            email: message.sender.email,
+          }
+        : null,
+      file: message.file
+        ? {
+            id: message.file.id,
+            url: message.file.url,
+            type: message.file.fileType,
+            mimeType: message.file.mimeType,
+          }
+        : null,
+      isMine: message.sender?.id === viewerId,
+      isSentByClient: message.sender?.role === 'USER',
+    };
   }
 
   /** ---------------- MESSAGE EVENTS ---------------- */
@@ -192,19 +236,6 @@ export class ChatGateway
     @MessageBody() payload: AdminMessageDto,
   ) {
     return await this.messageService.sendMessageFromAdmin(client, payload);
-  }
-
-  @SubscribeMessage(EventsEnum.UPDATE_MESSAGE_STATUS)
-  async onMessageStatusUpdate(
-    @ConnectedSocket() client: Socket,
-    @MessageBody() payload: MessageDeliveryStatusDto,
-  ) {
-    return await this.messageService.messageStatusUpdate(client, payload);
-  }
-
-  @SubscribeMessage(EventsEnum.MARK_MESSAGE_READ)
-  async onMarkMessagesAsRead(@MessageBody() payload: MarkReadDto) {
-    return await this.messageService.markMessagesAsRead(payload);
   }
 
   /** ---------------- CONVERSATION EVENTS ---------------- **/

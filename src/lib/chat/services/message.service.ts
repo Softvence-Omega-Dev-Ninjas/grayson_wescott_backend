@@ -6,7 +6,6 @@ import {
 } from '@prisma/client';
 import { HandleError } from '@project/common/error/handle-error.decorator';
 import {
-  errorResponse,
   successResponse,
   TResponse,
 } from '@project/common/utils/response.util';
@@ -15,12 +14,7 @@ import { QUEUE_EVENTS } from '@project/lib/queue/interface/queue-events';
 import { Socket } from 'socket.io';
 import { EventsEnum } from '../../../common/enum/events.enum';
 import { ChatGateway } from '../chat.gateway';
-import {
-  AdminMessageDto,
-  ClientMessageDto,
-  MarkReadDto,
-  MessageDeliveryStatusDto,
-} from '../dto/message.dto';
+import { AdminMessageDto, ClientMessageDto } from '../dto/message.dto';
 
 @Injectable()
 export class MessageService {
@@ -41,9 +35,9 @@ export class MessageService {
     payload: ClientMessageDto,
   ): Promise<TResponse<any>> {
     const senderId = client.data.userId;
-    if (!senderId) return this.emitError(client, 'Unauthorized');
+    if (!senderId) return this.chatGateway.emitError(client, 'Unauthorized');
 
-    const admins = await this.getAllAdminParticipants();
+    const admins = await this.chatGateway.getAllAdminParticipants();
 
     // Find or create conversation
     let conversation = await this.prisma.privateConversation.findFirst({
@@ -83,7 +77,11 @@ export class MessageService {
       ...conversation.participants.map((p) => p.userId!),
     ]);
 
-    const formattedMessage = this.formatMessageForClient(message, senderId);
+    const formattedMessage = this.chatGateway.formatMessageForClient(
+      message,
+      senderId,
+      'MESSAGE',
+    );
 
     // Notify admins + client
     this.emitMessageToAdmins(
@@ -112,7 +110,7 @@ export class MessageService {
     payload: AdminMessageDto,
   ): Promise<TResponse<any>> {
     const senderId = client.data.userId;
-    if (!senderId) return this.emitError(client, 'Unauthorized');
+    if (!senderId) return this.chatGateway.emitError(client, 'Unauthorized');
 
     const conversation = await this.prisma.privateConversation.findFirst({
       where: {
@@ -125,13 +123,17 @@ export class MessageService {
       },
       include: { participants: true },
     });
-    if (!conversation) return this.emitError(client, 'Conversation not found');
+    if (!conversation)
+      return this.chatGateway.emitError(client, 'Conversation not found');
 
     const clientId = conversation.participants.find(
       (p) => p.type === ConversationParticipantType.USER,
     )?.userId;
     if (!clientId)
-      return this.emitError(client, 'Client not found in conversation');
+      return this.chatGateway.emitError(
+        client,
+        'Client not found in conversation',
+      );
 
     const message = await this.createMessage(
       conversation.id,
@@ -179,7 +181,11 @@ export class MessageService {
       });
     }
 
-    const formattedMessage = this.formatMessageForClient(message, clientId);
+    const formattedMessage = this.chatGateway.formatMessageForClient(
+      message,
+      clientId,
+      'MESSAGE',
+    );
 
     // Notify client + admins
     this.emitMessageToClient(
@@ -189,7 +195,7 @@ export class MessageService {
       'New message from admin',
     );
 
-    const admins = await this.getAllAdminParticipants();
+    const admins = await this.chatGateway.getAllAdminParticipants();
 
     this.emitMessageToAdmins(
       admins,
@@ -206,42 +212,6 @@ export class MessageService {
     return successResponse(
       { conversationId: conversation.id, message: formattedMessage },
       'Message sent successfully',
-    );
-  }
-
-  @HandleError('Failed to update message status', 'MessageService')
-  async messageStatusUpdate(
-    client: Socket,
-    payload: MessageDeliveryStatusDto,
-  ): Promise<TResponse<any>> {
-    const { messageId, userId: payloadUserId, status } = payload;
-    const userId = payloadUserId ?? client.data.userId;
-
-    const messageStatus = await this.prisma.privateMessageStatus.upsert({
-      where: { messageId_userId: { messageId, userId } },
-      update: { status },
-      create: { messageId, userId, status },
-    });
-
-    const updatePayload = {
-      messageId,
-      userId,
-      status: messageStatus.status,
-    };
-
-    return successResponse({ status: updatePayload }, 'Message status updated');
-  }
-
-  @HandleError('Failed to mark message(s) as read', 'MessageService')
-  async markMessagesAsRead(payload: MarkReadDto): Promise<TResponse<any>> {
-    const message = await this.prisma.privateMessageStatus.updateMany({
-      where: { messageId: { in: payload.messageIds } },
-      data: { status: MessageDeliveryStatus.READ },
-    });
-
-    return successResponse(
-      { read: { updatedCount: message.count } },
-      'Messages marked as read',
     );
   }
 
@@ -299,76 +269,6 @@ export class MessageService {
     ]);
   }
 
-  private async getAllAdminParticipants() {
-    const admins = await this.prisma.user.findMany({
-      where: { role: { in: ['ADMIN', 'SUPER_ADMIN'] } },
-      select: { id: true },
-    });
-    return admins.map((a) => ({
-      userId: a.id,
-      type: ConversationParticipantType.ADMIN_GROUP,
-    }));
-  }
-
-  private emitError(client: Socket, message: string) {
-    this.chatGateway.server
-      .to(client.data.userId)
-      .emit(EventsEnum.ERROR, errorResponse(null, message));
-    return errorResponse(null, message);
-  }
-
-  private emitToAdmins(
-    admins: { userId: string }[],
-    event: EventsEnum,
-    payload: any,
-    message: string,
-  ) {
-    admins.forEach((admin) =>
-      this.chatGateway.server
-        .to(admin.userId)
-        .emit(event, successResponse(payload, message)),
-    );
-  }
-
-  private emitToClient(
-    clientId: string,
-    event: EventsEnum,
-    payload: any,
-    message: string,
-  ) {
-    this.chatGateway.server
-      .to(clientId)
-      .emit(event, successResponse(payload, message));
-  }
-
-  // emit a message object to all admins, formatting per admin
-  private emitMessageToAdmins(
-    admins: { userId: string }[],
-    event: EventsEnum,
-    message: any,
-    messageText: string,
-  ) {
-    admins.forEach((admin) => {
-      const formatted = this.formatMessageForClient(message, admin.userId);
-      this.chatGateway.server
-        .to(admin.userId)
-        .emit(event, successResponse(formatted, messageText));
-    });
-  }
-
-  // emit a message object to a single client, formatting for that client
-  private emitMessageToClient(
-    clientId: string,
-    event: EventsEnum,
-    message: any,
-    messageText: string,
-  ) {
-    const formatted = this.formatMessageForClient(message, clientId);
-    this.chatGateway.server
-      .to(clientId)
-      .emit(event, successResponse(formatted, messageText));
-  }
-
   private emitDeliveryStatus(
     admins: { userId: string }[],
     clientId: string,
@@ -387,7 +287,7 @@ export class MessageService {
         EventsEnum.UPDATE_MESSAGE_STATUS,
         successResponse(payload, 'Your message has been delivered'),
       );
-    this.emitToAdmins(
+    this.emitMessageToAdmins(
       admins,
       EventsEnum.UPDATE_MESSAGE_STATUS,
       payload,
@@ -395,36 +295,37 @@ export class MessageService {
     );
   }
 
-  private formatMessageForClient(message: any, viewerId: string) {
-    return {
-      id: message.id,
-      conversationId: message.conversationId,
-      type: 'MESSAGE',
-      createdAt: message.createdAt,
-      content: message.content,
-      messageType: message.type,
-      sender: message.sender
-        ? {
-            id: message.sender.id,
-            name: message.sender.name,
-            avatarUrl: message.sender.avatarUrl,
-            role: message.sender.role,
-            email: message.sender.email,
-          }
-        : null,
-      file: message.file
-        ? {
-            id: message.file.id,
-            url: message.file.url,
-            type: message.file.fileType,
-            mimeType: message.file.mimeType,
-          }
-        : null,
-      // viewerId is the *recipient* user id — `isMine` is true only for that recipient.
-      isMine: message.sender?.id === viewerId,
-      // isSentByClient should indicate whether the message was sent by a client (user),
-      // not whether the recipient is the same as sender.
-      isSentByClient: message.sender?.role === 'USER',
-    };
+  public emitMessageToAdmins(
+    admins: { userId: string }[],
+    event: EventsEnum,
+    message: any,
+    messageText: string,
+  ) {
+    admins.forEach((admin) => {
+      const formatted = this.chatGateway.formatMessageForClient(
+        message,
+        admin.userId,
+        'MESSAGE',
+      );
+      this.chatGateway.server
+        .to(admin.userId)
+        .emit(event, successResponse(formatted, messageText));
+    });
+  }
+
+  public emitMessageToClient(
+    clientId: string,
+    event: EventsEnum,
+    message: any,
+    messageText: string,
+  ) {
+    const formatted = this.chatGateway.formatMessageForClient(
+      message,
+      clientId,
+      'MESSAGE',
+    );
+    this.chatGateway.server
+      .to(clientId)
+      .emit(event, successResponse(formatted, messageText));
   }
 }
