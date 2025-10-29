@@ -1,11 +1,16 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { PaginationDto } from '@project/common/dto/pagination.dto';
-import { IsNotEmpty, IsString } from 'class-validator';
+import { IsNotEmpty, IsOptional, IsString } from 'class-validator';
 
 // ----------------------
 // Load conversations
 // ----------------------
-export class LoadConversationsDto extends PaginationDto {}
+export class LoadConversationsDto extends PaginationDto {
+  @ApiPropertyOptional({ description: 'Search query' })
+  @IsOptional()
+  @IsString()
+  search: string;
+}
 
 // ----------------------
 // Load single conversation

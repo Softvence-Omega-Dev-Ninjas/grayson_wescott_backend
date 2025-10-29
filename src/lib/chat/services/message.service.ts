@@ -86,18 +86,18 @@ export class MessageService {
     const formattedMessage = this.formatMessageForClient(message, senderId);
 
     // Notify admins + client
-    this.emitToAdmins(
+    this.emitMessageToAdmins(
       admins,
       EventsEnum.NEW_MESSAGE,
-      formattedMessage,
+      message,
       'New message received from client',
     );
 
-    this.emitToClient(
-      client.id,
+    this.emitMessageToClient(
+      client.data.userId,
       EventsEnum.NEW_MESSAGE,
-      formattedMessage,
-      'New message received from admin',
+      message,
+      'New message received from client',
     );
 
     return successResponse(
@@ -182,18 +182,19 @@ export class MessageService {
     const formattedMessage = this.formatMessageForClient(message, clientId);
 
     // Notify client + admins
-    this.emitToClient(
+    this.emitMessageToClient(
       clientId,
       EventsEnum.NEW_MESSAGE,
-      formattedMessage,
+      message,
       'New message from admin',
     );
 
     const admins = await this.getAllAdminParticipants();
-    this.emitToAdmins(
+
+    this.emitMessageToAdmins(
       admins,
       EventsEnum.NEW_MESSAGE,
-      formattedMessage,
+      message,
       'New message from admin',
     );
 
@@ -340,6 +341,34 @@ export class MessageService {
       .emit(event, successResponse(payload, message));
   }
 
+  // emit a message object to all admins, formatting per admin
+  private emitMessageToAdmins(
+    admins: { userId: string }[],
+    event: EventsEnum,
+    message: any,
+    messageText: string,
+  ) {
+    admins.forEach((admin) => {
+      const formatted = this.formatMessageForClient(message, admin.userId);
+      this.chatGateway.server
+        .to(admin.userId)
+        .emit(event, successResponse(formatted, messageText));
+    });
+  }
+
+  // emit a message object to a single client, formatting for that client
+  private emitMessageToClient(
+    clientId: string,
+    event: EventsEnum,
+    message: any,
+    messageText: string,
+  ) {
+    const formatted = this.formatMessageForClient(message, clientId);
+    this.chatGateway.server
+      .to(clientId)
+      .emit(event, successResponse(formatted, messageText));
+  }
+
   private emitDeliveryStatus(
     admins: { userId: string }[],
     clientId: string,
@@ -366,7 +395,7 @@ export class MessageService {
     );
   }
 
-  private formatMessageForClient(message: any, clientId: string) {
+  private formatMessageForClient(message: any, viewerId: string) {
     return {
       id: message.id,
       conversationId: message.conversationId,
@@ -391,8 +420,11 @@ export class MessageService {
             mimeType: message.file.mimeType,
           }
         : null,
-      isMine: message.sender?.id === clientId,
-      isSentByClient: message.sender?.id === clientId,
+      // viewerId is the *recipient* user id — `isMine` is true only for that recipient.
+      isMine: message.sender?.id === viewerId,
+      // isSentByClient should indicate whether the message was sent by a client (user),
+      // not whether the recipient is the same as sender.
+      isSentByClient: message.sender?.role === 'USER',
     };
   }
 }

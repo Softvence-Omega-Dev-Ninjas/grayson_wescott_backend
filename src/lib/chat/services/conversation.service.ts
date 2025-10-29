@@ -1,4 +1,5 @@
 import { forwardRef, Inject, Injectable, Logger } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { EventsEnum } from '@project/common/enum/events.enum';
 import { HandleError } from '@project/common/error/handle-error.decorator';
 import {
@@ -28,20 +29,51 @@ export class ConversationService {
     // Pagination
     const limit = payload?.limit ?? 10;
     const page = payload?.page && +payload.page > 0 ? +payload.page : 1;
+    const search = payload?.search?.trim();
+
+    // this.logger.log(`Loading conversations by admin`, {
+    //   limit,
+    //   page,
+    //   search,
+    // });
+
+    const where: Prisma.PrivateConversationWhereInput = {};
+
+    if (search) {
+      where.participants = {
+        some: {
+          user: {
+            OR: [
+              { name: { contains: search, mode: 'insensitive' } },
+              { email: { contains: search, mode: 'insensitive' } },
+            ],
+          },
+          type: 'USER',
+        },
+      };
+    } else {
+      where.participants = {
+        some: { type: 'USER' },
+      };
+    }
 
     // RAW Conversations
-    const conversations = await this.prisma.privateConversation.findMany({
-      include: {
-        lastMessage: true,
-        participants: {
-          where: { type: 'USER' },
-          include: { user: true },
+    const [conversations, total] = await this.prisma.$transaction([
+      this.prisma.privateConversation.findMany({
+        include: {
+          lastMessage: true,
+          participants: {
+            where: { type: 'USER' },
+            include: { user: true },
+          },
         },
-      },
-      orderBy: { updatedAt: 'desc' },
-      take: limit,
-      skip: (page - 1) * limit,
-    });
+        where,
+        orderBy: { updatedAt: 'desc' },
+        take: limit,
+        skip: (page - 1) * limit,
+      }),
+      this.prisma.privateConversation.count({ where }),
+    ]);
 
     const outputData = conversations.map((conversation) => ({
       conversationId: conversation.id,
@@ -72,7 +104,7 @@ export class ConversationService {
           {
             limit,
             page,
-            total: conversations.length,
+            total,
           },
           'Conversations loaded successfully',
         ),
@@ -86,7 +118,7 @@ export class ConversationService {
     // Response
     return successPaginatedResponse(
       outputData,
-      { limit, page, total: conversations.length },
+      { limit, page, total },
       'Conversations loaded successfully',
     );
   }
