@@ -310,7 +310,9 @@ export class MessageService {
   }
 
   private emitError(client: Socket, message: string) {
-    client.emit(EventsEnum.ERROR, errorResponse(null, message));
+    this.chatGateway.server
+      .to(client.data.userId)
+      .emit(EventsEnum.ERROR, errorResponse(null, message));
     return errorResponse(null, message);
   }
 
