@@ -122,17 +122,22 @@ export class AuthSocialService {
       appSecret: this.configService.getOrThrow(ENVEnum.TWITTER_CONSUMER_SECRET),
     });
 
-    const { url, oauth_token, oauth_token_secret } =
-      await twitterClient.generateAuthLink(
-        this.configService.getOrThrow(ENVEnum.TWITTER_REDIRECT_URL),
-        { linkMode: 'authorize' },
-      );
+    try {
+      const { url, oauth_token, oauth_token_secret } =
+        await twitterClient.generateAuthLink(
+          this.configService.getOrThrow(ENVEnum.TWITTER_REDIRECT_URL),
+          { linkMode: 'authorize' },
+        );
 
-    return successResponse({
-      url,
-      oauthToken: oauth_token,
-      oauthTokenSecret: oauth_token_secret,
-    });
+      return successResponse({
+        url,
+        oauthToken: oauth_token,
+        oauthTokenSecret: oauth_token_secret,
+      });
+    } catch (error) {
+      console.error(error);
+      throw new AppError(500, 'Twitter login failed');
+    }
   }
 
   @HandleError('Twitter login failed', 'User')
