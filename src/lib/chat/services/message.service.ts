@@ -198,7 +198,7 @@ export class MessageService {
     );
 
     // If client online → mark delivered
-    if (this.isClientOnline(clientId)) {
+    if (this.chatGateway.isOnline(clientId)) {
       this.emitDeliveryStatus(admins, clientId, message.id, senderId);
     }
 
@@ -338,11 +338,6 @@ export class MessageService {
     this.chatGateway.server
       .to(clientId)
       .emit(event, successResponse(payload, message));
-  }
-
-  private isClientOnline(clientId: string): boolean {
-    const sockets = this.chatGateway.server.sockets.adapter.rooms.get(clientId);
-    return !!sockets?.size;
   }
 
   private emitDeliveryStatus(
