@@ -3,6 +3,7 @@ import { MailService } from './mail.service';
 import { AuthMailService } from './services/auth-mail.service';
 import { ContactMailService } from './services/contact-mail.service';
 import { CronMailService } from './services/cron-mail.service';
+import { WeeklyReviewMailService } from './services/weekly-review.service';
 
 @Global()
 @Module({
@@ -11,7 +12,13 @@ import { CronMailService } from './services/cron-mail.service';
     AuthMailService,
     CronMailService,
     ContactMailService,
+    WeeklyReviewMailService,
   ],
-  exports: [AuthMailService, CronMailService, ContactMailService],
+  exports: [
+    AuthMailService,
+    CronMailService,
+    ContactMailService,
+    WeeklyReviewMailService,
+  ],
 })
 export class MailModule {}

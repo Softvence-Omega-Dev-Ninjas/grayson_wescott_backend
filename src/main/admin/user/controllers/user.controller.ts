@@ -1,7 +1,17 @@
-import { Controller, Delete, Get, Param, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Post,
+  Query,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { GetUser, ValidateAdmin } from '@project/common/jwt/jwt.decorator';
+import { WeeklyReviewMailService } from '@project/lib/mail/services/weekly-review.service';
 import { GetClientsForProgramDto } from '../dto/get-clients.dto';
+import { WeeklyReviewDto } from '../dto/weekly-review.dto';
 import { NotificationService } from '../services/notification.service';
 import { UserService } from '../services/user.service';
 
@@ -13,6 +23,7 @@ export class UserController {
   constructor(
     private readonly userService: UserService,
     private readonly notificationService: NotificationService,
+    private readonly weeklyReviewMailService: WeeklyReviewMailService,
   ) {}
 
   @ApiOperation({ summary: 'Get all clients for program' })
@@ -31,5 +42,19 @@ export class UserController {
   @Get('clients/notifications')
   getNotifications(@GetUser('sub') userId: string) {
     return this.notificationService.getAllNotifications(userId);
+  }
+
+  @ApiOperation({ summary: 'Send weekly review' })
+  @Post('sendWeeklyReview/:id')
+  async sendWeeklyReview(
+    @Param('id') userId: string,
+    @GetUser('sub') adminId: string,
+    @Body() body: WeeklyReviewDto,
+  ) {
+    await this.weeklyReviewMailService.sendWeeklyReviewByAdmin(
+      userId,
+      body.review,
+      adminId,
+    );
   }
 }
