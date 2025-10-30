@@ -166,7 +166,9 @@ export class SingleClientAnalyticsService {
         },
         dailyExerciseLogs: {
           date: targetDate.toISO(),
-          data: dailyExerciseLogs.flatMap((log) => log.programExercise),
+          data: dailyExerciseLogs
+            .map((log) => log.programExercise)
+            .filter((pe) => pe != null), // removes nulls
         },
         weeklySummary,
       },

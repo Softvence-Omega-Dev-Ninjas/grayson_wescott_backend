@@ -1,4 +1,4 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '@project/lib/prisma/prisma.service';
@@ -10,7 +10,7 @@ import {
 } from '../payload/daily-exercise.payload';
 
 @Injectable()
-export class DailyExerciseCron implements OnModuleInit {
+export class DailyExerciseCron {
   private readonly logger = new Logger(DailyExerciseCron.name);
 
   constructor(
@@ -53,61 +53,36 @@ export class DailyExerciseCron implements OnModuleInit {
       const tz = up.user?.timezone;
       if (!tz) continue;
 
-      const userNow = nowUTC.setZone(tz);
+      this.logger.log(
+        `Sending early morning notifications to ${up.user.name} (${up.user.email})`,
+      );
+      const channels: Channel[] = ['socket', 'email'];
+      if (up.user.phone) channels.push('sms');
 
-      // Target window: 1 AM – 12 PM local time
-      if (userNow.hour >= 1 && userNow.hour <= 12) {
-        this.logger.log(
-          `Sending early morning notifications to ${up.user.name} (${up.user.email})`,
-        );
-        const channels: Channel[] = ['socket', 'email'];
-        if (up.user.phone) channels.push('sms');
+      const payload: DailyExerciseJobPayload = {
+        event: QUEUE_EVENTS.DAILY_EXERCISE,
+        programId: up.programId,
+        recordType: 'userProgram',
+        recordId: up.id,
+        channels,
+      };
 
-        const payload: DailyExerciseJobPayload = {
-          event: QUEUE_EVENTS.DAILY_EXERCISE,
-          programId: up.programId,
-          recordType: 'userProgram',
-          recordId: up.id,
-          channels,
-        };
-
-        // Emit asynchronously to avoid blocking event loop
-        await this.eventEmitter.emitAsync(QUEUE_EVENTS.DAILY_EXERCISE, payload);
-        count++;
-      }
+      // Emit asynchronously to avoid blocking event loop
+      await this.eventEmitter.emitAsync(QUEUE_EVENTS.DAILY_EXERCISE, payload);
+      count++;
     }
 
     this.logger.log(`Processed early morning notifications to ${count} users`);
   }
 
   /**
-   * 🕐 Asia region (UTC+5 → UTC+9)
-   * Runs daily at 1:00 UTC (~6:00–10:00 AM local)
-   */
-  // @Cron(CronExpression.EVERY_DAY_AT_1AM)
-  // async handleAsiaMorningCron() {
-  //   await this.notifyEarlyMorningUsers();
-  // }
-
-  /**
-   * 🕑 Europe region (UTC+0 → UTC+3)
-   * Runs daily at 2:00 UTC (~2:00–5:00 AM local)
-   */
-  @Cron(CronExpression.EVERY_DAY_AT_2AM)
-  async handleEuropeMorningCron() {
-    await this.notifyEarlyMorningUsers();
-  }
-
-  /**
    * 🕛 North America region (UTC-5 → UTC-8)
    * Runs daily at 12:00 UTC (~4:00–7:00 AM local)
    */
-  @Cron(CronExpression.EVERY_DAY_AT_NOON)
+  @Cron(CronExpression.EVERY_DAY_AT_4AM, {
+    timeZone: 'America/New_York',
+  })
   async handleAmericaMorningCron() {
-    await this.notifyEarlyMorningUsers();
-  }
-
-  async onModuleInit() {
     await this.notifyEarlyMorningUsers();
   }
 }
