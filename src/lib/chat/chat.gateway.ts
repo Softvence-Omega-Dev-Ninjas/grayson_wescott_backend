@@ -333,13 +333,13 @@ export class ChatGateway
     return await this.callService.endCall(client, data.callId);
   }
 
-  /** ---------------- WEBRTC EVENTS ---------------- */
+  /** ---------------- WebRTC signalling (forward to CallService) ---------------- */
   @SubscribeMessage(EventsEnum.RTC_OFFER)
   async onRTCOffer(
     @ConnectedSocket() client: Socket,
     @MessageBody() payload: RTCOfferDto,
   ) {
-    return await this.webRTCService.handleOffer(client, payload);
+    return await this.callService.forwardOffer(client, payload);
   }
 
   @SubscribeMessage(EventsEnum.RTC_ANSWER)
@@ -347,7 +347,7 @@ export class ChatGateway
     @ConnectedSocket() client: Socket,
     @MessageBody() payload: RTCAnswerDto,
   ) {
-    return await this.webRTCService.handleAnswer(client, payload);
+    return await this.callService.forwardAnswer(client, payload);
   }
 
   @SubscribeMessage(EventsEnum.RTC_ICE_CANDIDATE)
@@ -355,6 +355,6 @@ export class ChatGateway
     @ConnectedSocket() client: Socket,
     @MessageBody() payload: RTCIceCandidateDto,
   ) {
-    return await this.webRTCService.handleCandidate(client, payload);
+    return await this.callService.forwardCandidate(client, payload);
   }
 }
