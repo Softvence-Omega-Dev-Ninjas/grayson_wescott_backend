@@ -168,13 +168,6 @@ export class ChatGateway
     this.logger.warn(`Disconnect ${client.id}: ${message}`);
   }
 
-  public emitError(client: Socket, message: string) {
-    this.server
-      .to(client.data.userId)
-      .emit(EventsEnum.ERROR, errorResponse(null, message));
-    return errorResponse(null, message);
-  }
-
   /** ----------------- Common Helpers ----------------- **/
   public async getAllAdminParticipants() {
     const admins = await this.prisma.user.findMany({
@@ -356,5 +349,62 @@ export class ChatGateway
     @MessageBody() payload: RTCIceCandidateDto,
   ) {
     return await this.callService.forwardCandidate(client, payload);
+  }
+
+  // inside ChatGateway class (add these methods near subscribeClient/unsubscribeClient)
+
+  /**
+   * Return active socket ids for a user (excluding an optional socket id).
+   * This uses the internal `clients` Map<userId, Set<Socket>> that you already maintain.
+   */
+  public getActiveSocketIdsForUser(
+    userId: string,
+    excludeSocketId?: string,
+  ): string[] {
+    const set = this.clients.get(userId);
+    if (!set) return [];
+    const ids: string[] = [];
+    for (const sock of set) {
+      if (sock && sock.id !== excludeSocketId) ids.push(sock.id);
+    }
+    return ids;
+  }
+
+  /**
+   * Emit to a specific socket id (targeted emission).
+   * Example: this.emitToSocketId(targetSockId, EventsEnum.RTC_ANSWER, payload)
+   */
+  public emitToSocketId(
+    socketId: string,
+    event: EventsEnum | string,
+    payload: any,
+  ) {
+    // use server.to(socketId) to send to the single socket
+    this.server.to(socketId).emit(event, payload);
+  }
+
+  /**
+   * Optional convenience: emit to the first active socket of a user (excluding an optional socket).
+   * Useful when you want a simple "deliver to one of user's tabs" behavior.
+   */
+  public emitToUserFirstSocket(
+    userId: string,
+    event: EventsEnum | string,
+    payload: any,
+    excludeSocketId?: string,
+  ) {
+    const ids = this.getActiveSocketIdsForUser(userId, excludeSocketId);
+    if (ids.length === 0) return false;
+    this.emitToSocketId(ids[0], event, payload);
+    return true;
+  }
+
+  // small change: send errors to a single socket, not the whole user room
+  public emitError(client: Socket, message: string) {
+    // prefer to send error to the single connected socket that asked for it
+    this.server
+      .to(client.id)
+      .emit(EventsEnum.ERROR, errorResponse(null, message));
+    return errorResponse(null, message);
   }
 }

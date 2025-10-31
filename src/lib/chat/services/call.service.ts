@@ -68,7 +68,7 @@ export class CallService {
       include: { participants: true },
     });
 
-    // Notify all participants
+    // Notify all participants (targeted emit to their active socket)
     this.emitCallEvent(
       conversation.participants.map((p) => ({ userId: p.userId! })),
       EventsEnum.CALL_INCOMING,
@@ -134,14 +134,7 @@ export class CallService {
     this.clearRingTimeout(callId);
 
     // Emit CALL_ACCEPT (inform all participants who joined)
-    this.emitCallEvent(updated.participants || [], EventsEnum.CALL_ACCEPT, {
-      callId,
-      userId,
-      call: updated,
-    });
-
-    // Also emit an informative event so clients know the call is now ONGOING and can start signaling.
-    // Clients should react to CALL_ACCEPT payload containing call.status === 'ONGOING' to begin WebRTC.
+    // We include call payload so clients can transition to ONGOING and begin WebRTC
     this.emitCallEvent(updated.participants || [], EventsEnum.CALL_ACCEPT, {
       callId,
       userId,
@@ -339,9 +332,8 @@ export class CallService {
   /** ---------------- WebRTC signalling forwarding helpers ---------------- */
 
   /*
-    These methods simply validate the caller is a participant of the call,
-    then forward the payload to all OTHER participants using the same
-    EventsEnum names your frontend expects:
+    These methods validate the caller is a participant of the call,
+    then forward the payload to a single active socket for the other participant:
       - EventsEnum.RTC_OFFER
       - EventsEnum.RTC_ANSWER
       - EventsEnum.RTC_ICE_CANDIDATE
@@ -361,19 +353,33 @@ export class CallService {
     });
     if (!call) return this.chatGateway.emitError(client, 'Call not found');
 
-    // only forward to other participants
-    call.participants
-      .filter((p) => p.userId !== userId)
-      .forEach((p) =>
-        this.chatGateway.server.to(p.userId).emit(
-          EventsEnum.RTC_OFFER,
-          successResponse({
-            callId: call.id,
-            sdp: payload.sdp,
-            from: userId,
-          }),
-        ),
+    // only forward to other participants - target a single active socket per user
+    for (const p of call.participants.filter((p) => p.userId !== userId)) {
+      const targetSockets = this.chatGateway.getActiveSocketIdsForUser(
+        p.userId,
+        client.id,
       );
+      if (targetSockets.length === 0) {
+        this.logger.warn(
+          `No active socket found for user ${p.userId}, skipping offer forward`,
+        );
+        continue;
+      }
+
+      const targetSockId = targetSockets[0];
+      this.logger.log(
+        `Forwarding OFFER from ${userId} -> ${p.userId} (socket ${targetSockId})`,
+      );
+      this.chatGateway.emitToSocketId(
+        targetSockId,
+        EventsEnum.RTC_OFFER,
+        successResponse({
+          callId: call.id,
+          sdp: payload.sdp,
+          from: userId,
+        }),
+      );
+    }
 
     return successResponse(payload, 'Offer forwarded');
   }
@@ -392,18 +398,31 @@ export class CallService {
     });
     if (!call) return this.chatGateway.emitError(client, 'Call not found');
 
-    call.participants
-      .filter((p) => p.userId !== userId)
-      .forEach((p) =>
-        this.chatGateway.server.to(p.userId).emit(
-          EventsEnum.RTC_ANSWER,
-          successResponse({
-            callId: call.id,
-            sdp: payload.sdp,
-            from: userId,
-          }),
-        ),
+    for (const p of call.participants.filter((p) => p.userId !== userId)) {
+      const targetSockets = this.chatGateway.getActiveSocketIdsForUser(
+        p.userId,
+        client.id,
       );
+      if (targetSockets.length === 0) {
+        this.logger.warn(
+          `No active socket for ${p.userId}, skipping answer forward`,
+        );
+        continue;
+      }
+      const targetSockId = targetSockets[0];
+      this.logger.log(
+        `Forwarding ANSWER from ${userId} -> ${p.userId} (socket ${targetSockId})`,
+      );
+      this.chatGateway.emitToSocketId(
+        targetSockId,
+        EventsEnum.RTC_ANSWER,
+        successResponse({
+          callId: call.id,
+          sdp: payload.sdp,
+          from: userId,
+        }),
+      );
+    }
 
     return successResponse(payload, 'Answer forwarded');
   }
@@ -427,20 +446,33 @@ export class CallService {
     });
     if (!call) return this.chatGateway.emitError(client, 'Call not found');
 
-    call.participants
-      .filter((p) => p.userId !== userId)
-      .forEach((p) =>
-        this.chatGateway.server.to(p.userId).emit(
-          EventsEnum.RTC_ICE_CANDIDATE,
-          successResponse({
-            callId: call.id,
-            candidate: payload.candidate,
-            sdpMid: payload.sdpMid,
-            sdpMLineIndex: payload.sdpMLineIndex,
-            from: userId,
-          }),
-        ),
+    for (const p of call.participants.filter((p) => p.userId !== userId)) {
+      const targetSockets = this.chatGateway.getActiveSocketIdsForUser(
+        p.userId,
+        client.id,
       );
+      if (targetSockets.length === 0) {
+        this.logger.warn(
+          `No active socket for ${p.userId}, skipping candidate forward`,
+        );
+        continue;
+      }
+      const targetSockId = targetSockets[0];
+      this.logger.debug(
+        `Forwarding CANDIDATE from ${userId} -> ${p.userId} (socket ${targetSockId})`,
+      );
+      this.chatGateway.emitToSocketId(
+        targetSockId,
+        EventsEnum.RTC_ICE_CANDIDATE,
+        successResponse({
+          callId: call.id,
+          candidate: payload.candidate,
+          sdpMid: payload.sdpMid,
+          sdpMLineIndex: payload.sdpMLineIndex,
+          from: userId,
+        }),
+      );
+    }
 
     return successResponse(payload, 'Candidate forwarded');
   }
@@ -452,11 +484,28 @@ export class CallService {
     payload: any,
   ) {
     participants.forEach((p) => {
-      if (p.userId) {
-        this.chatGateway.server
-          .to(p.userId)
-          .emit(event, successResponse(payload));
+      if (!p.userId) return;
+
+      const targetSockets = this.chatGateway.getActiveSocketIdsForUser(
+        p.userId,
+      );
+      if (targetSockets.length === 0) {
+        this.logger.debug(
+          `emitCallEvent: no active socket for ${p.userId}, skipping event ${event}`,
+        );
+        return;
       }
+
+      // deliver event to the first active socket (you can change to iterate if you prefer notifying all tabs)
+      const targetSockId = targetSockets[0];
+      this.logger.debug(
+        `emitCallEvent: sending ${event} to ${p.userId} (socket ${targetSockId})`,
+      );
+      this.chatGateway.emitToSocketId(
+        targetSockId,
+        event,
+        successResponse(payload),
+      );
     });
   }
 
