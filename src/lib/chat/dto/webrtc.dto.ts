@@ -1,4 +1,4 @@
-import { IsString } from 'class-validator';
+import { IsOptional, IsString } from 'class-validator';
 
 export class RTCOfferDto {
   @IsString()
@@ -6,6 +6,15 @@ export class RTCOfferDto {
 
   @IsString()
   sdp: string; // Session Description
+
+  // optional routing hints (userId or socketId)
+  @IsOptional()
+  @IsString()
+  to?: string;
+
+  @IsOptional()
+  @IsString()
+  from?: string;
 }
 
 export class RTCAnswerDto {
@@ -14,6 +23,15 @@ export class RTCAnswerDto {
 
   @IsString()
   sdp: string;
+
+  // optional routing hints (userId or socketId)
+  @IsOptional()
+  @IsString()
+  to?: string;
+
+  @IsOptional()
+  @IsString()
+  from?: string;
 }
 
 export class RTCIceCandidateDto {
@@ -28,4 +46,13 @@ export class RTCIceCandidateDto {
 
   @IsString()
   sdpMLineIndex: string;
+
+  // optional routing hints (userId or socketId)
+  @IsOptional()
+  @IsString()
+  to?: string;
+
+  @IsOptional()
+  @IsString()
+  from?: string;
 }

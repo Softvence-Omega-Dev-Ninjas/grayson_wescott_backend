@@ -25,6 +25,13 @@ export class CallService {
    */
   private ringTimeouts = new Map<string, NodeJS.Timeout>();
 
+  /**
+   * callSocketMap stores a mapping: callId -> ( userId -> socketId )
+   * We populate this when a participant initiates, accepts, or joins a call.
+   * This lets us forward SDP/ICE to the exact socket that joined the call.
+   */
+  private callSocketMap = new Map<string, Map<string, string>>();
+
   constructor(
     private readonly prisma: PrismaService,
     @Inject(forwardRef(() => ChatGateway))
@@ -67,6 +74,11 @@ export class CallService {
       },
       include: { participants: true },
     });
+
+    // initialize preferred-socket map for this call, prefer initiator socket
+    const map = new Map<string, string>();
+    map.set(callerId, client.id);
+    this.callSocketMap.set(call.id, map);
 
     // Notify all participants (targeted emit to their active socket)
     this.emitCallEvent(
@@ -130,11 +142,16 @@ export class CallService {
       return latest!;
     });
 
+    // remember which socket accepted (prefer this socket for routing)
+    this.ensureCallSocketEntry(callId).set(userId, client.id);
+    this.logger.debug(
+      `Recorded socket mapping for call ${callId} user ${userId} => ${client.id}`,
+    );
+
     // Clear ring timeout because someone joined
     this.clearRingTimeout(callId);
 
     // Emit CALL_ACCEPT (inform all participants who joined)
-    // We include call payload so clients can transition to ONGOING and begin WebRTC
     this.emitCallEvent(updated.participants || [], EventsEnum.CALL_ACCEPT, {
       callId,
       userId,
@@ -211,6 +228,12 @@ export class CallService {
       });
     }
 
+    // record the socket that joined for deterministic routing
+    this.ensureCallSocketEntry(callId).set(userId, client.id);
+    this.logger.debug(
+      `Recorded join mapping for call ${callId} user ${userId} => ${client.id}`,
+    );
+
     // Clear ring timeout on join
     this.clearRingTimeout(callId);
 
@@ -264,6 +287,12 @@ export class CallService {
       data: { status: CallParticipantStatus.LEFT, leftAt: new Date() },
     });
 
+    // Remove socket mapping for this participant for this call
+    const map = this.callSocketMap.get(callId);
+    if (map) {
+      map.delete(userId);
+    }
+
     const call = await this.prisma.privateCall.findUnique({
       where: { id: callId },
       include: { participants: true },
@@ -282,6 +311,9 @@ export class CallService {
       this.emitCallEvent(call?.participants || [], EventsEnum.CALL_END, {
         callId,
       });
+
+      // cleanup mapping
+      this.callSocketMap.delete(callId);
     } else {
       this.emitCallEvent(call?.participants || [], EventsEnum.CALL_LEAVE, {
         callId,
@@ -304,6 +336,8 @@ export class CallService {
     this.clearRingTimeout(callId);
     this.emitCallEvent(call.participants, EventsEnum.CALL_END, { callId });
 
+    // cleanup mapping
+    this.callSocketMap.delete(callId);
     return successResponse({ callId }, 'Call ended successfully');
   }
 
@@ -326,6 +360,8 @@ export class CallService {
       callId,
     });
 
+    // cleanup mapping
+    this.callSocketMap.delete(callId);
     return successResponse({ callId }, 'Call marked as missed');
   }
 
@@ -333,16 +369,77 @@ export class CallService {
 
   /*
     These methods validate the caller is a participant of the call,
-    then forward the payload to a single active socket for the other participant:
-      - EventsEnum.RTC_OFFER
-      - EventsEnum.RTC_ANSWER
-      - EventsEnum.RTC_ICE_CANDIDATE
+    then forward the payload to a single socket chosen like this:
+      1) If payload.to is provided and maps to an active socket, use it.
+      2) Else: if we have a recorded socket for (callId, userId) use it.
+      3) Else: use the first active socket found via ChatGateway.getActiveSocketIdsForUser(userId).
   */
+
+  private ensureCallSocketEntry(callId: string) {
+    if (!this.callSocketMap.has(callId)) {
+      this.callSocketMap.set(callId, new Map<string, string>());
+    }
+    return this.callSocketMap.get(callId)!;
+  }
+
+  private findTargetSocketForRecipient(
+    callId: string,
+    recipientUserId: string,
+    payloadTo?: string, // optional value from client payload.to (userId or socketId)
+    excludeSocketId?: string,
+  ): string | null {
+    // If payloadTo looks like a socket id and exists, prefer it
+    if (payloadTo && typeof payloadTo === 'string') {
+      // if payloadTo is actual socket id (exists on server), pick it
+      const activeForTo = this.chatGateway.getActiveSocketIdsForUser(
+        recipientUserId,
+        excludeSocketId,
+      );
+      // if payloadTo matches one of the active socket ids for recipient, prefer it
+      if (activeForTo.includes(payloadTo)) {
+        this.logger.debug(
+          `Using payload.to socket ${payloadTo} for recipient ${recipientUserId}`,
+        );
+        return payloadTo;
+      }
+      // if payloadTo looks like a userId equal to recipient, we'll fallback below
+    }
+
+    // Prefer the recorded socket for this call & user
+    const map = this.callSocketMap.get(callId);
+    if (map) {
+      const recorded = map.get(recipientUserId);
+      if (recorded && recorded !== excludeSocketId) {
+        this.logger.debug(
+          `Using recorded socket ${recorded} for call ${callId} user ${recipientUserId}`,
+        );
+        return recorded;
+      }
+    }
+
+    // Fallback: first active socket for the user (exclude sender)
+    const active = this.chatGateway.getActiveSocketIdsForUser(
+      recipientUserId,
+      excludeSocketId,
+    );
+    if (active.length > 0) {
+      this.logger.debug(
+        `Using first active socket ${active[0]} for recipient ${recipientUserId}`,
+      );
+      return active[0];
+    }
+
+    // nothing found
+    this.logger.warn(
+      `No active socket found for recipient ${recipientUserId} (call ${callId})`,
+    );
+    return null;
+  }
 
   @HandleError('Failed to forward offer', 'CallService')
   async forwardOffer(
     client: Socket,
-    payload: { callId: string; sdp: string },
+    payload: { callId: string; sdp: string; to?: string; from?: string },
   ): Promise<TResponse<any>> {
     const userId = client.data.userId;
     if (!userId) return this.chatGateway.emitError(client, 'Unauthorized');
@@ -353,20 +450,21 @@ export class CallService {
     });
     if (!call) return this.chatGateway.emitError(client, 'Call not found');
 
-    // only forward to other participants - target a single active socket per user
+    // only forward to other participants
     for (const p of call.participants.filter((p) => p.userId !== userId)) {
-      const targetSockets = this.chatGateway.getActiveSocketIdsForUser(
-        p.userId,
+      const targetSockId = this.findTargetSocketForRecipient(
+        call.id,
+        p.userId!,
+        payload.to,
         client.id,
       );
-      if (targetSockets.length === 0) {
+      if (!targetSockId) {
         this.logger.warn(
-          `No active socket found for user ${p.userId}, skipping offer forward`,
+          `Skipping OFFER forward: no target socket for user ${p.userId}`,
         );
         continue;
       }
 
-      const targetSockId = targetSockets[0];
       this.logger.log(
         `Forwarding OFFER from ${userId} -> ${p.userId} (socket ${targetSockId})`,
       );
@@ -387,7 +485,7 @@ export class CallService {
   @HandleError('Failed to forward answer', 'CallService')
   async forwardAnswer(
     client: Socket,
-    payload: { callId: string; sdp: string },
+    payload: { callId: string; sdp: string; to?: string; from?: string },
   ): Promise<TResponse<any>> {
     const userId = client.data.userId;
     if (!userId) return this.chatGateway.emitError(client, 'Unauthorized');
@@ -399,17 +497,19 @@ export class CallService {
     if (!call) return this.chatGateway.emitError(client, 'Call not found');
 
     for (const p of call.participants.filter((p) => p.userId !== userId)) {
-      const targetSockets = this.chatGateway.getActiveSocketIdsForUser(
-        p.userId,
+      const targetSockId = this.findTargetSocketForRecipient(
+        call.id,
+        p.userId!,
+        payload.to,
         client.id,
       );
-      if (targetSockets.length === 0) {
+      if (!targetSockId) {
         this.logger.warn(
-          `No active socket for ${p.userId}, skipping answer forward`,
+          `Skipping ANSWER forward: no target socket for user ${p.userId}`,
         );
         continue;
       }
-      const targetSockId = targetSockets[0];
+
       this.logger.log(
         `Forwarding ANSWER from ${userId} -> ${p.userId} (socket ${targetSockId})`,
       );
@@ -435,6 +535,8 @@ export class CallService {
       candidate: string;
       sdpMid: string;
       sdpMLineIndex: string;
+      to?: string;
+      from?: string;
     },
   ): Promise<TResponse<any>> {
     const userId = client.data.userId;
@@ -447,17 +549,19 @@ export class CallService {
     if (!call) return this.chatGateway.emitError(client, 'Call not found');
 
     for (const p of call.participants.filter((p) => p.userId !== userId)) {
-      const targetSockets = this.chatGateway.getActiveSocketIdsForUser(
-        p.userId,
+      const targetSockId = this.findTargetSocketForRecipient(
+        call.id,
+        p.userId!,
+        payload.to,
         client.id,
       );
-      if (targetSockets.length === 0) {
+      if (!targetSockId) {
         this.logger.warn(
-          `No active socket for ${p.userId}, skipping candidate forward`,
+          `Skipping CANDIDATE forward: no target socket for user ${p.userId}`,
         );
         continue;
       }
-      const targetSockId = targetSockets[0];
+
       this.logger.debug(
         `Forwarding CANDIDATE from ${userId} -> ${p.userId} (socket ${targetSockId})`,
       );
@@ -486,18 +590,18 @@ export class CallService {
     participants.forEach((p) => {
       if (!p.userId) return;
 
-      const targetSockets = this.chatGateway.getActiveSocketIdsForUser(
+      const targetSockId = this.findTargetSocketForRecipient(
+        // try to find a socket mapped to this call; if not, fallback to any active socket
+        payload?.id || payload?.callId || 'unknown-call',
         p.userId,
       );
-      if (targetSockets.length === 0) {
+      if (!targetSockId) {
         this.logger.debug(
           `emitCallEvent: no active socket for ${p.userId}, skipping event ${event}`,
         );
         return;
       }
 
-      // deliver event to the first active socket (you can change to iterate if you prefer notifying all tabs)
-      const targetSockId = targetSockets[0];
       this.logger.debug(
         `emitCallEvent: sending ${event} to ${p.userId} (socket ${targetSockId})`,
       );
