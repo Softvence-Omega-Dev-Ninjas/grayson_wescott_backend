@@ -39,6 +39,7 @@ import { ClientConversationService } from './services/client-conversation.servic
 import { ConversationService } from './services/conversation.service';
 import { MessageService } from './services/message.service';
 import { SingleConversationService } from './services/single-conversation.service';
+import { WebRTCService } from './services/webrtc.service';
 
 @WebSocketGateway({
   cors: { origin: '*' },
@@ -61,6 +62,7 @@ export class ChatGateway
     private readonly singleConversationService: SingleConversationService,
     private readonly clientConversationService: ClientConversationService,
     private readonly callService: CallService,
+    private readonly webRTCService: WebRTCService,
     private readonly configService: ConfigService,
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
@@ -289,7 +291,7 @@ export class ChatGateway
     @ConnectedSocket() client: Socket,
     @MessageBody() data: CallActionDto,
   ) {
-    return await this.callService.acceptCall(client, data.callId);
+    return await this.callService.acceptCall(client, data);
   }
 
   @SubscribeMessage(EventsEnum.CALL_REJECT)
@@ -297,7 +299,7 @@ export class ChatGateway
     @ConnectedSocket() client: Socket,
     @MessageBody() data: CallActionDto,
   ) {
-    return await this.callService.rejectCall(client, data.callId);
+    return await this.callService.rejectCall(client, data);
   }
 
   @SubscribeMessage(EventsEnum.CALL_END)
@@ -305,7 +307,7 @@ export class ChatGateway
     @ConnectedSocket() client: Socket,
     @MessageBody() data: CallActionDto,
   ) {
-    return await this.callService.endCall(client, data.callId);
+    return await this.callService.endCall(client, data);
   }
 
   /** ---------------- WebRTC signalling (forward to CallService) ---------------- */
@@ -314,7 +316,7 @@ export class ChatGateway
     @ConnectedSocket() client: Socket,
     @MessageBody() payload: RTCOfferDto,
   ) {
-    return await this.callService.forwardOffer(client, payload);
+    return await this.webRTCService.forwardOffer(client, payload);
   }
 
   @SubscribeMessage(EventsEnum.RTC_ANSWER)
@@ -322,7 +324,7 @@ export class ChatGateway
     @ConnectedSocket() client: Socket,
     @MessageBody() payload: RTCAnswerDto,
   ) {
-    return await this.callService.forwardAnswer(client, payload);
+    return await this.webRTCService.forwardAnswer(client, payload);
   }
 
   @SubscribeMessage(EventsEnum.RTC_ICE_CANDIDATE)
@@ -330,7 +332,7 @@ export class ChatGateway
     @ConnectedSocket() client: Socket,
     @MessageBody() payload: RTCIceCandidateDto,
   ) {
-    return await this.callService.forwardCandidate(client, payload);
+    return await this.webRTCService.forwardCandidate(client, payload);
   }
 
   /** ---------------- Socket helpers used by CallService ---------------- */

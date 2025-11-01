@@ -1,14 +1,17 @@
 import { Type } from 'class-transformer';
-import { IsNumber, IsOptional, IsString } from 'class-validator';
+import { IsNotEmpty, IsNumber, IsOptional, IsString } from 'class-validator';
 
 export class RTCOfferDto {
   @IsString()
+  @IsNotEmpty()
   callId: string;
 
   @IsString()
+  @IsNotEmpty()
   sdp: string;
 
   @IsString()
+  @IsNotEmpty()
   to: string;
 
   @IsOptional()
@@ -18,12 +21,15 @@ export class RTCOfferDto {
 
 export class RTCAnswerDto {
   @IsString()
+  @IsNotEmpty()
   callId: string;
 
   @IsString()
+  @IsNotEmpty()
   sdp: string;
 
   @IsString()
+  @IsNotEmpty()
   to: string;
 
   @IsOptional()
@@ -33,12 +39,15 @@ export class RTCAnswerDto {
 
 export class RTCIceCandidateDto {
   @IsString()
+  @IsNotEmpty()
   callId: string;
 
   @IsString()
+  @IsNotEmpty()
   candidate: string;
 
   @IsString()
+  @IsNotEmpty()
   sdpMid: string;
 
   @Type(() => Number)
@@ -46,6 +55,7 @@ export class RTCIceCandidateDto {
   sdpMLineIndex: number;
 
   @IsString()
+  @IsNotEmpty()
   to: string;
 
   @IsOptional()

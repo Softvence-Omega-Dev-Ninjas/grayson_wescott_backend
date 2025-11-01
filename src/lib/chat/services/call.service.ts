@@ -4,6 +4,7 @@ import {
   CallStatus,
   CallType as PrismaCallType,
 } from '@prisma/client';
+import { EventsEnum } from '@project/common/enum/events.enum';
 import { HandleError } from '@project/common/error/handle-error.decorator';
 import {
   successResponse,
@@ -11,14 +12,8 @@ import {
 } from '@project/common/utils/response.util';
 import { PrismaService } from '@project/lib/prisma/prisma.service';
 import { Socket } from 'socket.io';
-import { EventsEnum } from '../../../common/enum/events.enum';
 import { ChatGateway } from '../chat.gateway';
-import { InitiateCallDto } from '../dto/call.dto';
-import {
-  RTCAnswerDto,
-  RTCIceCandidateDto,
-  RTCOfferDto,
-} from '../dto/webrtc.dto';
+import { CallActionDto, InitiateCallDto } from '../dto/call.dto';
 
 @Injectable()
 export class CallService {
@@ -34,7 +29,9 @@ export class CallService {
     private readonly prisma: PrismaService,
     @Inject(forwardRef(() => ChatGateway))
     private readonly chatGateway: ChatGateway,
-  ) {}
+  ) {
+    this.logger.log('CallService initialized');
+  }
 
   /** -------------------- Initiate (ADMIN -> USER) -------------------- */
   @HandleError('Failed to initiate call', 'CallService')
@@ -42,35 +39,67 @@ export class CallService {
     client: Socket,
     dto: InitiateCallDto,
   ): Promise<TResponse<any>> {
+    this.logger.log(
+      `Initiating call for conversationId: ${dto.conversationId}, type: ${dto.type}`,
+    );
+
     const callerId = client.data.userId;
-    if (!callerId) return this.chatGateway.emitError(client, 'Unauthorized');
+    if (!callerId) {
+      this.logger.warn('Unauthorized call initiation attempt - no userId');
+      return this.chatGateway.emitError(client, 'Unauthorized');
+    }
+
+    this.logger.debug(`Caller identified: ${callerId}`);
 
     const conversation = await this.prisma.privateConversation.findUnique({
       where: { id: dto.conversationId },
       include: { participants: true },
     });
-    if (!conversation)
+
+    if (!conversation) {
+      this.logger.warn(
+        `Conversation not found: ${dto.conversationId} for caller: ${callerId}`,
+      );
       return this.chatGateway.emitError(client, 'Conversation not found');
+    }
+
+    this.logger.debug(
+      `Conversation found with ${conversation.participants.length} participants`,
+    );
 
     // caller must be an ADMIN_GROUP participant
     const callerParticipant = conversation.participants.find(
       (p) => p.userId === callerId && p.type === 'ADMIN_GROUP',
     );
-    if (!callerParticipant)
+
+    if (!callerParticipant) {
+      this.logger.warn(
+        `Non-admin user ${callerId} attempted to initiate call in conversation ${dto.conversationId}`,
+      );
       return this.chatGateway.emitError(
         client,
         'Only admins may initiate calls',
       );
+    }
+
+    this.logger.debug(`Admin caller verified: ${callerId}`);
 
     // pick the single user participant (one-to-one)
     const userParticipant = conversation.participants.find(
       (p) => p.type === 'USER' && p.userId,
     );
-    if (!userParticipant)
+
+    if (!userParticipant) {
+      this.logger.warn(
+        `No user participant found in conversation ${dto.conversationId}`,
+      );
       return this.chatGateway.emitError(
         client,
         'No user in conversation to call',
       );
+    }
+
+    this.logger.debug(`Target user identified: ${userParticipant.userId}`);
 
     // create call with two participant records: initiator joined, target missed
     const call = await this.prisma.privateCall.create({
@@ -95,54 +124,92 @@ export class CallService {
       include: { participants: true },
     });
 
+    this.logger.log(
+      `Call created: ${call.id} - initiator: ${callerId}, target: ${userParticipant.userId}`,
+    );
+
     // store socket mapping preferring initiator socket
     const map = new Map<string, string>();
     map.set(callerId, client.id);
     this.callSocketMap.set(call.id, map);
+
+    this.logger.debug(
+      `Socket mapping stored for call ${call.id}: ${callerId} -> ${client.id}`,
+    );
 
     // notify the target user (single recipient)
     const targetSocket = this.findTargetSocketForRecipient(
       call.id,
       userParticipant.userId!,
     );
+
     if (targetSocket) {
+      this.logger.log(
+        `Notifying target user ${userParticipant.userId} on socket ${targetSocket}`,
+      );
       this.chatGateway.emitToSocketId(
         targetSocket,
         EventsEnum.CALL_INCOMING,
         successResponse({ call, from: callerId }),
+      );
+    } else {
+      this.logger.warn(
+        `Target user ${userParticipant.userId} has no active socket`,
       );
     }
 
     // start ring timeout (mark missed if nobody joins)
     this.setRingTimeout(call.id, 30_000);
 
+    this.logger.log(`Call ${call.id} initiated successfully`);
     return successResponse(call, 'Call initiated');
   }
 
   /** -------------------- Accept (USER accepts) -------------------- */
   @HandleError('Failed to accept call', 'CallService')
-  async acceptCall(client: Socket, callId: string): Promise<TResponse<any>> {
+  async acceptCall(
+    client: Socket,
+    dto: CallActionDto,
+  ): Promise<TResponse<any>> {
+    this.logger.log(`Accepting call: ${dto.callId}`);
+
     const userId = client.data.userId;
-    if (!userId) return this.chatGateway.emitError(client, 'Unauthorized');
+    if (!userId) {
+      this.logger.warn('Unauthorized accept attempt - no userId');
+      return this.chatGateway.emitError(client, 'Unauthorized');
+    }
+
+    this.logger.debug(`User accepting call: ${userId}`);
 
     // validate call exists and user is a participant
     const call = await this.prisma.privateCall.findUnique({
-      where: { id: callId },
+      where: { id: dto.callId },
       include: { participants: true },
     });
-    if (!call) return this.chatGateway.emitError(client, 'Call not found');
+
+    if (!call) {
+      this.logger.warn(`Call not found: ${dto.callId} for user: ${userId}`);
+      return this.chatGateway.emitError(client, 'Call not found');
+    }
+
+    this.logger.debug(`Call found: ${dto.callId}, status: ${call.status}`);
 
     // mark participant as JOINED (create if missing)
     const existing = call.participants.find((p) => p.userId === userId);
+
     if (existing) {
+      this.logger.debug(
+        `Updating existing participant ${existing.id} to JOINED`,
+      );
       await this.prisma.privateCallParticipant.update({
         where: { id: existing.id },
         data: { status: CallParticipantStatus.JOINED, joinedAt: new Date() },
       });
     } else {
+      this.logger.debug(`Creating new participant record for ${userId}`);
       await this.prisma.privateCallParticipant.create({
         data: {
-          callId,
+          callId: dto.callId,
           userId,
           status: CallParticipantStatus.JOINED,
           joinedAt: new Date(),
@@ -152,17 +219,21 @@ export class CallService {
 
     // move call -> ONGOING if still INITIATED
     if (call.status === CallStatus.INITIATED) {
+      this.logger.log(`Moving call ${dto.callId} to ONGOING status`);
       await this.prisma.privateCall.update({
-        where: { id: callId },
+        where: { id: dto.callId },
         data: { status: CallStatus.ONGOING, startedAt: new Date() },
       });
     }
 
     // record socket mapping for deterministic routing
-    this.ensureCallSocketEntry(callId).set(userId, client.id);
+    this.ensureCallSocketEntry(dto.callId).set(userId, client.id);
+    this.logger.debug(
+      `Socket mapping updated for call ${dto.callId}: ${userId} -> ${client.id}`,
+    );
 
     // clear ring timeout
-    this.clearRingTimeout(callId);
+    this.clearRingTimeout(dto.callId);
 
     // notify initiator (admin) that user accepted
     const initiator = call.participants.find((p) => p.userId !== userId);
@@ -172,43 +243,73 @@ export class CallService {
         initiator.userId,
       );
       if (targetSock) {
+        this.logger.log(
+          `Notifying initiator ${initiator.userId} that call was accepted`,
+        );
         this.chatGateway.emitToSocketId(
           targetSock,
           EventsEnum.CALL_ACCEPT,
-          successResponse({ callId, userId }),
+          successResponse({ callId: dto.callId, userId }),
+        );
+      } else {
+        this.logger.warn(
+          `Initiator ${initiator.userId} has no active socket to notify`,
         );
       }
     }
 
-    return successResponse({ callId, userId }, 'Call accepted');
+    this.logger.log(`Call ${dto.callId} accepted by user ${userId}`);
+    return successResponse({ callId: dto.callId, userId }, 'Call accepted');
   }
 
   /** -------------------- Reject (USER rejects) -------------------- */
   @HandleError('Failed to reject call', 'CallService')
-  async rejectCall(client: Socket, callId: string): Promise<TResponse<any>> {
+  async rejectCall(
+    client: Socket,
+    dto: CallActionDto,
+  ): Promise<TResponse<any>> {
+    this.logger.log(`Rejecting call: ${dto.callId}`);
+
     const userId = client.data.userId;
-    if (!userId) return this.chatGateway.emitError(client, 'Unauthorized');
+    if (!userId) {
+      this.logger.warn('Unauthorized reject attempt - no userId');
+      return this.chatGateway.emitError(client, 'Unauthorized');
+    }
+
+    this.logger.debug(`User rejecting call: ${userId}`);
 
     const call = await this.prisma.privateCall.findUnique({
-      where: { id: callId },
+      where: { id: dto.callId },
       include: { participants: true },
     });
-    if (!call) return this.chatGateway.emitError(client, 'Call not found');
+
+    if (!call) {
+      this.logger.warn(`Call not found: ${dto.callId} for user: ${userId}`);
+      return this.chatGateway.emitError(client, 'Call not found');
+    }
+
+    this.logger.debug(`Call found: ${dto.callId}, marking as rejected`);
 
     // mark this participant missed/rejected
     await this.prisma.privateCallParticipant.updateMany({
-      where: { callId, userId },
+      where: { callId: dto.callId, userId },
       data: { status: CallParticipantStatus.MISSED, leftAt: new Date() },
     });
 
+    this.logger.debug(`Participant ${userId} marked as MISSED`);
+
     // mark call missed and notify initiator
     await this.prisma.privateCall.update({
-      where: { id: callId },
+      where: { id: dto.callId },
       data: { status: CallStatus.MISSED, endedAt: new Date() },
     });
 
-    this.clearRingTimeout(callId);
-    this.callSocketMap.delete(callId);
+    this.logger.log(`Call ${dto.callId} marked as MISSED`);
+
+    this.clearRingTimeout(dto.callId);
+    this.callSocketMap.delete(dto.callId);
+
+    this.logger.debug(`Cleaned up resources for call ${dto.callId}`);
 
     const initiator = call.participants.find((p) => p.userId !== userId);
     if (initiator?.userId) {
@@ -217,192 +318,112 @@ export class CallService {
         initiator.userId,
       );
       if (targetSock) {
+        this.logger.log(
+          `Notifying initiator ${initiator.userId} that call was rejected`,
+        );
         this.chatGateway.emitToSocketId(
           targetSock,
           EventsEnum.CALL_MISSED,
-          successResponse({ callId, by: userId }),
+          successResponse({ callId: dto.callId, by: userId }),
+        );
+      } else {
+        this.logger.warn(
+          `Initiator ${initiator.userId} has no active socket to notify`,
         );
       }
     }
 
-    return successResponse({ callId, userId }, 'Call rejected');
+    this.logger.log(`Call ${dto.callId} rejected by user ${userId}`);
+    return successResponse({ callId: dto.callId, userId }, 'Call rejected');
   }
 
   /** -------------------- End call (either side) -------------------- */
   @HandleError('Failed to end call', 'CallService')
-  async endCall(client: Socket, callId: string): Promise<TResponse<any>> {
+  async endCall(client: Socket, dto: CallActionDto): Promise<TResponse<any>> {
+    this.logger.log(`Ending call: ${dto.callId}`);
+
+    const userId = client.data.userId;
+    this.logger.debug(`End call requested by user: ${userId}`);
+
     // mark ended and notify both sides (if present)
     const call = await this.prisma.privateCall.update({
-      where: { id: callId },
+      where: { id: dto.callId },
       data: { status: CallStatus.ENDED, endedAt: new Date() },
       include: { participants: true },
     });
 
-    this.clearRingTimeout(callId);
+    this.logger.log(`Call ${dto.callId} marked as ENDED`);
+
+    this.clearRingTimeout(dto.callId);
 
     // notify remaining participants
+    let notifiedCount = 0;
     for (const p of call.participants) {
       if (!p.userId) continue;
       const sock = this.findTargetSocketForRecipient(call.id, p.userId);
       if (sock) {
+        this.logger.debug(`Notifying participant ${p.userId} of call end`);
         this.chatGateway.emitToSocketId(
           sock,
           EventsEnum.CALL_END,
-          successResponse({ callId }),
+          successResponse({ callId: dto.callId }),
         );
+        notifiedCount++;
       }
     }
 
-    this.callSocketMap.delete(callId);
-    return successResponse({ callId }, 'Call ended');
-  }
-
-  /** -------------------- Signalling forwards (simplified) -------------------- */
-  @HandleError('Failed to forward offer', 'CallService')
-  async forwardOffer(
-    client: Socket,
-    payload: RTCOfferDto,
-  ): Promise<TResponse<any>> {
-    const from = client.data.userId;
-    if (!from) return this.chatGateway.emitError(client, 'Unauthorized');
-
-    // forward only to the other party (one-to-one)
-    const call = await this.prisma.privateCall.findUnique({
-      where: { id: payload.callId },
-      include: { participants: true },
-    });
-    if (!call) return this.chatGateway.emitError(client, 'Call not found');
-
-    const other = call.participants.find((p) => p.userId !== from);
-    if (!other?.userId)
-      return this.chatGateway.emitError(client, 'Recipient not found');
-
-    const target = this.findTargetSocketForRecipient(
-      call.id,
-      other.userId,
-      payload.to,
-      client.id,
-    );
-    if (!target)
-      return this.chatGateway.emitError(client, 'Recipient not available');
-
-    this.chatGateway.emitToSocketId(
-      target,
-      EventsEnum.RTC_OFFER,
-      successResponse({ callId: call.id, sdp: payload.sdp, from }),
+    this.logger.log(
+      `Notified ${notifiedCount}/${call.participants.length} participants of call end`,
     );
 
-    // record mapping prefer sender's socket for call
-    this.ensureCallSocketEntry(call.id).set(from, client.id);
-    return successResponse(payload, 'Offer forwarded');
-  }
+    this.callSocketMap.delete(dto.callId);
+    this.logger.debug(`Cleaned up resources for call ${dto.callId}`);
 
-  @HandleError('Failed to forward answer', 'CallService')
-  async forwardAnswer(
-    client: Socket,
-    payload: RTCAnswerDto,
-  ): Promise<TResponse<any>> {
-    const from = client.data.userId;
-    if (!from) return this.chatGateway.emitError(client, 'Unauthorized');
-
-    const call = await this.prisma.privateCall.findUnique({
-      where: { id: payload.callId },
-      include: { participants: true },
-    });
-    if (!call) return this.chatGateway.emitError(client, 'Call not found');
-
-    const other = call.participants.find((p) => p.userId !== from);
-    if (!other?.userId)
-      return this.chatGateway.emitError(client, 'Recipient not found');
-
-    const target = this.findTargetSocketForRecipient(
-      call.id,
-      other.userId,
-      payload.to,
-      client.id,
-    );
-    if (!target)
-      return this.chatGateway.emitError(client, 'Recipient not available');
-
-    this.chatGateway.emitToSocketId(
-      target,
-      EventsEnum.RTC_ANSWER,
-      successResponse({ callId: call.id, sdp: payload.sdp, from }),
-    );
-    this.ensureCallSocketEntry(call.id).set(from, client.id);
-    return successResponse(payload, 'Answer forwarded');
-  }
-
-  @HandleError('Failed to forward candidate', 'CallService')
-  async forwardCandidate(
-    client: Socket,
-    payload: RTCIceCandidateDto,
-  ): Promise<TResponse<any>> {
-    const from = client.data.userId;
-    if (!from) return this.chatGateway.emitError(client, 'Unauthorized');
-
-    const call = await this.prisma.privateCall.findUnique({
-      where: { id: payload.callId },
-      include: { participants: true },
-    });
-    if (!call) return this.chatGateway.emitError(client, 'Call not found');
-
-    const other = call.participants.find((p) => p.userId !== from);
-    if (!other?.userId)
-      return this.chatGateway.emitError(client, 'Recipient not found');
-
-    const target = this.findTargetSocketForRecipient(
-      call.id,
-      other.userId,
-      payload.to,
-      client.id,
-    );
-    if (!target)
-      return this.chatGateway.emitError(client, 'Recipient not available');
-
-    this.chatGateway.emitToSocketId(
-      target,
-      EventsEnum.RTC_ICE_CANDIDATE,
-      successResponse({
-        callId: call.id,
-        candidate: payload.candidate,
-        sdpMid: payload.sdpMid,
-        sdpMLineIndex: payload.sdpMLineIndex,
-        from,
-      }),
-    );
-    this.ensureCallSocketEntry(call.id).set(from, client.id);
-    return successResponse(payload, 'Candidate forwarded');
+    this.logger.log(`Call ${dto.callId} ended successfully`);
+    return successResponse({ callId: dto.callId }, 'Call ended');
   }
 
   /** -------------------- Helpers -------------------- */
   private ensureCallSocketEntry(callId: string) {
-    if (!this.callSocketMap.has(callId))
+    if (!this.callSocketMap.has(callId)) {
+      this.logger.debug(`Creating new socket map entry for call ${callId}`);
       this.callSocketMap.set(callId, new Map());
+    }
     return this.callSocketMap.get(callId)!;
   }
 
-  private findTargetSocketForRecipient(
+  findTargetSocketForRecipient(
     callId: string,
     recipientUserId: string,
     // allow client to hint socket/userId; prefer recorded socket then active sockets
     payloadTo?: string,
     excludeSocketId?: string,
   ): string | null {
+    this.logger.debug(
+      `Finding target socket for recipient ${recipientUserId} in call ${callId}`,
+    );
+
     // prefer explicit socket id if it matches active sockets
     if (payloadTo && typeof payloadTo === 'string') {
+      this.logger.debug(`Checking explicit socket hint: ${payloadTo}`);
       const active = this.chatGateway.getActiveSocketIdsForUser(
         recipientUserId,
         excludeSocketId,
       );
-      if (active.includes(payloadTo)) return payloadTo;
+      if (active.includes(payloadTo)) {
+        this.logger.debug(`Using hinted socket: ${payloadTo}`);
+        return payloadTo;
+      }
     }
 
     // prefer recorded socket for this call
     const map = this.callSocketMap.get(callId);
     if (map) {
       const recorded = map.get(recipientUserId);
-      if (recorded && recorded !== excludeSocketId) return recorded;
+      if (recorded && recorded !== excludeSocketId) {
+        this.logger.debug(`Using recorded socket: ${recorded}`);
+        return recorded;
+      }
     }
 
     // fallback to first active socket for user
@@ -410,13 +431,19 @@ export class CallService {
       recipientUserId,
       excludeSocketId,
     );
-    if (active.length) return active[0];
+    if (active.length) {
+      this.logger.debug(`Using first active socket: ${active[0]}`);
+      return active[0];
+    }
 
+    this.logger.warn(`No socket found for recipient ${recipientUserId}`);
     return null;
   }
 
   private setRingTimeout(callId: string, ms = 30_000) {
+    this.logger.debug(`Setting ring timeout for call ${callId}: ${ms}ms`);
     this.clearRingTimeout(callId);
+
     const t = setTimeout(async () => {
       try {
         this.logger.log(`Call ${callId} ring timeout -> marking missed`);
@@ -425,18 +452,24 @@ export class CallService {
           data: { status: CallStatus.MISSED, endedAt: new Date() },
         });
         this.callSocketMap.delete(callId);
+        this.logger.log(`Call ${callId} marked as missed due to timeout`);
       } catch (err) {
-        this.logger.error('Failed to mark missed', err as any);
+        this.logger.error(
+          `Failed to mark call ${callId} as missed`,
+          err as any,
+        );
       } finally {
         this.clearRingTimeout(callId);
       }
     }, ms);
+
     this.ringTimeouts.set(callId, t);
   }
 
   private clearRingTimeout(callId: string) {
     const t = this.ringTimeouts.get(callId);
     if (t) {
+      this.logger.debug(`Clearing ring timeout for call ${callId}`);
       clearTimeout(t);
       this.ringTimeouts.delete(callId);
     }
