@@ -1,16 +1,15 @@
-import { IsOptional, IsString } from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsNumber, IsOptional, IsString } from 'class-validator';
 
 export class RTCOfferDto {
   @IsString()
   callId: string;
 
   @IsString()
-  sdp: string; // Session Description
+  sdp: string;
 
-  // optional routing hints (userId or socketId)
-  @IsOptional()
   @IsString()
-  to?: string;
+  to: string;
 
   @IsOptional()
   @IsString()
@@ -24,10 +23,8 @@ export class RTCAnswerDto {
   @IsString()
   sdp: string;
 
-  // optional routing hints (userId or socketId)
-  @IsOptional()
   @IsString()
-  to?: string;
+  to: string;
 
   @IsOptional()
   @IsString()
@@ -44,13 +41,12 @@ export class RTCIceCandidateDto {
   @IsString()
   sdpMid: string;
 
-  @IsString()
-  sdpMLineIndex: string;
+  @Type(() => Number)
+  @IsNumber()
+  sdpMLineIndex: number;
 
-  // optional routing hints (userId or socketId)
-  @IsOptional()
   @IsString()
-  to?: string;
+  to: string;
 
   @IsOptional()
   @IsString()

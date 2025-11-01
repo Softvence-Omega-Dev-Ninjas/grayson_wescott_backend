@@ -39,7 +39,6 @@ import { ClientConversationService } from './services/client-conversation.servic
 import { ConversationService } from './services/conversation.service';
 import { MessageService } from './services/message.service';
 import { SingleConversationService } from './services/single-conversation.service';
-import { WebRTCService } from './services/webrtc.service';
 
 @WebSocketGateway({
   cors: { origin: '*' },
@@ -62,7 +61,6 @@ export class ChatGateway
     private readonly singleConversationService: SingleConversationService,
     private readonly clientConversationService: ClientConversationService,
     private readonly callService: CallService,
-    private readonly webRTCService: WebRTCService,
     private readonly configService: ConfigService,
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
@@ -302,22 +300,6 @@ export class ChatGateway
     return await this.callService.rejectCall(client, data.callId);
   }
 
-  @SubscribeMessage(EventsEnum.CALL_JOIN)
-  async onCallJoin(
-    @ConnectedSocket() client: Socket,
-    @MessageBody() data: CallActionDto,
-  ) {
-    return await this.callService.joinCall(client, data.callId);
-  }
-
-  @SubscribeMessage(EventsEnum.CALL_LEAVE)
-  async onCallLeave(
-    @ConnectedSocket() client: Socket,
-    @MessageBody() data: CallActionDto,
-  ) {
-    return await this.callService.leaveCall(client, data.callId);
-  }
-
   @SubscribeMessage(EventsEnum.CALL_END)
   async onCallEnd(
     @ConnectedSocket() client: Socket,
@@ -351,12 +333,7 @@ export class ChatGateway
     return await this.callService.forwardCandidate(client, payload);
   }
 
-  // inside ChatGateway class (add these methods near subscribeClient/unsubscribeClient)
-
-  /**
-   * Return active socket ids for a user (excluding an optional socket id).
-   * This uses the internal `clients` Map<userId, Set<Socket>> that you already maintain.
-   */
+  /** ---------------- Socket helpers used by CallService ---------------- */
   public getActiveSocketIdsForUser(
     userId: string,
     excludeSocketId?: string,
@@ -370,23 +347,14 @@ export class ChatGateway
     return ids;
   }
 
-  /**
-   * Emit to a specific socket id (targeted emission).
-   * Example: this.emitToSocketId(targetSockId, EventsEnum.RTC_ANSWER, payload)
-   */
   public emitToSocketId(
     socketId: string,
     event: EventsEnum | string,
     payload: any,
   ) {
-    // use server.to(socketId) to send to the single socket
     this.server.to(socketId).emit(event, payload);
   }
 
-  /**
-   * Optional convenience: emit to the first active socket of a user (excluding an optional socket).
-   * Useful when you want a simple "deliver to one of user's tabs" behavior.
-   */
   public emitToUserFirstSocket(
     userId: string,
     event: EventsEnum | string,
@@ -399,9 +367,7 @@ export class ChatGateway
     return true;
   }
 
-  // small change: send errors to a single socket, not the whole user room
   public emitError(client: Socket, message: string) {
-    // prefer to send error to the single connected socket that asked for it
     this.server
       .to(client.id)
       .emit(EventsEnum.ERROR, errorResponse(null, message));
