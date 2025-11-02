@@ -311,7 +311,7 @@ export class ChatGateway
   }
 
   /** ---------------- WebRTC signalling (forward to CallService) ---------------- */
-  @SubscribeMessage(EventsEnum.RTC_OFFER)
+  @SubscribeMessage(EventsEnum.SEND_OFFER)
   async onRTCOffer(
     @ConnectedSocket() client: Socket,
     @MessageBody() payload: RTCOfferDto,
@@ -319,7 +319,7 @@ export class ChatGateway
     return await this.webRTCService.forwardOffer(client, payload);
   }
 
-  @SubscribeMessage(EventsEnum.RTC_ANSWER)
+  @SubscribeMessage(EventsEnum.SEND_ANSWER)
   async onRTCAnswer(
     @ConnectedSocket() client: Socket,
     @MessageBody() payload: RTCAnswerDto,
@@ -327,7 +327,7 @@ export class ChatGateway
     return await this.webRTCService.forwardAnswer(client, payload);
   }
 
-  @SubscribeMessage(EventsEnum.RTC_ICE_CANDIDATE)
+  @SubscribeMessage(EventsEnum.SEND_ICE_CANDIDATE)
   async onRTCIceCandidate(
     @ConnectedSocket() client: Socket,
     @MessageBody() payload: RTCIceCandidateDto,
