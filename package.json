@@ -7,9 +7,9 @@
   "private": true,
   "license": "UNLICENSED",
   "scripts": {
-    "dev": "nest start --watch",
-    "build": "nest build",
-    "start": "npx prisma generate && npx prisma migrate deploy && node dist/main",
+    "dev": "node api.js && nest start --watch",
+    "build": "node api.js && nest build",
+    "start": "node api.js && npx prisma generate && npx prisma migrate deploy && node dist/main",
     "start:debug": "nest start --debug --watch",
     "lint": "eslint . --ext .ts",
     "lint:fix": "eslint . --ext .ts --fix",
